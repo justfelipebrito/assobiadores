@@ -1,37 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminAuth, getAdminFirestore } from '@batalha/firebase/src/admin';
+import { getAdminFirestore } from '@batalha/firebase/src/admin';
+import { ApiError, getErrorResponse } from '../../../../../server/api-errors';
+import { requireDecodedToken } from '../../../../../server/auth';
 
 export async function GET(
   req: NextRequest,
   { params }: { params: { paymentId: string } },
 ) {
   try {
-    const authHeader = req.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 });
-    }
-
-    const token = authHeader.split('Bearer ')[1]!;
-    const auth = getAdminAuth();
-    const decodedToken = await auth.verifyIdToken(token);
+    const decodedToken = await requireDecodedToken(req);
 
     const db = getAdminFirestore();
     const paymentDoc = await db.collection('payments').doc(params.paymentId).get();
 
     if (!paymentDoc.exists) {
-      return NextResponse.json({ error: 'Pagamento nao encontrado' }, { status: 404 });
+      throw new ApiError(404, 'Pagamento nao encontrado');
     }
 
     const payment = paymentDoc.data()!;
 
     // Only allow owner to check
     if (payment.userId !== decodedToken.uid) {
-      return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
+      throw new ApiError(403, 'Nao autorizado');
     }
 
-    return NextResponse.json({ status: payment.status });
+    const expiresAt = payment.expiresAt?.toDate
+      ? payment.expiresAt.toDate().toISOString()
+      : payment.expiresAt;
+
+    return NextResponse.json({
+      status: payment.status,
+      entryId: payment.entryId,
+      expiresAt,
+    });
   } catch (error) {
-    console.error('Payment status check error:', error);
-    return NextResponse.json({ error: 'Erro interno' }, { status: 500 });
+    if (!(error instanceof ApiError)) {
+      console.error('Payment status check error:', error);
+    }
+    const response = getErrorResponse(error, 'Erro interno');
+    return NextResponse.json({ error: response.error }, { status: response.status });
   }
 }

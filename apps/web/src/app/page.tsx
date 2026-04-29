@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { useCollection, orderBy, limit, where } from '@batalha/firebase';
 import { Button, Badge, Card, CardContent, Avatar, Skeleton } from '@batalha/ui';
-import { formatCurrency, formatNumber, formatRelativeTime, getRankTier } from '@batalha/utils';
+import { formatCurrency, formatNumber, formatRelativeTime, getRankTier, toDate } from '@batalha/utils';
 import type { Battle, User } from '@batalha/types';
 
 const STATUS_MAP: Record<string, { label: string; variant: 'success' | 'warning' | 'info' | 'default' | 'purple' }> = {
@@ -22,15 +22,6 @@ const PLACE_ICONS = [
   <Medal key="2" className="h-4 w-4 text-surface-300" />,
   <Award key="3" className="h-4 w-4 text-amber-600" />,
 ];
-
-function toDate(val: unknown): Date | null {
-  if (!val) return null;
-  if (val instanceof Date) return val;
-  if (typeof val === 'object' && val !== null && 'seconds' in val) {
-    return new Date((val as { seconds: number }).seconds * 1000);
-  }
-  return null;
-}
 
 export default function HomePage() {
   const { data: battles, loading: battlesLoading } = useCollection<Battle>(

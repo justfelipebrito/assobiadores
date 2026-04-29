@@ -1,40 +1,7 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions/v2';
-
-const POINTS_TABLE = { first: 100, second: 70, third: 50, participation: 10 };
-
-function getPointsForPlace(place: number): number {
-  switch (place) {
-    case 1:
-      return POINTS_TABLE.first;
-    case 2:
-      return POINTS_TABLE.second;
-    case 3:
-      return POINTS_TABLE.third;
-    default:
-      return POINTS_TABLE.participation;
-  }
-}
-
-const RANKS = [
-  { minPoints: 0, name: 'Iniciante' },
-  { minPoints: 50, name: 'Aprendiz' },
-  { minPoints: 150, name: 'Assobiador' },
-  { minPoints: 400, name: 'Assobiador Experiente' },
-  { minPoints: 800, name: 'Mestre Assobiador' },
-  { minPoints: 1500, name: 'Grão-Mestre' },
-  { minPoints: 3000, name: 'Lenda do Assobio' },
-];
-
-function calculateRank(points: number): string {
-  for (let i = RANKS.length - 1; i >= 0; i--) {
-    if (points >= RANKS[i]!.minPoints) {
-      return RANKS[i]!.name;
-    }
-  }
-  return RANKS[0]!.name;
-}
+import { calculateRank, getPointsForPlace, getPrizeForPlace, POINTS_TABLE } from '../domain/ranking';
 
 export const finalizeBattle = onCall(
   { region: 'southamerica-east1' },
@@ -97,14 +64,7 @@ export const finalizeBattle = onCall(
       const sub = topSubmissions[i]!;
       const place = i + 1;
       const points = getPointsForPlace(place);
-      const prize =
-        battle.prizeDistribution
-          ? (place === 1
-              ? battle.prizeDistribution.first
-              : place === 2
-                ? battle.prizeDistribution.second
-                : battle.prizeDistribution.third)
-          : 0;
+      const prize = getPrizeForPlace(place, battle.prizeDistribution);
 
       winners.push({
         userId: sub.data().userId,

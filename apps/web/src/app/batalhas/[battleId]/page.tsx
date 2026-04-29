@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { useDocument } from '@batalha/firebase';
 import { Badge, Button, Card, CardContent, Skeleton, EmptyState } from '@batalha/ui';
-import { formatCurrency, formatDateTime, formatRelativeTime } from '@batalha/utils';
+import { formatCurrency, formatDateTime, formatRelativeTime, toDate } from '@batalha/utils';
 import type { Battle } from '@batalha/types';
 
 const STATUS_CONFIG: Record<string, { label: string; variant: 'success' | 'warning' | 'info' | 'default' | 'purple'; description: string }> = {
@@ -17,15 +17,6 @@ const STATUS_CONFIG: Record<string, { label: string; variant: 'success' | 'warni
   voting: { label: 'Em votacao', variant: 'purple', description: 'Vote nas melhores submissoes!' },
   finished: { label: 'Finalizada', variant: 'default', description: 'Esta batalha ja foi encerrada.' },
 };
-
-function toDate(val: unknown): Date | null {
-  if (!val) return null;
-  if (val instanceof Date) return val;
-  if (typeof val === 'object' && val !== null && 'seconds' in val) {
-    return new Date((val as { seconds: number }).seconds * 1000);
-  }
-  return null;
-}
 
 export default function BattleDetailPage({ params }: { params: { battleId: string } }) {
   const { data: battle, loading } = useDocument<Battle>('battles', params.battleId);

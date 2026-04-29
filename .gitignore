@@ -6,9 +6,14 @@ node_modules/
 dist/
 .next/
 out/
+*.tsbuildinfo
 
 # Firebase
 .firebase/
+firebase-debug.log
+firebase-debug.*.log
+firestore-debug.log
+ui-debug.log
 
 # Environment
 .env

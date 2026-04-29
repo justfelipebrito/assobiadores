@@ -1,26 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminAuth, getAdminFirestore } from '@batalha/firebase/src/admin';
+import { getAdminFirestore } from '@batalha/firebase/src/admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { MercadoPagoConfig, Payment } from 'mercadopago';
+import { checkBattleEntryEligibility } from '@batalha/utils';
+import { ApiError, getErrorResponse } from '../../../../server/api-errors';
+import { requireDecodedToken } from '../../../../server/auth';
+import { readJsonObject } from '../../../../server/request';
 
 export async function POST(req: NextRequest) {
   try {
-    // Verify auth
-    const authHeader = req.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
-      return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 });
-    }
-
-    const token = authHeader.split('Bearer ')[1]!;
-    const auth = getAdminAuth();
-    const decodedToken = await auth.verifyIdToken(token);
+    const decodedToken = await requireDecodedToken(req);
     const userId = decodedToken.uid;
 
-    const body = await req.json();
+    const body = await readJsonObject(req);
     const { battleId } = body;
 
-    if (!battleId) {
-      return NextResponse.json({ error: 'battleId e obrigatorio' }, { status: 400 });
+    if (typeof battleId !== 'string' || !battleId) {
+      throw new ApiError(400, 'battleId e obrigatorio');
     }
 
     const db = getAdminFirestore();
@@ -32,30 +28,31 @@ export async function POST(req: NextRequest) {
     }
 
     const battle = battleDoc.data()!;
-    if (battle.status !== 'registration') {
-      return NextResponse.json({ error: 'Inscricoes encerradas' }, { status: 400 });
-    }
-
-    if (battle.entryFee <= 0) {
-      return NextResponse.json({ error: 'Batalha gratuita, nao requer pagamento' }, { status: 400 });
-    }
-
-    // Check for existing confirmed entry
+    // Check for existing active entry
     const existingEntry = await db
       .collection('battleEntries')
       .where('battleId', '==', battleId)
       .where('userId', '==', userId)
-      .where('status', '==', 'confirmed')
+      .where('status', 'in', ['pending_payment', 'confirmed'])
       .limit(1)
       .get();
 
-    if (!existingEntry.empty) {
-      return NextResponse.json({ error: 'Voce ja esta inscrito nesta batalha' }, { status: 400 });
-    }
+    const eligibility = checkBattleEntryEligibility({
+      status: battle.status,
+      entryFee: battle.entryFee ?? 0,
+      maxParticipants: battle.maxParticipants ?? 0,
+      currentParticipants: battle.currentParticipants ?? 0,
+      hasExistingEntry: !existingEntry.empty,
+      mode: 'paid',
+    });
 
-    // Check max participants
-    if (battle.maxParticipants > 0 && battle.currentParticipants >= battle.maxParticipants) {
-      return NextResponse.json({ error: 'Batalha lotada' }, { status: 400 });
+    if (!eligibility.allowed) {
+      const status =
+        eligibility.code === 'already_joined' || eligibility.code === 'battle_full' ? 409 : 400;
+      return NextResponse.json(
+        { error: eligibility.message || 'Nao foi possivel criar pagamento' },
+        { status },
+      );
     }
 
     // Get user email
@@ -126,10 +123,10 @@ export async function POST(req: NextRequest) {
       expiresAt: expiresAt.toISOString(),
     });
   } catch (error) {
-    console.error('Payment creation error:', error);
-    return NextResponse.json(
-      { error: 'Erro ao criar pagamento. Tente novamente.' },
-      { status: 500 },
-    );
+    if (!(error instanceof ApiError)) {
+      console.error('Payment creation error:', error);
+    }
+    const response = getErrorResponse(error, 'Erro ao criar pagamento. Tente novamente.');
+    return NextResponse.json({ error: response.error }, { status: response.status });
   }
 }

@@ -3,14 +3,12 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import {
-  ArrowLeft, Swords, Users, Trophy, Sparkles, CheckCircle2, AlertCircle, Loader2,
-} from 'lucide-react';
-import { useAuth, useDocument, getClientFirestore, doc, writeBatch, serverTimestamp, collection } from '@batalha/firebase';
+import { ArrowLeft, Swords, Users, Trophy, Sparkles, CheckCircle2, AlertCircle } from 'lucide-react';
+import { useAuth, useDocument } from '@batalha/firebase';
 import { Button, Card, CardContent, Badge, Skeleton, EmptyState } from '@batalha/ui';
 import { formatCurrency } from '@batalha/utils';
 import { toast } from 'sonner';
-import type { Battle, BattleEntry } from '@batalha/types';
+import type { Battle } from '@batalha/types';
 
 export default function BattleEntryPage({ params }: { params: { battleId: string } }) {
   const router = useRouter();
@@ -89,29 +87,21 @@ export default function BattleEntryPage({ params }: { params: { battleId: string
 
     setSubmitting(true);
     try {
-      const db = getClientFirestore();
-      const batch = writeBatch(db);
-
-      // Create battle entry
-      const entryRef = doc(collection(db, 'battleEntries'));
-      const entry: Omit<BattleEntry, 'id'> = {
-        battleId: params.battleId,
-        userId: user.uid,
-        paymentId: null,
-        status: 'confirmed',
-        createdAt: serverTimestamp(),
-      };
-      batch.set(entryRef, entry);
-
-      // Increment participant count
-      const battleRef = doc(db, 'battles', params.battleId);
-      const { increment } = await import('firebase/firestore');
-      batch.update(battleRef, {
-        currentParticipants: increment(1),
-        updatedAt: serverTimestamp(),
+      const token = await user.getIdToken();
+      const res = await fetch('/api/battle-entries/free', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ battleId: params.battleId }),
       });
 
-      await batch.commit();
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Erro ao participar');
+      }
+
       setJoined(true);
       toast.success('Voce esta na batalha!');
     } catch (err) {

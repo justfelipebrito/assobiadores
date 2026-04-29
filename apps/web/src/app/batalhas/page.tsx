@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Swords, Users, Clock, ArrowRight, Trophy, Sparkles, Filter } from 'lucide-react';
 import { useCollection, where, orderBy } from '@batalha/firebase';
 import { Badge, Button, Card, CardContent, Skeleton, EmptyState } from '@batalha/ui';
-import { formatCurrency, formatRelativeTime } from '@batalha/utils';
+import { formatCurrency, formatRelativeTime, toDate } from '@batalha/utils';
 import type { Battle, BattleStatus, BattleCategory } from '@batalha/types';
 
 const STATUS_MAP: Record<string, { label: string; variant: 'success' | 'warning' | 'info' | 'default' | 'purple' }> = {
@@ -186,6 +186,7 @@ export default function BattlesPage() {
           filtered.map((battle) => {
             const status = STATUS_MAP[battle.status] || STATUS_MAP.finished!;
             const isPaid = battle.entryFee > 0;
+            const registrationEnd = toDate(battle.registrationEnd);
 
             return (
               <Link key={battle.id} href={`/batalhas/${battle.id}`}>
@@ -215,14 +216,10 @@ export default function BattlesPage() {
                             {battle.currentParticipants}
                             {battle.maxParticipants > 0 && `/${battle.maxParticipants}`} participantes
                           </span>
-                          {battle.registrationEnd && (
+                          {registrationEnd && (
                             <span className="flex items-center gap-1.5">
                               <Clock className="h-4 w-4" />
-                              {formatRelativeTime(
-                                battle.registrationEnd instanceof Date
-                                  ? battle.registrationEnd
-                                  : new Date(battle.registrationEnd.seconds * 1000)
-                              )}
+                              {formatRelativeTime(registrationEnd)}
                             </span>
                           )}
                         </div>
