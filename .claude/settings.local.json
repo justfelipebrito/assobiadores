@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git init:*)",
+      "Bash(pnpm install:*)",
+      "Bash(pnpm turbo:*)",
+      "Bash(npx tsc:*)",
+      "Bash(pnpm ls:*)",
+      "Bash(timeout 15 pnpm dev:web)",
+      "Bash(pnpm dev:web)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000)",
+      "Bash(kill %1)",
+      "Bash(wait)"
+    ]
+  }
+}

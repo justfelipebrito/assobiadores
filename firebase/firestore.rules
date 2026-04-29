@@ -1,0 +1,69 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Users
+    match /users/{userId} {
+      allow read: if true;
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) &&
+        !request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['role', 'points', 'xp', 'rank', 'stats', 'badges']);
+      allow delete: if false;
+    }
+
+    // Battles
+    match /battles/{battleId} {
+      allow read: if true;
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    // Battle Entries
+    match /battleEntries/{entryId} {
+      allow read: if true;
+      allow create: if isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // Submissions
+    match /submissions/{submissionId} {
+      allow read: if true;
+      allow create: if isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid;
+      allow update: if isOwner(resource.data.userId) &&
+        resource.data.status == 'draft';
+      allow delete: if false;
+    }
+
+    // Payments - never client-writable
+    match /payments/{paymentId} {
+      allow read: if isOwner(resource.data.userId) || isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    // Votes
+    match /votes/{voteId} {
+      allow read: if true;
+      allow create: if isAuthenticated() &&
+        request.resource.data.voterId == request.auth.uid;
+      allow update, delete: if false;
+    }
+  }
+}
