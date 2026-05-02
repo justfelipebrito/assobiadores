@@ -1,9 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../../../server/api-errors';
 
 const getAdminFirestore = vi.fn();
 const requireDecodedToken = vi.fn();
-const mpCreate = vi.fn();
+const mpFetch = vi.fn();
 
 vi.mock('@batalha/firebase/src/admin', () => ({
   getAdminFirestore,
@@ -13,17 +13,15 @@ vi.mock('../../../../server/auth', () => ({
   requireDecodedToken,
 }));
 
-vi.mock('mercadopago', () => ({
-  MercadoPagoConfig: vi.fn(function MercadoPagoConfig() {
-    return {};
-  }),
-  Payment: vi.fn(function Payment() {
-    return { create: mpCreate };
-  }),
-}));
-
 function createQuerySnapshot(empty: boolean) {
   return { empty };
+}
+
+function createDocsQuerySnapshot(docs: unknown[] = []) {
+  return {
+    empty: docs.length === 0,
+    docs,
+  };
 }
 
 function createQuery(snapshot: unknown) {
@@ -40,10 +38,12 @@ function createDb({
   battle,
   battleExists = true,
   hasExistingEntry = false,
+  pendingPayment,
 }: {
   battle?: Record<string, unknown>;
   battleExists?: boolean;
   hasExistingEntry?: boolean;
+  pendingPayment?: Record<string, unknown> & { id?: string };
 }) {
   const battleDoc = {
     exists: battleExists,
@@ -55,8 +55,23 @@ function createDb({
   const entryRef = { id: 'entry-1' };
   const paymentRef = { id: 'payment-1' };
   const existingEntryQuery = createQuery(createQuerySnapshot(!hasExistingEntry));
+  const pendingPaymentQuery = createQuery(
+    createDocsQuerySnapshot(
+      pendingPayment
+        ? [
+            {
+              id: pendingPayment.id ?? 'pending-payment-1',
+              ref: { id: pendingPayment.id ?? 'pending-payment-1' },
+              data: () => pendingPayment,
+            },
+          ]
+        : [],
+    ),
+  );
   const batch = {
     set: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn(),
     commit: vi.fn(),
   };
 
@@ -75,7 +90,10 @@ function createDb({
         };
       }
       if (name === 'payments') {
-        return { doc: vi.fn(() => paymentRef) };
+        return {
+          doc: vi.fn(() => paymentRef),
+          where: pendingPaymentQuery.where,
+        };
       }
 
       throw new Error(`Unexpected collection ${name}`);
@@ -83,7 +101,7 @@ function createDb({
     batch: vi.fn(() => batch),
   };
 
-  return { db, batch, entryRef, paymentRef, existingEntryQuery };
+  return { db, batch, entryRef, paymentRef, existingEntryQuery, pendingPaymentQuery };
 }
 
 async function post(body: unknown = { battleId: 'battle-1' }) {
@@ -108,17 +126,31 @@ const paidBattle = {
 describe('POST /api/payments/create', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubGlobal('fetch', mpFetch);
     process.env.MP_ACCESS_TOKEN = 'test-token';
     requireDecodedToken.mockResolvedValue({ uid: 'user-1', email: 'token@example.com' });
-    mpCreate.mockResolvedValue({
-      id: 123,
-      point_of_interaction: {
-        transaction_data: {
-          qr_code_base64: 'base64-qr',
-          qr_code: 'pix-code',
+    mpFetch.mockResolvedValue({
+      ok: true,
+      status: 201,
+      json: async () => ({
+        id: 'order-123',
+        transactions: {
+          payments: [
+            {
+              id: 'payment-123',
+              payment_method: {
+                qr_code_base64: 'base64-qr',
+                qr_code: 'pix-code',
+              },
+            },
+          ],
         },
-      },
+      }),
     });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it('creates a Pix payment and pending battle entry for eligible paid battles', async () => {
@@ -134,19 +166,41 @@ describe('POST /api/payments/create', () => {
       pixCopiaECola: 'pix-code',
     });
     expect(res.status).toBe(200);
-    expect(mpCreate).toHaveBeenCalledWith({
-      body: expect.objectContaining({
-        transaction_amount: 5,
-        payment_method_id: 'pix',
-        payer: { email: 'user@example.com' },
-        description: 'Inscricao: Batalha paga',
+    expect(mpFetch).toHaveBeenCalledWith(
+      'https://api.mercadopago.com/v1/orders',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          authorization: 'Bearer test-token',
+          'x-idempotency-key': expect.stringMatching(/^user-1_battle-1_/),
+        }),
+        body: expect.any(String),
       }),
+    );
+    const [, requestInit] = mpFetch.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(requestInit.body))).toMatchObject({
+      type: 'online',
+      total_amount: '5.00',
+      processing_mode: 'automatic',
+      external_reference: expect.stringMatching(/^user-1_battle-1_/),
+      payer: { email: 'user@example.com' },
+      transactions: {
+        payments: [
+          {
+            amount: '5.00',
+            payment_method: { id: 'pix', type: 'bank_transfer' },
+            expiration_time: 'PT30M',
+          },
+        ],
+      },
     });
     expect(batch.set).toHaveBeenCalledTimes(2);
     expect(batch.set).toHaveBeenCalledWith(
       paymentRef,
       expect.objectContaining({
-        externalId: '123',
+        provider: 'mercado_pago_orders',
+        externalId: 'order-123',
+        externalPaymentId: 'payment-123',
         userId: 'user-1',
         battleId: 'battle-1',
         entryId: 'entry-1',
@@ -174,7 +228,7 @@ describe('POST /api/payments/create', () => {
 
     await expect(res.json()).resolves.toEqual({ error: 'Nao autorizado' });
     expect(res.status).toBe(401);
-    expect(mpCreate).not.toHaveBeenCalled();
+    expect(mpFetch).not.toHaveBeenCalled();
   });
 
   it('returns 400 for malformed JSON', async () => {
@@ -184,7 +238,7 @@ describe('POST /api/payments/create', () => {
 
     await expect(res.json()).resolves.toEqual({ error: 'JSON invalido' });
     expect(res.status).toBe(400);
-    expect(mpCreate).not.toHaveBeenCalled();
+    expect(mpFetch).not.toHaveBeenCalled();
   });
 
   it('returns 400 for missing battleId', async () => {
@@ -194,7 +248,7 @@ describe('POST /api/payments/create', () => {
 
     await expect(res.json()).resolves.toEqual({ error: 'battleId e obrigatorio' });
     expect(res.status).toBe(400);
-    expect(mpCreate).not.toHaveBeenCalled();
+    expect(mpFetch).not.toHaveBeenCalled();
   });
 
   it('rejects free battles', async () => {
@@ -211,7 +265,7 @@ describe('POST /api/payments/create', () => {
 
     await expect(res.json()).resolves.toEqual({ error: 'Batalha gratuita, nao requer pagamento' });
     expect(res.status).toBe(400);
-    expect(mpCreate).not.toHaveBeenCalled();
+    expect(mpFetch).not.toHaveBeenCalled();
   });
 
   it('rejects duplicate active entries', async () => {
@@ -226,7 +280,58 @@ describe('POST /api/payments/create', () => {
 
     await expect(res.json()).resolves.toEqual({ error: 'Voce ja esta inscrito nesta batalha' });
     expect(res.status).toBe(409);
-    expect(mpCreate).not.toHaveBeenCalled();
+    expect(mpFetch).not.toHaveBeenCalled();
+  });
+
+  it('returns an existing non-expired pending Pix instead of creating a duplicate', async () => {
+    const { db, batch } = createDb({
+      battle: paidBattle,
+      pendingPayment: {
+        id: 'pending-payment-1',
+        entryId: 'entry-pending',
+        pixQrCode: 'existing-qr',
+        pixCopiaECola: 'existing-pix',
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+      },
+    });
+    getAdminFirestore.mockReturnValue(db);
+
+    const res = await post();
+
+    await expect(res.json()).resolves.toMatchObject({
+      paymentId: 'pending-payment-1',
+      entryId: 'entry-pending',
+      pixQrCode: 'existing-qr',
+      pixCopiaECola: 'existing-pix',
+    });
+    expect(res.status).toBe(200);
+    expect(mpFetch).not.toHaveBeenCalled();
+    expect(batch.set).not.toHaveBeenCalled();
+  });
+
+  it('expires an old pending Pix before creating a new one', async () => {
+    const { db, batch } = createDb({
+      battle: paidBattle,
+      pendingPayment: {
+        id: 'expired-payment-1',
+        entryId: 'expired-entry',
+        pixQrCode: 'old-qr',
+        pixCopiaECola: 'old-pix',
+        expiresAt: new Date(Date.now() - 10 * 60 * 1000),
+      },
+    });
+    getAdminFirestore.mockReturnValue(db);
+
+    const res = await post();
+
+    expect(res.status).toBe(200);
+    expect(batch.update).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'expired-payment-1' }),
+      expect.objectContaining({ status: 'rejected' }),
+    );
+    expect(batch.delete).toHaveBeenCalledWith(expect.objectContaining({ id: 'entry-1' }));
+    expect(mpFetch).toHaveBeenCalledTimes(1);
+    expect(batch.set).toHaveBeenCalledTimes(2);
   });
 
   it('rejects full battles', async () => {
@@ -244,13 +349,48 @@ describe('POST /api/payments/create', () => {
 
     await expect(res.json()).resolves.toEqual({ error: 'Batalha lotada' });
     expect(res.status).toBe(409);
-    expect(mpCreate).not.toHaveBeenCalled();
+    expect(mpFetch).not.toHaveBeenCalled();
   });
 
   it('masks Mercado Pago failures', async () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     getAdminFirestore.mockReturnValue(createDb({ battle: paidBattle }).db);
-    mpCreate.mockRejectedValue(new Error('mp unavailable'));
+    mpFetch.mockRejectedValue(new Error('mp unavailable'));
+
+    const res = await post();
+
+    await expect(res.json()).resolves.toEqual({
+      error: 'Erro ao criar pagamento. Tente novamente.',
+    });
+    expect(res.status).toBe(500);
+    expect(errorSpy).toHaveBeenCalledWith('Payment creation error:', expect.any(Error));
+    errorSpy.mockRestore();
+  });
+
+  it('masks missing Mercado Pago credentials', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    delete process.env.MP_ACCESS_TOKEN;
+    getAdminFirestore.mockReturnValue(createDb({ battle: paidBattle }).db);
+
+    const res = await post();
+
+    await expect(res.json()).resolves.toEqual({
+      error: 'Erro ao criar pagamento. Tente novamente.',
+    });
+    expect(res.status).toBe(500);
+    expect(mpFetch).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith('Payment creation error:', expect.any(Error));
+    errorSpy.mockRestore();
+  });
+
+  it('masks malformed Mercado Pago Pix responses', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    getAdminFirestore.mockReturnValue(createDb({ battle: paidBattle }).db);
+    mpFetch.mockResolvedValue({
+      ok: true,
+      status: 201,
+      json: async () => ({ id: 'order-123', transactions: { payments: [] } }),
+    });
 
     const res = await post();
 

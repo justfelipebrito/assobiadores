@@ -8,7 +8,8 @@
     "dev": "tsc --watch",
     "type-check": "tsc --noEmit",
     "lint": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "seed:emulator": "node scripts/seed-emulator.cjs"
   },
   "engines": {
     "node": "20"

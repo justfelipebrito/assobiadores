@@ -10,6 +10,7 @@ import {
   deleteDoc,
   doc,
   getDoc,
+  serverTimestamp,
   setDoc,
   updateDoc,
 } from 'firebase/firestore';
@@ -47,13 +48,31 @@ beforeAll(async () => {
 beforeEach(async () => {
   await testEnv.clearFirestore();
   await seed('users/admin-1', {
+    id: 'admin-1',
+    schemaVersion: 1,
+    username: 'admin',
+    usernameLower: 'admin',
     displayName: 'Admin',
     role: 'admin',
+    accountType: 'admin',
+    plan: 'organization',
+    state: 'SP',
+    country: 'BR',
+    officialProfile: { eligible: true, verified: true, state: 'SP', region: 'Sudeste' },
     points: 0,
   });
   await seed('users/user-1', {
+    id: 'user-1',
+    schemaVersion: 1,
+    username: 'userone',
+    usernameLower: 'userone',
     displayName: 'User One',
     role: 'user',
+    accountType: 'free',
+    plan: 'free',
+    state: null,
+    country: 'BR',
+    officialProfile: { eligible: false, verified: false, state: null, region: null },
     points: 10,
     xp: 10,
     rank: 'Iniciante',
@@ -76,16 +95,23 @@ describe('users rules', () => {
       setDoc(doc(authedDb('new-user'), 'users/new-user'), {
         displayName: 'New User',
         email: 'new@example.com',
+        bio: '',
       }),
     );
   });
 
-  it('prevents users from creating privileged profile fields', async () => {
+  it('prevents users from creating server-owned profile fields', async () => {
     await assertFails(
       setDoc(doc(authedDb('new-user'), 'users/new-user'), {
         displayName: 'New User',
+        username: 'officialname',
+        usernameLower: 'officialname',
         role: 'admin',
+        accountType: 'subscriber',
+        plan: 'pro',
+        officialProfile: { eligible: true, verified: true, state: 'SP', region: 'Sudeste' },
         points: 999999,
+        seasonPoints: { '2026-s1': { points: 100, xp: 100, rank: 'Aprendiz' } },
       }),
     );
   });
@@ -100,16 +126,21 @@ describe('users rules', () => {
   });
 
   it('prevents users from updating protected profile fields', async () => {
-    await assertFails(
-      updateDoc(doc(authedDb('user-1'), 'users/user-1'), {
-        role: 'admin',
-      }),
-    );
-    await assertFails(
-      updateDoc(doc(authedDb('user-1'), 'users/user-1'), {
-        points: 999999,
-      }),
-    );
+    for (const update of [
+      { username: 'newname' },
+      { usernameLower: 'newname' },
+      { role: 'admin' },
+      { accountType: 'subscriber' },
+      { plan: 'pro' },
+      { state: 'SP' },
+      { country: 'US' },
+      { officialProfile: { eligible: true, verified: true, state: 'SP', region: 'Sudeste' } },
+      { points: 999999 },
+      { seasonPoints: { '2026-s1': { points: 100, xp: 100, rank: 'Aprendiz' } } },
+      { schemaVersion: 2 },
+    ]) {
+      await assertFails(updateDoc(doc(authedDb('user-1'), 'users/user-1'), update));
+    }
   });
 
   it('prevents users from updating other profiles or deleting their own profile', async () => {
@@ -184,6 +215,92 @@ describe('payments rules', () => {
       }),
     );
     await assertFails(deleteDoc(doc(authedDb('admin-1'), 'payments/payment-1')));
+  });
+});
+
+describe('seasons and championships rules', () => {
+  beforeEach(async () => {
+    await seed('seasons/2026-s1', {
+      id: '2026-s1',
+      status: 'active',
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+    await seed('championships/champ-1', {
+      id: 'champ-1',
+      status: 'active',
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  });
+
+  it('allows public reads for seasons and championships', async () => {
+    await assertSucceeds(getDoc(doc(unauthDb(), 'seasons/2026-s1')));
+    await assertSucceeds(getDoc(doc(unauthDb(), 'championships/champ-1')));
+  });
+
+  it('allows only admins to write seasons and championships', async () => {
+    await assertSucceeds(
+      updateDoc(doc(authedDb('admin-1'), 'seasons/2026-s1'), {
+        status: 'archived',
+      }),
+    );
+    await assertSucceeds(
+      updateDoc(doc(authedDb('admin-1'), 'championships/champ-1'), {
+        status: 'finished',
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(authedDb('user-1'), 'seasons/2026-s1'), {
+        status: 'archived',
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(authedDb('user-1'), 'championships/champ-1'), {
+        status: 'finished',
+      }),
+    );
+  });
+});
+
+describe('battleInvites rules', () => {
+  beforeEach(async () => {
+    await seed('battleInvites/invite-1', {
+      battleId: 'battle-1',
+      fromUserId: 'user-1',
+      toUserId: 'user-2',
+      status: 'pending',
+    });
+  });
+
+  it('allows the recipient to read their invite', async () => {
+    await assertSucceeds(getDoc(doc(authedDb('user-2'), 'battleInvites/invite-1')));
+  });
+
+  it('allows the sender to read their invite', async () => {
+    await assertSucceeds(getDoc(doc(authedDb('user-1'), 'battleInvites/invite-1')));
+  });
+
+  it('prevents third parties from reading invites', async () => {
+    await assertFails(getDoc(doc(authedDb('user-3'), 'battleInvites/invite-1')));
+    await assertFails(getDoc(doc(unauthDb(), 'battleInvites/invite-1')));
+  });
+
+  it('prevents any client from writing invites', async () => {
+    await assertFails(
+      setDoc(doc(authedDb('user-1'), 'battleInvites/invite-2'), {
+        battleId: 'battle-1',
+        fromUserId: 'user-1',
+        toUserId: 'user-3',
+        status: 'pending',
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(authedDb('user-2'), 'battleInvites/invite-1'), {
+        status: 'accepted',
+      }),
+    );
+    await assertFails(deleteDoc(doc(authedDb('user-1'), 'battleInvites/invite-1')));
   });
 });
 

@@ -1,30 +1,19 @@
 import * as functionsV1 from 'firebase-functions/v1';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { getFirestore } from 'firebase-admin/firestore';
+import { createDefaultUserData } from './user-defaults';
 
 export const onUserCreate = functionsV1.auth.user().onCreate(async (user) => {
   const db = getFirestore();
+  const userRef = db.collection('users').doc(user.uid);
+  const existingUser = await userRef.get();
 
-  const userData = {
-    id: user.uid,
-    displayName: user.displayName || 'Assobiador',
-    email: user.email || '',
-    photoURL: user.photoURL || null,
-    bio: '',
-    role: 'user',
-    points: 0,
-    xp: 0,
-    rank: 'Iniciante',
-    stats: {
-      battlesEntered: 0,
-      battlesWon: 0,
-      totalVotesReceived: 0,
-      topThreeFinishes: 0,
-    },
-    badges: [],
-    createdAt: FieldValue.serverTimestamp(),
-    updatedAt: FieldValue.serverTimestamp(),
-  };
+  if (existingUser.exists) {
+    functionsV1.logger.info(`User document already exists for ${user.uid}`);
+    return;
+  }
 
-  await db.collection('users').doc(user.uid).set(userData);
+  const userData = createDefaultUserData(user);
+
+  await userRef.set(userData);
   functionsV1.logger.info(`User document created for ${user.uid}`);
 });

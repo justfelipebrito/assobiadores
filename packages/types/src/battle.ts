@@ -4,6 +4,9 @@ import { timestampSchema } from './common';
 export const battleTypeSchema = z.enum(['official', 'community']);
 export type BattleType = z.infer<typeof battleTypeSchema>;
 
+export const battleFormatSchema = z.enum(['duel', 'group']);
+export type BattleFormat = z.infer<typeof battleFormatSchema>;
+
 export const battleStatusSchema = z.enum([
   'draft',
   'registration',
@@ -39,6 +42,7 @@ export const battleSchema = z.object({
   title: z.string().min(1).max(200),
   description: z.string().max(2000),
   type: battleTypeSchema,
+  format: battleFormatSchema.default('group'),
   category: battleCategorySchema,
   status: battleStatusSchema.default('draft'),
   entryFee: z.number().int().nonnegative().default(0),
@@ -80,6 +84,39 @@ export const createBattleSchema = z.object({
   judges: z.array(z.string()).default([]),
 });
 export type CreateBattleInput = z.infer<typeof createBattleSchema>;
+
+// Community battle creation (public users) — subset of full admin schema
+export const FREE_TIER_GROUP_CAP = 50;
+
+export const createCommunityBattleSchema = z.object({
+  title: z.string().min(3).max(200),
+  description: z.string().max(2000).default(''),
+  format: battleFormatSchema,
+  category: battleCategorySchema,
+  votingType: votingTypeSchema.default('public'),
+  maxParticipants: z.number().int().min(2).default(FREE_TIER_GROUP_CAP),
+  registrationEnd: z.string().datetime(),   // ISO string from form
+  submissionDeadline: z.string().datetime(),
+  votingStart: z.string().datetime(),
+  votingEnd: z.string().datetime(),
+  rules: z.array(z.string().min(1).max(200)).max(10).default([]),
+});
+export type CreateCommunityBattleInput = z.infer<typeof createCommunityBattleSchema>;
+
+// Battle invites
+export const battleInviteStatusSchema = z.enum(['pending', 'accepted', 'declined']);
+export type BattleInviteStatus = z.infer<typeof battleInviteStatusSchema>;
+
+export const battleInviteSchema = z.object({
+  id: z.string(),
+  battleId: z.string(),
+  fromUserId: z.string(),
+  toUserId: z.string(),
+  status: battleInviteStatusSchema.default('pending'),
+  createdAt: timestampSchema,
+  updatedAt: timestampSchema,
+});
+export type BattleInvite = z.infer<typeof battleInviteSchema>;
 
 export const battleEntryStatusSchema = z.enum(['pending_payment', 'confirmed', 'disqualified']);
 export type BattleEntryStatus = z.infer<typeof battleEntryStatusSchema>;

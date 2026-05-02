@@ -6,7 +6,9 @@ export type PaymentStatus = z.infer<typeof paymentStatusSchema>;
 
 export const paymentSchema = z.object({
   id: z.string(),
+  provider: z.enum(['mercado_pago_payments', 'mercado_pago_orders']).default('mercado_pago_orders'),
   externalId: z.string(),
+  externalPaymentId: z.string().nullable().default(null),
   userId: z.string(),
   battleId: z.string(),
   entryId: z.string(),

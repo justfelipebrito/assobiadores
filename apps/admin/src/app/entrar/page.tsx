@@ -11,7 +11,7 @@ export default function AdminLoginPage() {
       <Card className="w-full max-w-sm">
         <CardContent className="space-y-4 text-center">
           <h1 className="text-xl font-bold text-gray-900">Admin</h1>
-          <p className="text-sm text-gray-600">Acesso restrito a administradores</p>
+          <p className="text-sm text-surface-400">Acesso restrito a administradores</p>
           <Button
             variant="outline"
             size="lg"

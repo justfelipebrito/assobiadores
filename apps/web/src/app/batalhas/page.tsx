@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { Swords, Users, Clock, ArrowRight, Trophy, Sparkles, Filter } from 'lucide-react';
-import { useCollection, where, orderBy } from '@batalha/firebase';
+import { useCollection, orderBy } from '@batalha/firebase';
 import { Badge, Button, Card, CardContent, Skeleton, EmptyState } from '@batalha/ui';
 import { formatCurrency, formatRelativeTime, toDate } from '@batalha/utils';
 import type { Battle, BattleStatus, BattleCategory } from '@batalha/types';
@@ -72,9 +72,9 @@ export default function BattlesPage() {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
 
-  const { data: battles, loading } = useCollection<Battle>(
+  const { data: battles, loading, error } = useCollection<Battle>(
     'battles',
-    [where('status', 'in', ['registration', 'active', 'voting', 'finished']), orderBy('createdAt', 'desc')],
+    [orderBy('createdAt', 'desc')],
   );
 
   const filtered = useMemo(() => {
@@ -165,6 +165,12 @@ export default function BattlesPage() {
           Array.from({ length: 3 }).map((_, i) => (
             <Skeleton key={i} className="h-44" />
           ))
+        ) : error ? (
+          <EmptyState
+            icon={<Filter className="h-12 w-12" />}
+            title="Nao foi possivel carregar as batalhas"
+            description={error}
+          />
         ) : filtered.length === 0 ? (
           <EmptyState
             icon={<Swords className="h-12 w-12" />}

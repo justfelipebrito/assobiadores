@@ -11,6 +11,7 @@ export const submissionSchema = z.object({
   id: z.string(),
   battleId: z.string(),
   userId: z.string(),
+  userDisplayName: z.string().optional(),
   entryId: z.string(),
   videoURL: z.string().url(),
   videoPlatform: videoPlatformSchema,

@@ -1,14 +1,67 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft, Users, Clock, Trophy, Calendar, Swords,
-  CheckCircle2, Music, Vote, Sparkles,
+  CheckCircle2, Music, Vote, Sparkles, UserPlus, Send,
 } from 'lucide-react';
-import { useDocument } from '@batalha/firebase';
-import { Badge, Button, Card, CardContent, Skeleton, EmptyState } from '@batalha/ui';
+import { useDocument, useAuth } from '@batalha/firebase';
+import { Badge, Button, Card, CardContent, Input, Skeleton, EmptyState } from '@batalha/ui';
 import { formatCurrency, formatDateTime, formatRelativeTime, toDate } from '@batalha/utils';
+import { toast } from 'sonner';
 import type { Battle } from '@batalha/types';
+
+function InvitePanel({ battleId, userId }: { battleId: string; userId: string }) {
+  const [username, setUsername] = useState('');
+  const [sending, setSending] = useState(false);
+
+  const handleInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!username.trim()) return;
+    setSending(true);
+    try {
+      const { getClientAuth } = await import('@batalha/firebase');
+      const token = await getClientAuth().currentUser?.getIdToken();
+      const res = await fetch(`/api/battles/${battleId}/invite`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+        body: JSON.stringify({ username: username.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao enviar convite');
+      toast.success(`Convite enviado para @${data.toUsername}!`);
+      setUsername('');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao enviar convite');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardContent>
+        <div className="flex items-center gap-2 mb-4">
+          <UserPlus className="h-4 w-4 text-brand-400" />
+          <h3 className="text-sm font-semibold text-white">Convidar participante</h3>
+        </div>
+        <form onSubmit={handleInvite} className="flex gap-2">
+          <Input
+            placeholder="@username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            className="flex-1"
+          />
+          <Button type="submit" size="sm" loading={sending}>
+            <Send className="h-4 w-4" />
+          </Button>
+        </form>
+        <p className="mt-2 text-xs text-surface-600">Digite o username exato do participante</p>
+      </CardContent>
+    </Card>
+  );
+}
 
 const STATUS_CONFIG: Record<string, { label: string; variant: 'success' | 'warning' | 'info' | 'default' | 'purple'; description: string }> = {
   draft: { label: 'Rascunho', variant: 'default', description: 'Esta batalha ainda nao foi publicada.' },
@@ -19,6 +72,7 @@ const STATUS_CONFIG: Record<string, { label: string; variant: 'success' | 'warni
 };
 
 export default function BattleDetailPage({ params }: { params: { battleId: string } }) {
+  const { user } = useAuth();
   const { data: battle, loading } = useDocument<Battle>('battles', params.battleId);
 
   if (loading) {
@@ -120,6 +174,26 @@ export default function BattleDetailPage({ params }: { params: { battleId: strin
               </Link>
             </div>
           )}
+          {battle.status === 'active' && (
+            <div className="mt-8">
+              <Link href={`/batalhas/${battle.id}/enviar`}>
+                <Button size="lg" variant="accent">
+                  <Music className="mr-2 h-5 w-5" />
+                  Enviar video
+                </Button>
+              </Link>
+            </div>
+          )}
+          {battle.status === 'finished' && (
+            <div className="mt-8">
+              <Link href={`/batalhas/${battle.id}/resultado`}>
+                <Button size="lg" variant="secondary">
+                  <Trophy className="mr-2 h-5 w-5" />
+                  Ver resultado
+                </Button>
+              </Link>
+            </div>
+          )}
         </div>
       </div>
 
@@ -157,23 +231,30 @@ export default function BattleDetailPage({ params }: { params: { battleId: strin
         </Card>
 
         {/* Rules */}
-        <Card>
-          <CardContent>
-            <h2 className="mb-4 text-lg font-semibold text-white">Regras</h2>
-            {battle.rules.length > 0 ? (
-              <ul className="space-y-3">
-                {battle.rules.map((rule, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm text-surface-300">
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-brand-500" />
-                    {rule}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-surface-500">Sem regras especificas.</p>
-            )}
-          </CardContent>
-        </Card>
+        <div className="space-y-4">
+          <Card>
+            <CardContent>
+              <h2 className="mb-4 text-lg font-semibold text-white">Regras</h2>
+              {battle.rules.length > 0 ? (
+                <ul className="space-y-3">
+                  {battle.rules.map((rule, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm text-surface-300">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-brand-500" />
+                      {rule}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-surface-500">Sem regras especificas.</p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Invite panel: only visible to creator during registration */}
+          {user && battle.createdBy === user.uid && battle.status === 'registration' && (
+            <InvitePanel battleId={battle.id} userId={user.uid} />
+          )}
+        </div>
       </div>
     </div>
   );

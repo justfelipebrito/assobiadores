@@ -4,3 +4,4 @@ export * from './battle';
 export * from './submission';
 export * from './payment';
 export * from './vote';
+export * from './championship';

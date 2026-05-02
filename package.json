@@ -11,6 +11,8 @@
     "test": "turbo test && pnpm test:rules",
     "test:unit": "turbo test",
     "test:rules": "firebase emulators:exec --config firebase/firebase.json --only firestore --project demo-batalha \"vitest run firebase/firestore.rules.test.ts\"",
+    "emulators": "firebase emulators:start --config firebase/firebase.json --project demo-batalha",
+    "seed:emulator": "FIRESTORE_EMULATOR_HOST=127.0.0.1:8085 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 pnpm --filter functions seed:emulator",
     "clean": "turbo clean"
   },
   "devDependencies": {

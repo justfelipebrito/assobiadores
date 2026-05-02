@@ -2,11 +2,90 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Save, Camera } from 'lucide-react';
-import { useAuth, useDocument, getClientFirestore, doc, updateDoc, serverTimestamp } from '@batalha/firebase';
-import { Button, Input, Textarea, Card, CardContent, Avatar, Skeleton } from '@batalha/ui';
+import { Save, Camera, Swords, Check, X } from 'lucide-react';
+import { useAuth, useDocument, useCollection, where, getClientFirestore, doc, updateDoc, serverTimestamp } from '@batalha/firebase';
+import { Button, Input, Textarea, Card, CardContent, Avatar, Skeleton, Badge } from '@batalha/ui';
 import { toast } from 'sonner';
-import type { User } from '@batalha/types';
+import Link from 'next/link';
+import type { User, BattleInvite } from '@batalha/types';
+
+function PendingInvites({ userId }: { userId: string }) {
+  const { data: invites, loading } = useCollection<BattleInvite & { battleTitle?: string; fromDisplayName?: string }>(
+    'battleInvites',
+    [where('toUserId', '==', userId), where('status', '==', 'pending')],
+  );
+  const [responding, setResponding] = useState<string | null>(null);
+
+  const respond = async (inviteId: string, accept: boolean) => {
+    setResponding(inviteId);
+    try {
+      const { getClientAuth } = await import('@batalha/firebase');
+      const token = await getClientAuth().currentUser?.getIdToken();
+      const res = await fetch(`/api/invites/${inviteId}/respond`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+        body: JSON.stringify({ accept }),
+      });
+      if (!res.ok) {
+        const d = await res.json();
+        throw new Error(d.error || 'Erro ao responder convite');
+      }
+      toast.success(accept ? 'Convite aceito!' : 'Convite recusado');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao responder convite');
+    } finally {
+      setResponding(null);
+    }
+  };
+
+  if (loading) return <Skeleton className="h-24 w-full" />;
+  if (!invites.length) return null;
+
+  return (
+    <Card>
+      <CardContent>
+        <div className="mb-4 flex items-center gap-2">
+          <Swords className="h-4 w-4 text-brand-400" />
+          <h2 className="text-sm font-semibold text-white">Convites pendentes</h2>
+          <Badge variant="warning">{invites.length}</Badge>
+        </div>
+        <div className="space-y-3">
+          {invites.map((invite) => (
+            <div key={invite.id} className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+              <div className="min-w-0 flex-1">
+                <Link href={`/batalhas/${invite.battleId}`} className="truncate text-sm font-medium text-white hover:text-brand-400 transition-colors">
+                  {(invite as { battleTitle?: string }).battleTitle ?? 'Batalha'}
+                </Link>
+                <p className="mt-0.5 text-xs text-surface-500">
+                  Convidado por {(invite as { fromDisplayName?: string }).fromDisplayName ?? 'um usuário'}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  loading={responding === invite.id}
+                  onClick={() => respond(invite.id, false)}
+                  className="text-surface-400 hover:text-red-400"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  loading={responding === invite.id}
+                  onClick={() => respond(invite.id, true)}
+                >
+                  <Check className="h-4 w-4" />
+                  Aceitar
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function MyProfilePage() {
   const router = useRouter();
@@ -68,7 +147,10 @@ export default function MyProfilePage() {
       <h1 className="text-2xl font-bold text-white">Meu Perfil</h1>
       <p className="mt-1 text-surface-400">Gerencie suas informacoes pessoais</p>
 
-      <form onSubmit={handleSave} className="mt-8">
+      <div className="mt-8 space-y-6">
+        <PendingInvites userId={authUser.uid} />
+
+      <form onSubmit={handleSave}>
         <Card>
           <CardContent className="space-y-8">
             {/* Avatar section */}
@@ -121,6 +203,7 @@ export default function MyProfilePage() {
           </CardContent>
         </Card>
       </form>
+      </div>
     </div>
   );
 }
