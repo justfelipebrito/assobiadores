@@ -395,6 +395,7 @@ Latest hardening/refactor:
 - Updated homepage and ranking page season rankings to use the selected category instead of a single blended season leaderboard.
 - Refined `/ranking` filter UX into a single aligned control panel with stable Liga/Periodo segmented controls and Categoria/Regiao selectors.
 - Capped homepage `Campeonatos` preview at 20 items and changed CTA to `Ver todos`.
+- Updated homepage `Campeonatos` selection to prioritize active national competitions plus regional competitions from SP, MG, RJ, BA, and RS, sorted by largest participant count and capped at 20.
 - Added public `/campeonatos` listing with league/category/state filters and individual `/campeonatos/{id}` detail pages showing championship participants.
 - Added championship `participantIds` support in the shared type and local seed data so detail pages can render competitor lists.
 - Expanded the user profile model:

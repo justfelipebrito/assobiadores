@@ -62,6 +62,44 @@ describe('championship view helpers', () => {
     ).toBe(false);
   });
 
+  it('prioritizes homepage championships by participants within default regions', () => {
+    const items = [
+      championship({
+        id: 'ce-big',
+        scope: 'regional',
+        region: 'CE',
+        category: 'freestyle',
+        currentParticipants: 100,
+      }),
+      championship({
+        id: 'sp-small',
+        scope: 'regional',
+        region: 'SP',
+        category: 'freestyle',
+        currentParticipants: 5,
+      }),
+      championship({
+        id: 'rj-big',
+        scope: 'regional',
+        region: 'RJ',
+        category: 'freestyle',
+        currentParticipants: 20,
+      }),
+      championship({
+        id: 'national-medium',
+        scope: 'national',
+        category: 'freestyle',
+        currentParticipants: 10,
+      }),
+    ];
+
+    expect(getVisibleHomepageChampionships(items, 20).map((item) => item.id)).toEqual([
+      'rj-big',
+      'national-medium',
+      'sp-small',
+    ]);
+  });
+
   it('returns participant ids from a championship', () => {
     expect(
       getChampionshipParticipantIds(
