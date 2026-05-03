@@ -2,11 +2,12 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import { ArrowRight, Clock, Menu, User, LogOut, Trophy, Swords, Plus } from 'lucide-react';
-import { orderBy, useAuth, useCollection } from '@batalha/firebase';
+import { ArrowRight, Clock, Menu, User, LogOut, Plus } from 'lucide-react';
+import { orderBy, useAuth, useCollection, useDocument } from '@batalha/firebase';
 import { Avatar, Badge, Button } from '@batalha/ui';
 import { formatRelativeTime, toDate } from '@batalha/utils';
-import type { Battle } from '@batalha/types';
+import type { Battle, User as AppUser } from '@batalha/types';
+import { getVersionedAvatarUrl } from '../../lib/avatar-url';
 import { MobileNav } from './mobile-nav';
 
 const BATTLE_STATUS_LABEL: Record<string, string> = {
@@ -69,7 +70,10 @@ function BattleTicker() {
             >
               <Link href={`/batalhas/${battle.id}`} className="min-w-0 flex-1">
                 <div className="flex min-w-0 items-center gap-2">
-                  <Badge variant={battle.type === 'official' ? 'gold' : 'default'} className="text-[10px]">
+                  <Badge
+                    variant={battle.type === 'official' ? 'gold' : 'default'}
+                    className="text-[10px]"
+                  >
                     {battle.type === 'official' ? 'Oficial' : 'Comunidade'}
                   </Badge>
                   <span className="truncate text-xs font-medium text-brand-400">
@@ -86,7 +90,7 @@ function BattleTicker() {
               </Link>
               <Link
                 href={action.href}
-                className="inline-flex h-7 w-fit flex-shrink-0 items-center gap-1 rounded-md bg-brand-500 px-2.5 text-[11px] font-bold text-white transition-colors hover:bg-brand-400"
+                className="inline-flex h-7 w-fit flex-shrink-0 items-center gap-1 rounded-md border border-white/10 bg-white/[0.04] px-2.5 text-[11px] font-bold text-surface-200 transition-colors hover:border-brand-500/40 hover:bg-brand-500/10 hover:text-brand-300"
               >
                 {action.label}
                 <ArrowRight className="h-3 w-3" />
@@ -101,8 +105,11 @@ function BattleTicker() {
 
 export function Header() {
   const { user, loading, signOut } = useAuth();
+  const { data: profile } = useDocument<AppUser>('users', user?.uid);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const avatarSrc = getVersionedAvatarUrl(profile?.photoURL, profile?.photoVersion);
+  const displayName = profile?.displayName || user?.displayName || 'U';
 
   return (
     <>
@@ -113,33 +120,16 @@ export function Header() {
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 text-lg font-bold text-white shadow-glow-sm">
               A
             </div>
-            <span className="hidden text-lg font-bold text-white sm:block">
-              Assobiador
-            </span>
+            <span className="hidden text-lg font-bold text-white sm:block">Assobiador</span>
           </Link>
-
-          {/* Desktop Nav */}
-          <nav className="hidden items-center gap-1 md:flex">
-            <Link
-              href="/batalhas"
-              className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-surface-400 transition-colors hover:bg-white/5 hover:text-white"
-            >
-              <Swords className="h-4 w-4" />
-              Batalhas
-            </Link>
-            <Link
-              href="/ranking"
-              className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-surface-400 transition-colors hover:bg-white/5 hover:text-white"
-            >
-              <Trophy className="h-4 w-4" />
-              Ranking
-            </Link>
-          </nav>
 
           {/* Right side */}
           <div className="flex items-center gap-3">
             {user && (
-              <Link href="/criar-batalha" className="hidden md:flex items-center gap-1.5 rounded-xl border border-brand-500/30 bg-brand-500/10 px-3 py-2 text-sm font-medium text-brand-400 transition-colors hover:bg-brand-500/20">
+              <Link
+                href="/criar-batalha"
+                className="hidden md:flex items-center gap-1.5 rounded-xl border border-brand-500/30 bg-brand-500/10 px-3 py-2 text-sm font-medium text-brand-400 transition-colors hover:bg-brand-500/20"
+              >
                 <Plus className="h-4 w-4" />
                 Criar batalha
               </Link>
@@ -152,23 +142,16 @@ export function Header() {
                   onClick={() => setProfileOpen(!profileOpen)}
                   className="flex items-center gap-2 rounded-xl p-1.5 transition-colors hover:bg-white/5"
                 >
-                  <Avatar
-                    src={user.photoURL}
-                    name={user.displayName || 'U'}
-                    size="sm"
-                  />
+                  <Avatar src={avatarSrc} name={displayName} size="sm" />
                   <span className="hidden text-sm font-medium text-surface-300 md:block">
-                    {user.displayName?.split(' ')[0]}
+                    {displayName.split(' ')[0]}
                   </span>
                 </button>
 
                 {/* Dropdown */}
                 {profileOpen && (
                   <>
-                    <div
-                      className="fixed inset-0 z-40"
-                      onClick={() => setProfileOpen(false)}
-                    />
+                    <div className="fixed inset-0 z-40" onClick={() => setProfileOpen(false)} />
                     <div className="absolute right-0 top-full z-50 mt-2 w-56 animate-scale-in rounded-xl border border-white/10 bg-surface-900 p-2 shadow-elevated">
                       <Link
                         href="/meu-perfil"
@@ -223,6 +206,8 @@ export function Header() {
         open={mobileOpen}
         onClose={() => setMobileOpen(false)}
         user={user}
+        avatarSrc={avatarSrc}
+        displayName={displayName}
         onSignOut={signOut}
       />
     </>

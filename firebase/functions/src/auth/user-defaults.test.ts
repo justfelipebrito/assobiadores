@@ -34,12 +34,22 @@ describe('user defaults', () => {
       schemaVersion: 1,
       username: 'userone',
       usernameLower: 'userone',
+      usernameChangeAvailableAt: null,
+      firstName: '',
+      surname: '',
       displayName: 'User One',
       email: 'user@example.com',
+      photoURL: null,
+      photoPath: null,
+      photoVersion: 0,
+      photoUpdatedAt: null,
+      photoChangeAvailableAt: null,
       role: 'user',
       accountType: 'free',
       plan: 'free',
       state: null,
+      birthState: null,
+      addressChangeAvailableAt: null,
       city: null,
       country: 'BR',
       officialProfile: {
@@ -50,8 +60,10 @@ describe('user defaults', () => {
       },
       points: 0,
       xp: 0,
+      casualPoints: 0,
       rank: 'Iniciante',
       seasonPoints: {},
+      seasonCategoryPoints: {},
     });
   });
 });

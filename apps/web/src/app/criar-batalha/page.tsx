@@ -6,15 +6,10 @@ import Link from 'next/link';
 import { ArrowLeft, Plus, Trash2, Swords, Users } from 'lucide-react';
 import { useAuth } from '@batalha/firebase';
 import { Button, Input, Card, CardContent, Badge } from '@batalha/ui';
-import { FREE_TIER_GROUP_CAP } from '@batalha/types';
+import { COMPETITION_CATEGORIES, FREE_TIER_GROUP_CAP } from '@batalha/types';
 import { toast } from 'sonner';
 
-const CATEGORIES = [
-  { value: 'classico', label: 'Clássico' },
-  { value: 'imitacao', label: 'Imitação' },
-  { value: 'freestyle', label: 'Freestyle' },
-  { value: 'melodia', label: 'Melodia' },
-];
+const CATEGORIES = COMPETITION_CATEGORIES;
 
 function offsetDate(days: number) {
   const d = new Date(Date.now() + days * 24 * 60 * 60_000);
@@ -96,7 +91,10 @@ export default function CreateBattlePage() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
-      <Link href="/batalhas" className="mb-6 inline-flex items-center gap-2 text-sm text-surface-400 hover:text-white transition-colors">
+      <Link
+        href="/batalhas"
+        className="mb-6 inline-flex items-center gap-2 text-sm text-surface-400 hover:text-white transition-colors"
+      >
         <ArrowLeft className="h-4 w-4" />
         Batalhas
       </Link>
@@ -113,8 +111,18 @@ export default function CreateBattlePage() {
             <p className="mb-3 text-sm font-semibold text-white">Formato</p>
             <div className="grid grid-cols-2 gap-3">
               {[
-                { value: 'group', label: 'Grupo', desc: `Até ${FREE_TIER_GROUP_CAP} participantes`, icon: <Users className="h-5 w-5" /> },
-                { value: 'duel', label: 'Duelo', desc: '1 vs 1 — convite direto', icon: <Swords className="h-5 w-5" /> },
+                {
+                  value: 'group',
+                  label: 'Grupo',
+                  desc: `Até ${FREE_TIER_GROUP_CAP} participantes`,
+                  icon: <Users className="h-5 w-5" />,
+                },
+                {
+                  value: 'duel',
+                  label: 'Duelo',
+                  desc: '1 vs 1 — convite direto',
+                  icon: <Swords className="h-5 w-5" />,
+                },
               ].map((opt) => (
                 <button
                   key={opt.value}
@@ -209,12 +217,18 @@ export default function CreateBattlePage() {
             <div className="grid gap-4 sm:grid-cols-2">
               {[
                 { label: 'Inscrições encerram', value: registrationEnd, set: setRegistrationEnd },
-                { label: 'Prazo de submissão', value: submissionDeadline, set: setSubmissionDeadline },
+                {
+                  label: 'Prazo de submissão',
+                  value: submissionDeadline,
+                  set: setSubmissionDeadline,
+                },
                 { label: 'Votação começa', value: votingStart, set: setVotingStart },
                 { label: 'Votação encerra', value: votingEnd, set: setVotingEnd },
               ].map((field) => (
                 <div key={field.label}>
-                  <label className="mb-1.5 block text-xs font-medium text-surface-400">{field.label}</label>
+                  <label className="mb-1.5 block text-xs font-medium text-surface-400">
+                    {field.label}
+                  </label>
                   <input
                     type="datetime-local"
                     value={field.value}
@@ -231,10 +245,14 @@ export default function CreateBattlePage() {
         {/* Rules */}
         <Card>
           <CardContent className="space-y-3">
-            <p className="text-sm font-semibold text-white">Regras <span className="text-surface-500 font-normal">(opcional, máx. 10)</span></p>
+            <p className="text-sm font-semibold text-white">
+              Regras <span className="text-surface-500 font-normal">(opcional, máx. 10)</span>
+            </p>
             {rules.map((rule, i) => (
               <div key={i} className="flex items-center gap-2">
-                <span className="flex-1 rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2 text-sm text-surface-300">{rule}</span>
+                <span className="flex-1 rounded-lg border border-white/5 bg-white/[0.02] px-3 py-2 text-sm text-surface-300">
+                  {rule}
+                </span>
                 <button type="button" onClick={() => setRules((r) => r.filter((_, j) => j !== i))}>
                   <Trash2 className="h-4 w-4 text-surface-600 hover:text-red-400 transition-colors" />
                 </button>
@@ -246,7 +264,12 @@ export default function CreateBattlePage() {
                   type="text"
                   value={newRule}
                   onChange={(e) => setNewRule(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addRule(); } }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addRule();
+                    }
+                  }}
                   placeholder="Adicionar regra..."
                   maxLength={200}
                   className="flex-1 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-white placeholder-surface-600 focus:border-brand-500/50 focus:outline-none"

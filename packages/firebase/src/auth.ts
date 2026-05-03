@@ -12,7 +12,7 @@ import {
   updateProfile,
   type User as FirebaseUser,
 } from 'firebase/auth';
-import { getClientAuth } from './client';
+import { getClientAuth, shouldUseEmulators } from './client';
 
 export interface AuthState {
   user: FirebaseUser | null;
@@ -29,7 +29,22 @@ export function useAuth() {
 
   useEffect(() => {
     const auth = getClientAuth();
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        setState({ user: null, loading: false, error: null });
+        return;
+      }
+
+      if (shouldUseEmulators()) {
+        try {
+          await user.getIdToken(true);
+        } catch {
+          await firebaseSignOut(auth);
+          setState({ user: null, loading: false, error: null });
+          return;
+        }
+      }
+
       setState({ user, loading: false, error: null });
     });
     return unsubscribe;

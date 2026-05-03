@@ -22,7 +22,20 @@ import {
 import { limit, orderBy, useAuth, useCollection } from '@batalha/firebase';
 import { Avatar, Badge, Button, Card, CardContent, Skeleton } from '@batalha/ui';
 import { formatCurrency, formatNumber, formatRelativeTime, toDate } from '@batalha/utils';
-import type { Battle, BrazilState, Submission, User } from '@batalha/types';
+import {
+  COMPETITION_CATEGORIES,
+  COMPETITION_CATEGORY_LABELS,
+  type Battle,
+  type BrazilState,
+  type Championship,
+  type CompetitionCategory,
+  type DailyHighlight,
+  type Season,
+  type User,
+} from '@batalha/types';
+import { SubmitDailyHighlightButton } from '@/components/daily-highlights/submit-daily-highlight-button';
+import { SubmitDailyHighlightModal } from '@/components/daily-highlights/submit-daily-highlight-modal';
+import { getVisibleHomepageChampionships } from '@/lib/championship-view';
 import { VideoPreview } from '@/components/video/video-preview';
 
 const STATUS_MAP: Record<
@@ -75,10 +88,14 @@ function RankingList({
   users,
   loading,
   emptyLabel,
+  seasonId,
+  category,
 }: {
   users: User[];
   loading: boolean;
   emptyLabel: string;
+  seasonId: string | null;
+  category: CompetitionCategory;
 }) {
   if (loading) {
     return (
@@ -102,62 +119,76 @@ function RankingList({
 
   return (
     <div className="divide-y divide-white/5">
-      {users.map((user, index) => (
-        <Link
-          key={user.id}
-          href={`/perfil/${user.id}`}
-          className="group flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-white/[0.03]"
-        >
-          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center">
-            {index < 3 ? (
-              PLACE_ICONS[index]
-            ) : (
-              <span className="text-sm font-bold text-surface-600">{index + 1}</span>
-            )}
-          </div>
-          <Avatar src={user.photoURL} name={user.displayName} size="sm" />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-white transition-colors group-hover:text-brand-400">
-              {user.displayName}
-            </p>
-            <p className="truncate text-xs text-surface-500">
-              {user.rank}
-              {user.state ? ` - ${user.state}` : ''}
-            </p>
-          </div>
-          <div className="flex-shrink-0 text-right">
-            <p className="text-sm font-bold tabular-nums text-white">{formatNumber(user.points)}</p>
-            <p className="text-[10px] text-surface-600">pts</p>
-          </div>
-        </Link>
-      ))}
+      {users.map((user, index) => {
+        const categoryPoints = seasonId ? user.seasonCategoryPoints?.[seasonId]?.[category] : null;
+        const points = categoryPoints?.points ?? (seasonId ? 0 : user.points);
+        const rank = categoryPoints?.rank ?? (seasonId ? 'Iniciante' : user.rank);
+
+        return (
+          <Link
+            key={user.id}
+            href={`/perfil/${user.id}`}
+            className="group flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-white/[0.03]"
+          >
+            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center">
+              {index < 3 ? (
+                PLACE_ICONS[index]
+              ) : (
+                <span className="text-sm font-bold text-surface-600">{index + 1}</span>
+              )}
+            </div>
+            <Avatar src={user.photoURL} name={user.displayName} size="sm" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-white transition-colors group-hover:text-brand-400">
+                {user.displayName}
+              </p>
+              <p className="truncate text-xs text-surface-500">
+                {rank}
+                {user.state ? ` - ${user.state}` : ''}
+              </p>
+            </div>
+            <div className="flex-shrink-0 text-right">
+              <p className="text-sm font-bold tabular-nums text-white">{formatNumber(points)}</p>
+              <p className="text-[10px] text-surface-600">pts</p>
+            </div>
+          </Link>
+        );
+      })}
     </div>
   );
 }
 
 export default function HomePage() {
   const [selectedRegionalState, setSelectedRegionalState] = useState<BrazilState>('SP');
+  const [selectedRankingCategory, setSelectedRankingCategory] =
+    useState<CompetitionCategory>('freestyle');
+  const [submitDailyOpen, setSubmitDailyOpen] = useState(false);
   const { user, loading: authLoading } = useAuth();
+  const { data: activeSeasons } = useCollection<Season>('seasons', [
+    orderBy('start', 'desc'),
+    limit(3),
+  ]);
+  const activeSeason = activeSeasons.find((season) => season.status === 'active') ?? null;
+  const rankingSeasonId = activeSeason?.id ?? null;
+  const rankingSeasonLabel = activeSeason?.name ?? `Temporada ${new Date().getFullYear()}`;
+
   const { data: battles, loading: battlesLoading } = useCollection<Battle>('battles', [
     orderBy('createdAt', 'desc'),
     limit(12),
   ]);
-
-  const { data: nationalUsers, loading: nationalUsersLoading } = useCollection<User>('users', [
-    orderBy('points', 'desc'),
-    limit(20),
-  ]);
-
-  const { data: regionalRankingCandidates, loading: regionalUsersLoading } = useCollection<User>(
-    'users',
-    [orderBy('points', 'desc'), limit(200)],
+  const { data: championships, loading: championshipsLoading } = useCollection<Championship>(
+    'championships',
+    [orderBy('createdAt', 'desc'), limit(100)],
   );
+
+  const { data: rankingUsers, loading: rankingUsersLoading } = useCollection<User>('users', [
+    orderBy('points', 'desc'),
+    limit(500),
+  ]);
   const { data: highlightUsers } = useCollection<User>('users', [limit(100)]);
 
-  const { data: highlightedSubmissions, loading: highlightsLoading } = useCollection<Submission>(
-    'submissions',
-    [orderBy('createdAt', 'desc'), limit(24)],
-  );
+  const { data: highlightedSubmissions, loading: highlightsLoading } =
+    useCollection<DailyHighlight>('dailyHighlights', [orderBy('createdAt', 'desc'), limit(24)]);
 
   const { data: recentlyUpdatedBattles, loading: winnersLoading } = useCollection<Battle>(
     'battles',
@@ -171,6 +202,10 @@ export default function HomePage() {
         .slice(0, 6),
     [battles],
   );
+  const visibleChampionships = useMemo(
+    () => getVisibleHomepageChampionships(championships, 20),
+    [championships],
+  );
   const recentWinners = useMemo(
     () => recentlyUpdatedBattles.filter((battle) => battle.status === 'finished').slice(0, 3),
     [recentlyUpdatedBattles],
@@ -179,9 +214,7 @@ export default function HomePage() {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 
-    const approved = highlightedSubmissions.filter(
-      (submission) => submission.status === 'approved',
-    );
+    const approved = highlightedSubmissions.filter((submission) => submission.status === 'active');
     const todaysApproved = approved.filter((submission) => {
       const createdAt = toDate(submission.createdAt);
       return createdAt ? createdAt.getTime() >= todayStart.getTime() : false;
@@ -205,20 +238,35 @@ export default function HomePage() {
     () => new Map(highlightUsers.map((user) => [user.id, user.displayName])),
     [highlightUsers],
   );
-  const highlightsMoreHref = featuredHighlight
-    ? `/batalhas/${featuredHighlight.battleId}/votar`
-    : '/batalhas';
+  const highlightsMoreHref = '/destaques';
 
   const hasActiveBattles = activeBattles.length > 0;
+  const sortedRankingUsers = useMemo(
+    () =>
+      [...rankingUsers].sort((a, b) => {
+        const aPoints = rankingSeasonId
+          ? (a.seasonCategoryPoints?.[rankingSeasonId]?.[selectedRankingCategory]?.points ?? 0)
+          : a.points;
+        const bPoints = rankingSeasonId
+          ? (b.seasonCategoryPoints?.[rankingSeasonId]?.[selectedRankingCategory]?.points ?? 0)
+          : b.points;
+        const diff = bPoints - aPoints;
+        if (diff !== 0) return diff;
+        return a.displayName.localeCompare(b.displayName);
+      }),
+    [rankingUsers, rankingSeasonId, selectedRankingCategory],
+  );
+  const nationalUsers = useMemo(() => sortedRankingUsers.slice(0, 20), [sortedRankingUsers]);
   const regionalUsers = useMemo(
     () =>
-      regionalRankingCandidates
+      sortedRankingUsers
         .filter((regionalUser) => regionalUser.state === selectedRegionalState)
         .slice(0, 20),
-    [regionalRankingCandidates, selectedRegionalState],
+    [selectedRegionalState, sortedRankingUsers],
   );
   const selectedRegionalStateLabel =
     BRAZIL_STATES.find((state) => state.value === selectedRegionalState)?.label ?? 'Sao Paulo';
+  const selectedRankingCategoryLabel = COMPETITION_CATEGORY_LABELS[selectedRankingCategory];
 
   return (
     <>
@@ -236,12 +284,18 @@ export default function HomePage() {
                 </p>
               </div>
             </div>
-            <Link href={highlightsMoreHref}>
-              <Button variant="ghost" size="sm">
-                Ver mais
-                <ArrowRight className="ml-1 h-4 w-4" />
-              </Button>
-            </Link>
+            <div className="flex flex-shrink-0 items-center gap-2">
+              <SubmitDailyHighlightButton
+                isAuthenticated={Boolean(user)}
+                onClick={() => setSubmitDailyOpen(true)}
+              />
+              <Link href={highlightsMoreHref}>
+                <Button variant="ghost" size="sm">
+                  Ver mais
+                  <ArrowRight className="ml-1 h-4 w-4" />
+                </Button>
+              </Link>
+            </div>
           </div>
 
           {highlightsLoading ? (
@@ -318,6 +372,91 @@ export default function HomePage() {
 
       <div className="mx-auto grid max-w-6xl gap-8 px-4 py-8 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="min-w-0 space-y-10">
+          <section>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-yellow-500/10 text-yellow-400">
+                  <Trophy className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-white">Campeonatos</h2>
+                  <p className="text-sm text-surface-500">Temporada anual oficial</p>
+                </div>
+              </div>
+              <Link href="/campeonatos">
+                <Button variant="ghost" size="sm">
+                  Ver todos
+                  <ArrowRight className="ml-1 h-4 w-4" />
+                </Button>
+              </Link>
+            </div>
+
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              {championshipsLoading ? (
+                Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-44" />)
+              ) : visibleChampionships.length > 0 ? (
+                visibleChampionships.map((championship) => {
+                  const start = toDate(championship.schedule.start);
+                  return (
+                    <Link key={championship.id} href={`/campeonatos/${championship.id}`}>
+                      <Card className="group h-full cursor-pointer">
+                        <CardContent className="flex h-full flex-col">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex flex-wrap gap-2">
+                              <Badge
+                                variant={championship.scope === 'national' ? 'gold' : 'purple'}
+                              >
+                                {championship.scope === 'national'
+                                  ? 'Nacional'
+                                  : championship.region}
+                              </Badge>
+                              <Badge variant="default">
+                                {COMPETITION_CATEGORY_LABELS[championship.category]}
+                              </Badge>
+                            </div>
+                            <Badge variant="default">{championship.status}</Badge>
+                          </div>
+                          <h3 className="mt-3 font-semibold text-white transition-colors group-hover:text-brand-400">
+                            {championship.title}
+                          </h3>
+                          <p className="mt-2 line-clamp-2 flex-1 text-sm text-surface-500">
+                            {championship.description ||
+                              'Participe das classificatorias para disputar vagas oficiais.'}
+                          </p>
+                          <div className="mt-4 flex items-center justify-between gap-3 text-sm">
+                            <span className="text-surface-400">
+                              {championship.currentParticipants}/{championship.maxParticipants}{' '}
+                              competidores
+                            </span>
+                            {start && (
+                              <span className="flex items-center gap-1 text-surface-500">
+                                <Clock className="h-3.5 w-3.5" />
+                                {formatRelativeTime(start)}
+                              </span>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </Link>
+                  );
+                })
+              ) : (
+                <div className="glass-card sm:col-span-2">
+                  <p className="font-medium text-white">Temporada oficial em preparacao</p>
+                  <p className="mt-1 text-sm text-surface-500">
+                    Campeonatos nacionais e regionais terao classificatorias. Participacao oficial
+                    exigira assinatura valida.
+                  </p>
+                  <Link href="/campeonatos" className="mt-4 inline-block">
+                    <Button variant="secondary" size="sm">
+                      Ver todos
+                    </Button>
+                  </Link>
+                </div>
+              )}
+            </div>
+          </section>
+
           <section>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -425,7 +564,7 @@ export default function HomePage() {
               </div>
               <div>
                 <h2 className="text-lg font-bold text-white">Rankings</h2>
-                <p className="text-sm text-surface-500">Top 20 por liga</p>
+                <p className="text-sm text-surface-500">{rankingSeasonLabel}</p>
               </div>
             </div>
             <Link href="/ranking">
@@ -435,6 +574,23 @@ export default function HomePage() {
             </Link>
           </div>
 
+          <div className="relative">
+            <select
+              value={selectedRankingCategory}
+              onChange={(event) =>
+                setSelectedRankingCategory(event.target.value as CompetitionCategory)
+              }
+              className="h-10 w-full appearance-none rounded-xl border border-white/10 bg-surface-900 px-3 pr-9 text-sm font-medium text-white outline-none transition-colors focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/50"
+            >
+              {COMPETITION_CATEGORIES.map((category) => (
+                <option key={category.value} value={category.value}>
+                  {category.label}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-surface-500" />
+          </div>
+
           <Card>
             <CardContent className="p-0">
               <div className="border-b border-white/5 px-4 py-3">
@@ -442,12 +598,16 @@ export default function HomePage() {
                   <Globe className="h-4 w-4 text-brand-400" />
                   <h3 className="font-semibold text-white">Ranking Nacional</h3>
                 </div>
-                <p className="mt-1 text-xs text-surface-500">Top 20 do Brasil</p>
+                <p className="mt-1 text-xs text-surface-500">
+                  Top 20 do Brasil em {selectedRankingCategoryLabel}
+                </p>
               </div>
               <RankingList
                 users={nationalUsers}
-                loading={nationalUsersLoading}
+                loading={rankingUsersLoading}
                 emptyLabel="O ranking nacional aparecera apos as primeiras batalhas."
+                seasonId={rankingSeasonId}
+                category={selectedRankingCategory}
               />
             </CardContent>
           </Card>
@@ -460,7 +620,7 @@ export default function HomePage() {
                   <h3 className="font-semibold text-white">Ranking Regional</h3>
                 </div>
                 <p className="mt-1 text-xs text-surface-500">
-                  Top 20 de {selectedRegionalStateLabel}
+                  Top 20 de {selectedRegionalStateLabel} em {selectedRankingCategoryLabel}
                 </p>
                 <div className="relative mt-3">
                   <select
@@ -481,8 +641,10 @@ export default function HomePage() {
               </div>
               <RankingList
                 users={regionalUsers}
-                loading={regionalUsersLoading}
+                loading={rankingUsersLoading}
                 emptyLabel={`O ranking regional de ${selectedRegionalStateLabel} ainda nao tem participantes.`}
+                seasonId={rankingSeasonId}
+                category={selectedRankingCategory}
               />
             </CardContent>
           </Card>
@@ -592,6 +754,7 @@ export default function HomePage() {
           </section>
         )}
       </div>
+      <SubmitDailyHighlightModal open={submitDailyOpen} onClose={() => setSubmitDailyOpen(false)} />
     </>
   );
 }

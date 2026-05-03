@@ -6,17 +6,10 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import {
-  deleteDoc,
-  doc,
-  getDoc,
-  serverTimestamp,
-  setDoc,
-  updateDoc,
-} from 'firebase/firestore';
+import { deleteDoc, doc, getDoc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-const PROJECT_ID = 'demo-batalha';
+const PROJECT_ID = 'demo-batalha-rules-test';
 
 let testEnv: RulesTestEnvironment;
 
@@ -52,11 +45,14 @@ beforeEach(async () => {
     schemaVersion: 1,
     username: 'admin',
     usernameLower: 'admin',
+    firstName: 'Admin',
+    surname: 'Local',
     displayName: 'Admin',
     role: 'admin',
     accountType: 'admin',
     plan: 'organization',
     state: 'SP',
+    birthState: 'SP',
     country: 'BR',
     officialProfile: { eligible: true, verified: true, state: 'SP', region: 'Sudeste' },
     points: 0,
@@ -66,15 +62,19 @@ beforeEach(async () => {
     schemaVersion: 1,
     username: 'userone',
     usernameLower: 'userone',
+    firstName: 'User',
+    surname: 'One',
     displayName: 'User One',
     role: 'user',
     accountType: 'free',
     plan: 'free',
     state: null,
+    birthState: null,
     country: 'BR',
     officialProfile: { eligible: false, verified: false, state: null, region: null },
     points: 10,
     xp: 10,
+    casualPoints: 0,
     rank: 'Iniciante',
     stats: { battlesEntered: 0 },
     badges: [],
@@ -106,12 +106,23 @@ describe('users rules', () => {
         displayName: 'New User',
         username: 'officialname',
         usernameLower: 'officialname',
+        usernameChangeAvailableAt: serverTimestamp(),
         role: 'admin',
         accountType: 'subscriber',
         plan: 'pro',
         officialProfile: { eligible: true, verified: true, state: 'SP', region: 'Sudeste' },
+        addressChangeAvailableAt: serverTimestamp(),
+        photoURL: 'https://example.com/avatar.png',
+        photoPath: 'users/new-user/profile/avatar.jpg',
+        photoVersion: 1,
+        photoUpdatedAt: serverTimestamp(),
+        photoChangeAvailableAt: serverTimestamp(),
         points: 999999,
-        seasonPoints: { '2026-s1': { points: 100, xp: 100, rank: 'Aprendiz' } },
+        casualPoints: 999999,
+        seasonPoints: { '2026': { points: 100, xp: 100, rank: 'Aprendiz' } },
+        seasonCategoryPoints: {
+          '2026': { freestyle: { points: 100, xp: 100, rank: 'Aprendiz' } },
+        },
       }),
     );
   });
@@ -121,6 +132,8 @@ describe('users rules', () => {
       updateDoc(doc(authedDb('user-1'), 'users/user-1'), {
         displayName: 'Updated',
         bio: 'Assobiador',
+        firstName: 'User',
+        surname: 'Updated',
       }),
     );
   });
@@ -129,14 +142,28 @@ describe('users rules', () => {
     for (const update of [
       { username: 'newname' },
       { usernameLower: 'newname' },
+      { usernameChangeAvailableAt: serverTimestamp() },
       { role: 'admin' },
       { accountType: 'subscriber' },
       { plan: 'pro' },
       { state: 'SP' },
+      { birthState: 'RJ' },
       { country: 'US' },
+      { addressChangeAvailableAt: serverTimestamp() },
       { officialProfile: { eligible: true, verified: true, state: 'SP', region: 'Sudeste' } },
+      { photoURL: 'https://example.com/avatar.png' },
+      { photoPath: 'users/user-1/profile/avatar.jpg' },
+      { photoVersion: 2 },
+      { photoUpdatedAt: serverTimestamp() },
+      { photoChangeAvailableAt: serverTimestamp() },
       { points: 999999 },
-      { seasonPoints: { '2026-s1': { points: 100, xp: 100, rank: 'Aprendiz' } } },
+      { casualPoints: 999999 },
+      { seasonPoints: { '2026': { points: 100, xp: 100, rank: 'Aprendiz' } } },
+      {
+        seasonCategoryPoints: {
+          '2026': { freestyle: { points: 100, xp: 100, rank: 'Aprendiz' } },
+        },
+      },
       { schemaVersion: 2 },
     ]) {
       await assertFails(updateDoc(doc(authedDb('user-1'), 'users/user-1'), update));
@@ -150,6 +177,43 @@ describe('users rules', () => {
       }),
     );
     await assertFails(deleteDoc(doc(authedDb('user-1'), 'users/user-1')));
+  });
+
+  it('allows only owners to read private profile data and blocks client writes', async () => {
+    await seed('userPrivate/user-1', {
+      id: 'user-1',
+      cpf: '12345678909',
+      phone: '11999999999',
+      address: { city: 'Sao Paulo', state: 'SP' },
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    await assertSucceeds(getDoc(doc(authedDb('user-1'), 'userPrivate/user-1')));
+    await assertFails(getDoc(doc(authedDb('user-2'), 'userPrivate/user-1')));
+    await assertFails(getDoc(doc(unauthDb(), 'userPrivate/user-1')));
+    await assertFails(
+      updateDoc(doc(authedDb('user-1'), 'userPrivate/user-1'), {
+        cpf: '00000000000',
+      }),
+    );
+  });
+
+  it('allows username availability reads but blocks client reservation writes', async () => {
+    await seed('usernames/userone', {
+      userId: 'user-1',
+      username: 'userone',
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    await assertSucceeds(getDoc(doc(unauthDb(), 'usernames/userone')));
+    await assertFails(
+      setDoc(doc(authedDb('user-1'), 'usernames/newuser'), {
+        userId: 'user-1',
+        username: 'newuser',
+      }),
+    );
   });
 });
 
@@ -220,8 +284,8 @@ describe('payments rules', () => {
 
 describe('seasons and championships rules', () => {
   beforeEach(async () => {
-    await seed('seasons/2026-s1', {
-      id: '2026-s1',
+    await seed('seasons/2026', {
+      id: '2026',
       status: 'active',
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
@@ -235,13 +299,13 @@ describe('seasons and championships rules', () => {
   });
 
   it('allows public reads for seasons and championships', async () => {
-    await assertSucceeds(getDoc(doc(unauthDb(), 'seasons/2026-s1')));
+    await assertSucceeds(getDoc(doc(unauthDb(), 'seasons/2026')));
     await assertSucceeds(getDoc(doc(unauthDb(), 'championships/champ-1')));
   });
 
   it('allows only admins to write seasons and championships', async () => {
     await assertSucceeds(
-      updateDoc(doc(authedDb('admin-1'), 'seasons/2026-s1'), {
+      updateDoc(doc(authedDb('admin-1'), 'seasons/2026'), {
         status: 'archived',
       }),
     );
@@ -251,7 +315,7 @@ describe('seasons and championships rules', () => {
       }),
     );
     await assertFails(
-      updateDoc(doc(authedDb('user-1'), 'seasons/2026-s1'), {
+      updateDoc(doc(authedDb('user-1'), 'seasons/2026'), {
         status: 'archived',
       }),
     );
@@ -321,12 +385,23 @@ describe('server-owned collections rules', () => {
       battleId: 'battle-1',
       submissionId: 'submission-1',
     });
+    await seed('dailyHighlights/daily-1', {
+      userId: 'user-1',
+      status: 'active',
+      voteCount: 0,
+    });
+    await seed('dailyHighlightLikes/like-1', {
+      dailyHighlightId: 'daily-1',
+      userId: 'user-2',
+    });
   });
 
-  it('allows public reads for entries, submissions, and votes', async () => {
+  it('allows public reads for entries, submissions, votes, and daily highlights', async () => {
     await assertSucceeds(getDoc(doc(unauthDb(), 'battleEntries/entry-1')));
     await assertSucceeds(getDoc(doc(unauthDb(), 'submissions/submission-1')));
     await assertSucceeds(getDoc(doc(unauthDb(), 'votes/vote-1')));
+    await assertSucceeds(getDoc(doc(unauthDb(), 'dailyHighlights/daily-1')));
+    await assertSucceeds(getDoc(doc(unauthDb(), 'dailyHighlightLikes/like-1')));
   });
 
   it('prevents direct client writes to battle entries', async () => {
@@ -363,6 +438,27 @@ describe('server-owned collections rules', () => {
         voterId: 'user-1',
         battleId: 'battle-1',
         submissionId: 'submission-1',
+      }),
+    );
+  });
+
+  it('prevents direct client writes to daily highlights and likes', async () => {
+    await assertFails(
+      setDoc(doc(authedDb('user-1'), 'dailyHighlights/daily-2'), {
+        userId: 'user-1',
+        status: 'active',
+        voteCount: 0,
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(authedDb('user-1'), 'dailyHighlights/daily-1'), {
+        voteCount: 999,
+      }),
+    );
+    await assertFails(
+      setDoc(doc(authedDb('user-1'), 'dailyHighlightLikes/like-2'), {
+        dailyHighlightId: 'daily-1',
+        userId: 'user-1',
       }),
     );
   });

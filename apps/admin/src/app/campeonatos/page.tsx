@@ -3,13 +3,37 @@
 import { useState } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import {
-  useCollection, orderBy, where,
-  getClientFirestore, doc, updateDoc, arrayUnion, arrayRemove, addDoc, collection, serverTimestamp,
+  useCollection,
+  orderBy,
+  where,
+  getClientFirestore,
+  doc,
+  updateDoc,
+  arrayUnion,
+  arrayRemove,
+  addDoc,
+  collection,
+  serverTimestamp,
 } from '@batalha/firebase';
-import { Button, Badge, Card, CardContent, Skeleton, EmptyState, Input, Textarea } from '@batalha/ui';
+import {
+  Button,
+  Badge,
+  Card,
+  CardContent,
+  Skeleton,
+  EmptyState,
+  Input,
+  Textarea,
+} from '@batalha/ui';
 import { formatDate, toDate } from '@batalha/utils';
 import { toast } from 'sonner';
-import type { Championship, Battle, Stage, Match } from '@batalha/types';
+import {
+  COMPETITION_CATEGORY_LABELS,
+  type Championship,
+  type Battle,
+  type Stage,
+  type Match,
+} from '@batalha/types';
 import {
   MATCH_STATUS_OPTIONS,
   STAGE_NAME_OPTIONS,
@@ -66,10 +90,10 @@ function QualifierManager({ championship }: { championship: Championship }) {
   const [expanded, setExpanded] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const { data: finishedBattles, loading } = useCollection<Battle>(
-    'battles',
-    [where('status', '==', 'finished'), orderBy('updatedAt', 'desc')],
-  );
+  const { data: finishedBattles, loading } = useCollection<Battle>('battles', [
+    where('status', '==', 'finished'),
+    orderBy('updatedAt', 'desc'),
+  ]);
 
   const linked = new Set(championship.qualifierBattleIds ?? []);
 
@@ -106,7 +130,9 @@ function QualifierManager({ championship }: { championship: Championship }) {
           </div>
           {loading ? (
             <div className="p-4 space-y-2">
-              {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-10" />)}
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-10" />
+              ))}
             </div>
           ) : finishedBattles.length === 0 ? (
             <p className="px-4 py-6 text-sm text-surface-500 text-center">
@@ -233,7 +259,9 @@ function MatchManager({ championshipId, stage }: { championshipId: string; stage
       <div className="mt-4">
         {loading ? (
           <div className="space-y-2">
-            {Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-12" />)}
+            {Array.from({ length: 2 }).map((_, i) => (
+              <Skeleton key={i} className="h-12" />
+            ))}
           </div>
         ) : matches.length === 0 ? (
           <p className="text-sm text-surface-500">Nenhuma partida nesta fase.</p>
@@ -244,7 +272,9 @@ function MatchManager({ championshipId, stage }: { championshipId: string; stage
               return (
                 <div key={match.id} className="flex items-center justify-between gap-4 py-3">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-white">{getMatchTitle(match)}</p>
+                    <p className="truncate text-sm font-medium text-white">
+                      {getMatchTitle(match)}
+                    </p>
                     <p className="text-xs text-surface-500">
                       {scheduledAt ? formatDate(scheduledAt) : 'Sem data'}
                       {match.battleId && ` · Battle ${match.battleId}`}
@@ -253,7 +283,11 @@ function MatchManager({ championshipId, stage }: { championshipId: string; stage
                   <Badge variant={match.status === 'finished' ? 'default' : 'info'}>
                     {getMatchStatusLabel(match.status)}
                   </Badge>
-                  <FinalizeMatchButton championshipId={championshipId} stageId={stage.id} match={match} />
+                  <FinalizeMatchButton
+                    championshipId={championshipId}
+                    stageId={stage.id}
+                    match={match}
+                  />
                 </div>
               );
             })}
@@ -386,10 +420,18 @@ function BracketStageColumn({ championshipId, stage }: { championshipId: string;
           matches.map((match) => {
             const scheduledAt = toDate(match.scheduledAt);
             return (
-              <div key={match.id} className="rounded-xl border border-white/10 bg-surface-950/50 p-3">
+              <div
+                key={match.id}
+                className="rounded-xl border border-white/10 bg-surface-950/50 p-3"
+              >
                 <div className="flex items-start justify-between gap-2">
-                  <p className="min-w-0 truncate text-xs font-medium text-white">{getMatchTitle(match)}</p>
-                  <Badge variant={match.status === 'finished' ? 'default' : 'info'} className="text-[10px]">
+                  <p className="min-w-0 truncate text-xs font-medium text-white">
+                    {getMatchTitle(match)}
+                  </p>
+                  <Badge
+                    variant={match.status === 'finished' ? 'default' : 'info'}
+                    className="text-[10px]"
+                  >
                     {getMatchStatusLabel(match.status)}
                   </Badge>
                 </div>
@@ -494,7 +536,9 @@ function StageManager({ championship }: { championship: Championship }) {
 
           {loading ? (
             <div className="space-y-3">
-              {Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-24" />)}
+              {Array.from({ length: 2 }).map((_, i) => (
+                <Skeleton key={i} className="h-24" />
+              ))}
             </div>
           ) : stages.length === 0 ? (
             <p className="rounded-xl border border-white/10 px-4 py-6 text-center text-sm text-surface-500">
@@ -509,7 +553,11 @@ function StageManager({ championship }: { championship: Championship }) {
               <div className="overflow-x-auto pb-2">
                 <div className="flex gap-4">
                   {stages.map((stage) => (
-                    <BracketStageColumn key={stage.id} championshipId={championship.id} stage={stage} />
+                    <BracketStageColumn
+                      key={stage.id}
+                      championshipId={championship.id}
+                      stage={stage}
+                    />
                   ))}
                 </div>
               </div>
@@ -522,7 +570,9 @@ function StageManager({ championship }: { championship: Championship }) {
                         <Badge variant={stage.status === 'finished' ? 'default' : 'info'}>
                           {stage.status}
                         </Badge>
-                        <Badge variant="default">{stage.type === 'group' ? 'Grupo' : 'Mata-mata'}</Badge>
+                        <Badge variant="default">
+                          {stage.type === 'group' ? 'Grupo' : 'Mata-mata'}
+                        </Badge>
                       </div>
                       <h3 className="mt-2 font-semibold text-white">{stage.name}</h3>
                       <p className="text-xs text-surface-500">
@@ -542,23 +592,24 @@ function StageManager({ championship }: { championship: Championship }) {
 }
 
 export default function AdminChampionshipsPage() {
-  const { data: championships, loading } = useCollection<Championship>(
-    'championships',
-    [orderBy('createdAt', 'desc')],
-  );
+  const { data: championships, loading } = useCollection<Championship>('championships', [
+    orderBy('createdAt', 'desc'),
+  ]);
 
   const STATUS_CONFIG = {
-    upcoming:     { label: 'Em breve',    variant: 'default' as const },
-    registration: { label: 'Inscricoes',  variant: 'success' as const },
-    active:       { label: 'Em andamento', variant: 'info' as const },
-    finished:     { label: 'Encerrado',   variant: 'default' as const },
+    upcoming: { label: 'Em breve', variant: 'default' as const },
+    registration: { label: 'Inscricoes', variant: 'success' as const },
+    active: { label: 'Em andamento', variant: 'info' as const },
+    finished: { label: 'Encerrado', variant: 'default' as const },
   };
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">
       <div>
         <h1 className="text-2xl font-bold text-white">Campeonatos</h1>
-        <p className="mt-1 text-surface-400">Gerencie campeonatos oficiais e vincule classificatorias</p>
+        <p className="mt-1 text-surface-400">
+          Gerencie campeonatos oficiais e vincule classificatorias
+        </p>
       </div>
 
       <div className="mt-8 space-y-4">
@@ -583,10 +634,15 @@ export default function AdminChampionshipsPage() {
                       <div className="flex flex-wrap items-center gap-2">
                         <Badge variant={cfg.variant}>{cfg.label}</Badge>
                         <Badge variant="default">
-                          {champ.scope === 'national' ? 'Nacional' : champ.region ?? 'Regional'}
+                          {champ.scope === 'national' ? 'Nacional' : (champ.region ?? 'Regional')}
+                        </Badge>
+                        <Badge variant="default">
+                          {COMPETITION_CATEGORY_LABELS[champ.category]}
                         </Badge>
                         {champ.seasonId && (
-                          <Badge variant="default" className="text-xs">Temporada vinculada</Badge>
+                          <Badge variant="default" className="text-xs">
+                            Temporada vinculada
+                          </Badge>
                         )}
                       </div>
                       <h3 className="mt-2 font-semibold text-white">{champ.title}</h3>

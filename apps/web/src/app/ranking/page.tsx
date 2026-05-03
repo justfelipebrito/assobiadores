@@ -1,17 +1,39 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Trophy, Crown, Medal, Award, Globe, MapPin, ChevronDown, Clock } from 'lucide-react';
 import { useCollection, orderBy, limit, where } from '@batalha/firebase';
-import { Avatar, Badge, Skeleton, EmptyState } from '@batalha/ui';
+import { Badge, Skeleton, EmptyState } from '@batalha/ui';
 import { formatNumber, getRankTier } from '@batalha/utils';
-import type { User, BrazilState, Season } from '@batalha/types';
+import {
+  COMPETITION_CATEGORIES,
+  COMPETITION_CATEGORY_LABELS,
+  type User,
+  type BrazilState,
+  type Season,
+  type CompetitionCategory,
+} from '@batalha/types';
 
 const PLACE_STYLES = [
-  { icon: <Crown className="h-5 w-5" />, bg: 'from-yellow-500/20 to-amber-600/20', border: 'border-yellow-500/30', text: 'text-yellow-400' },
-  { icon: <Medal className="h-5 w-5" />, bg: 'from-surface-300/20 to-surface-400/20', border: 'border-surface-300/30', text: 'text-surface-300' },
-  { icon: <Award className="h-5 w-5" />, bg: 'from-amber-700/20 to-amber-800/20', border: 'border-amber-700/30', text: 'text-amber-600' },
+  {
+    icon: <Crown className="h-5 w-5" />,
+    bg: 'from-yellow-500/20 to-amber-600/20',
+    border: 'border-yellow-500/30',
+    text: 'text-yellow-400',
+  },
+  {
+    icon: <Medal className="h-5 w-5" />,
+    bg: 'from-surface-300/20 to-surface-400/20',
+    border: 'border-surface-300/30',
+    text: 'text-surface-300',
+  },
+  {
+    icon: <Award className="h-5 w-5" />,
+    bg: 'from-amber-700/20 to-amber-800/20',
+    border: 'border-amber-700/30',
+    text: 'text-amber-600',
+  },
 ];
 
 const BRAZIL_STATES: { value: BrazilState; label: string }[] = [
@@ -47,19 +69,41 @@ const BRAZIL_STATES: { value: BrazilState; label: string }[] = [
 type Scope = 'nacional' | 'regional';
 type RankingMode = 'allTime' | 'season';
 
-function getUserRankingPoints(user: User, seasonId: string | null) {
-  return seasonId ? user.seasonPoints?.[seasonId]?.points ?? 0 : user.points;
+function FilterLabel({ children }: { children: React.ReactNode }) {
+  return <p className="mb-2 text-xs font-semibold uppercase text-surface-500">{children}</p>;
 }
 
-function getUserRankingRank(user: User, seasonId: string | null) {
-  return seasonId ? user.seasonPoints?.[seasonId]?.rank ?? 'Iniciante' : user.rank;
+function SelectChevron() {
+  return (
+    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-surface-400" />
+  );
 }
 
-function RankingRow({ user, index, seasonId }: { user: User; index: number; seasonId: string | null }) {
+function getUserRankingPoints(user: User, seasonId: string | null, category: CompetitionCategory) {
+  return seasonId ? (user.seasonCategoryPoints?.[seasonId]?.[category]?.points ?? 0) : user.points;
+}
+
+function getUserRankingRank(user: User, seasonId: string | null, category: CompetitionCategory) {
+  return seasonId
+    ? (user.seasonCategoryPoints?.[seasonId]?.[category]?.rank ?? 'Iniciante')
+    : user.rank;
+}
+
+function RankingRow({
+  user,
+  index,
+  seasonId,
+  category,
+}: {
+  user: User;
+  index: number;
+  seasonId: string | null;
+  category: CompetitionCategory;
+}) {
   const isTop3 = index < 3;
   const placeStyle = PLACE_STYLES[index];
-  const points = getUserRankingPoints(user, seasonId);
-  const rank = getUserRankingRank(user, seasonId);
+  const points = getUserRankingPoints(user, seasonId, category);
+  const rank = getUserRankingRank(user, seasonId, category);
   const tier = getRankTier(points);
 
   return (
@@ -79,7 +123,6 @@ function RankingRow({ user, index, seasonId }: { user: User; index: number; seas
           )}
         </div>
         <div className="flex flex-1 items-center gap-3 min-w-0">
-          <Avatar src={user.photoURL} name={user.displayName} size="sm" />
           <div className="min-w-0">
             <p className="truncate font-semibold text-white group-hover:text-brand-400 transition-colors">
               {user.displayName}
@@ -101,9 +144,7 @@ function RankingRow({ user, index, seasonId }: { user: User; index: number; seas
           </div>
         </div>
         <div className="text-right flex-shrink-0">
-          <p className="text-lg font-bold tabular-nums text-white">
-            {formatNumber(points)}
-          </p>
+          <p className="text-lg font-bold tabular-nums text-white">{formatNumber(points)}</p>
           <p className="text-xs text-surface-500">pontos</p>
         </div>
       </div>
@@ -114,42 +155,49 @@ function RankingRow({ user, index, seasonId }: { user: User; index: number; seas
 export default function RankingPage() {
   const [scope, setScope] = useState<Scope>('regional');
   const [selectedState, setSelectedState] = useState<BrazilState | ''>('SP');
-  const [rankingMode, setRankingMode] = useState<RankingMode>('allTime');
+  const [rankingMode, setRankingMode] = useState<RankingMode>('season');
+  const [selectedCategory, setSelectedCategory] = useState<CompetitionCategory>('freestyle');
 
-  const { data: activeSeasons } = useCollection<Season>(
-    'seasons',
-    [where('status', '==', 'active'), orderBy('start', 'desc'), limit(1)],
-  );
+  const { data: activeSeasons } = useCollection<Season>('seasons', [
+    where('status', '==', 'active'),
+    orderBy('start', 'desc'),
+    limit(1),
+  ]);
   const activeSeason = activeSeasons[0] ?? null;
   const seasonId = rankingMode === 'season' && activeSeason ? activeSeason.id : null;
-  const pointsField = seasonId ? `seasonPoints.${seasonId}.points` : 'points';
 
-  const nationalConstraints = [orderBy(pointsField, 'desc'), limit(50)];
-  const regionalConstraints = seasonId
-    ? [orderBy(pointsField, 'desc'), limit(200)]
-    : selectedState
-    ? [where('state', '==', selectedState), orderBy(pointsField, 'desc'), limit(50)]
-    : [orderBy(pointsField, 'desc'), limit(50)];
+  const { data: rankingUsers, loading } = useCollection<User>('users', [
+    orderBy('points', 'desc'),
+    limit(500),
+  ]);
 
-  const { data: nationalUsers, loading: nationalLoading } = useCollection<User>(
-    'users',
-    nationalConstraints,
-  );
-
-  const { data: regionalUsers, loading: regionalLoading } = useCollection<User>(
-    'users',
-    regionalConstraints,
-  );
-
-  const users =
-    scope === 'nacional'
-      ? nationalUsers
-      : seasonId && selectedState
-        ? regionalUsers.filter((user) => user.state === selectedState).slice(0, 50)
-        : regionalUsers;
-  const loading = scope === 'nacional' ? nationalLoading : regionalLoading;
+  const users = useMemo(() => {
+    return rankingUsers
+      .filter((user) =>
+        scope === 'regional' && selectedState ? user.state === selectedState : true,
+      )
+      .sort((a, b) => {
+        const diff =
+          getUserRankingPoints(b, seasonId, selectedCategory) -
+          getUserRankingPoints(a, seasonId, selectedCategory);
+        if (diff !== 0) return diff;
+        return a.displayName.localeCompare(b.displayName);
+      })
+      .slice(0, 50);
+  }, [rankingUsers, scope, seasonId, selectedCategory, selectedState]);
 
   const selectedStateLabel = BRAZIL_STATES.find((s) => s.value === selectedState)?.label;
+  const selectedCategoryLabel = COMPETITION_CATEGORY_LABELS[selectedCategory];
+  const rankingDescription =
+    scope === 'nacional'
+      ? seasonId
+        ? `Ranking Oficial - Top 50 de ${selectedCategoryLabel} na ${activeSeason?.name}`
+        : 'Ranking Oficial - Top 50 do Brasil'
+      : selectedStateLabel
+        ? seasonId
+          ? `Ranking Regional - Top 50 de ${selectedStateLabel} em ${selectedCategoryLabel} na ${activeSeason?.name}`
+          : `Ranking Regional - Top 50 de ${selectedStateLabel}`
+        : 'Escolha um estado para ver o Ranking Regional';
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
@@ -162,99 +210,131 @@ export default function RankingPage() {
         <p className="mt-1 text-surface-400">Liga nacional e rankings regionais</p>
       </div>
 
-      {/* Scope tabs */}
-      <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex rounded-xl border border-white/10 bg-white/[0.03] p-1">
-          <button
-            onClick={() => setScope('nacional')}
-            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all ${
-              scope === 'nacional'
-                ? 'bg-white/10 text-white shadow-sm'
-                : 'text-surface-400 hover:text-surface-300'
-            }`}
+      <div className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+        <div className="flex flex-col gap-2 border-b border-white/5 pb-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm font-medium text-white">{rankingDescription}</p>
+          <Link
+            href="/ranking/temporadas"
+            className="inline-flex items-center gap-1 text-xs font-medium text-surface-500 transition-colors hover:text-surface-300"
           >
-            <Globe className="h-4 w-4" />
-            Ranking Oficial
-          </button>
-          <button
-            onClick={() => setScope('regional')}
-            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all ${
-              scope === 'regional'
-                ? 'bg-white/10 text-white shadow-sm'
-                : 'text-surface-400 hover:text-surface-300'
-            }`}
-          >
-            <MapPin className="h-4 w-4" />
-            Ranking Regional
-          </button>
+            <Clock className="h-3.5 w-3.5" />
+            Ver temporadas anteriores
+          </Link>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex rounded-xl border border-white/10 bg-white/[0.03] p-1">
-            <button
-              onClick={() => setRankingMode('allTime')}
-              className={`rounded-lg px-3 py-2 text-sm font-medium transition-all ${
-                rankingMode === 'allTime'
-                  ? 'bg-white/10 text-white shadow-sm'
-                  : 'text-surface-400 hover:text-surface-300'
-              }`}
-            >
-              Geral
-            </button>
-            <button
-              onClick={() => setRankingMode('season')}
-              disabled={!activeSeason}
-              className={`rounded-lg px-3 py-2 text-sm font-medium transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
-                rankingMode === 'season'
-                  ? 'bg-white/10 text-white shadow-sm'
-                  : 'text-surface-400 hover:text-surface-300'
-              }`}
-            >
-              Temporada
-            </button>
+        <div className="mt-4 grid gap-4">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <FilterLabel>Liga</FilterLabel>
+              <div className="grid grid-cols-2 rounded-xl border border-white/10 bg-surface-950/60 p-1">
+                <button
+                  onClick={() => setScope('nacional')}
+                  className={`flex h-10 items-center justify-center gap-2 rounded-lg px-3 text-sm font-medium transition-all ${
+                    scope === 'nacional'
+                      ? 'bg-white/10 text-white shadow-sm'
+                      : 'text-surface-400 hover:text-surface-300'
+                  }`}
+                >
+                  <Globe className="h-4 w-4" />
+                  Nacional
+                </button>
+                <button
+                  onClick={() => setScope('regional')}
+                  className={`flex h-10 items-center justify-center gap-2 rounded-lg px-3 text-sm font-medium transition-all ${
+                    scope === 'regional'
+                      ? 'bg-white/10 text-white shadow-sm'
+                      : 'text-surface-400 hover:text-surface-300'
+                  }`}
+                >
+                  <MapPin className="h-4 w-4" />
+                  Regional
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <FilterLabel>Periodo</FilterLabel>
+              <div className="grid grid-cols-2 rounded-xl border border-white/10 bg-surface-950/60 p-1">
+                <button
+                  onClick={() => setRankingMode('season')}
+                  disabled={!activeSeason}
+                  className={`h-10 rounded-lg px-3 text-sm font-medium transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
+                    rankingMode === 'season'
+                      ? 'bg-white/10 text-white shadow-sm'
+                      : 'text-surface-400 hover:text-surface-300'
+                  }`}
+                >
+                  Temporada
+                </button>
+                <button
+                  onClick={() => setRankingMode('allTime')}
+                  className={`h-10 rounded-lg px-3 text-sm font-medium transition-all ${
+                    rankingMode === 'allTime'
+                      ? 'bg-white/10 text-white shadow-sm'
+                      : 'text-surface-400 hover:text-surface-300'
+                  }`}
+                >
+                  Geral
+                </button>
+              </div>
+            </div>
           </div>
 
-          {scope === 'regional' && (
-            <div className="relative">
-              <select
-                value={selectedState}
-                onChange={(e) => setSelectedState(e.target.value as BrazilState | '')}
-                className="appearance-none rounded-xl border border-white/10 bg-surface-800 pl-3 pr-8 py-2 text-sm text-white focus:border-brand-500/50 focus:outline-none focus:ring-1 focus:ring-brand-500/50"
-              >
-                <option value="">Todos os estados</option>
-                {BRAZIL_STATES.map((s) => (
-                  <option key={s.value} value={s.value}>{s.label}</option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-surface-400" />
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <FilterLabel>Categoria</FilterLabel>
+              <div className="relative">
+                <select
+                  value={rankingMode === 'season' ? selectedCategory : 'all'}
+                  onChange={(e) => setSelectedCategory(e.target.value as CompetitionCategory)}
+                  disabled={rankingMode !== 'season'}
+                  className="h-11 w-full appearance-none rounded-xl border border-white/10 bg-surface-900 px-3 pr-10 text-sm font-medium text-white outline-none transition-colors focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {rankingMode === 'season' ? (
+                    COMPETITION_CATEGORIES.map((category) => (
+                      <option key={category.value} value={category.value}>
+                        {category.label}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="all">Todas as categorias</option>
+                  )}
+                </select>
+                <SelectChevron />
+              </div>
             </div>
-          )}
+
+            <div>
+              <FilterLabel>Regiao</FilterLabel>
+              <div className="relative">
+                <select
+                  value={scope === 'regional' ? selectedState : 'BR'}
+                  onChange={(e) => setSelectedState(e.target.value as BrazilState | '')}
+                  disabled={scope !== 'regional'}
+                  className="h-11 w-full appearance-none rounded-xl border border-white/10 bg-surface-900 px-3 pr-10 text-sm font-medium text-white outline-none transition-colors focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {scope === 'regional' ? (
+                    <>
+                      <option value="">Todos os estados</option>
+                      {BRAZIL_STATES.map((s) => (
+                        <option key={s.value} value={s.value}>
+                          {s.label}
+                        </option>
+                      ))}
+                    </>
+                  ) : (
+                    <option value="BR">Brasil</option>
+                  )}
+                </select>
+                <SelectChevron />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Seasons link */}
-      <div className="mt-4 flex justify-end">
-        <Link href="/ranking/temporadas" className="flex items-center gap-1 text-xs text-surface-500 hover:text-surface-300 transition-colors">
-          <Clock className="h-3.5 w-3.5" />
-          Ver temporadas anteriores
-        </Link>
-      </div>
-
-      {/* Scope label */}
-      <p className="mt-2 text-xs text-surface-500">
-        {scope === 'nacional'
-          ? seasonId
-            ? `Ranking Oficial - Top 50 da temporada ${activeSeason?.name}`
-            : 'Ranking Oficial - Top 50 do Brasil'
-          : selectedStateLabel
-          ? seasonId
-            ? `Ranking Regional - Top 50 de ${selectedStateLabel} na temporada ${activeSeason?.name}`
-            : `Ranking Regional - Top 50 de ${selectedStateLabel}`
-          : 'Escolha um estado para ver o Ranking Regional'}
-      </p>
-
       {/* List */}
-      <div className="mt-4 space-y-2">
+      <div className="mt-5 space-y-2">
         {loading ? (
           Array.from({ length: 10 }).map((_, i) => <Skeleton key={i} className="h-16" />)
         ) : users.length === 0 ? (
@@ -269,7 +349,13 @@ export default function RankingPage() {
           />
         ) : (
           users.map((user, index) => (
-            <RankingRow key={user.id} user={user} index={index} seasonId={seasonId} />
+            <RankingRow
+              key={user.id}
+              user={user}
+              index={index}
+              seasonId={seasonId}
+              category={selectedCategory}
+            />
           ))
         )}
       </div>

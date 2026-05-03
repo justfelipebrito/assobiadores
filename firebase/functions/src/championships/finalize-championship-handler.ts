@@ -1,5 +1,10 @@
 import type { Firestore, FieldValue } from 'firebase-admin/firestore';
-import { calculateRank, getPointsForPlace, getPrizeForPlace, POINTS_TABLE } from '../domain/ranking';
+import {
+  calculateRank,
+  getPointsForPlace,
+  getPrizeForPlace,
+  POINTS_TABLE,
+} from '../domain/ranking';
 
 const CHAMPIONSHIP_POINTS_MULTIPLIER = 2;
 
@@ -109,6 +114,17 @@ export async function finalizeChampionshipHandler(
             [`seasonPoints.${champ.seasonId}.xp`]: fieldValue.increment(pointsAwarded),
             [`seasonPoints.${champ.seasonId}.rank`]: newRank,
             [`seasonPoints.${champ.seasonId}.updatedAt`]: fieldValue.serverTimestamp(),
+          }
+        : {}),
+      ...(champ.seasonId && champ.category
+        ? {
+            [`seasonCategoryPoints.${champ.seasonId}.${champ.category}.points`]:
+              fieldValue.increment(pointsAwarded),
+            [`seasonCategoryPoints.${champ.seasonId}.${champ.category}.xp`]:
+              fieldValue.increment(pointsAwarded),
+            [`seasonCategoryPoints.${champ.seasonId}.${champ.category}.rank`]: newRank,
+            [`seasonCategoryPoints.${champ.seasonId}.${champ.category}.updatedAt`]:
+              fieldValue.serverTimestamp(),
           }
         : {}),
       ...statsUpdate,

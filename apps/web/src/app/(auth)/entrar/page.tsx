@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button, Input, Card, CardContent } from '@batalha/ui';
 import { useAuth } from '@batalha/firebase';
@@ -13,16 +13,18 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  // Redirect if already logged in
-  if (user) {
-    router.push('/');
-    return null;
-  }
+  useEffect(() => {
+    if (user) {
+      router.push('/');
+    }
+  }, [router, user]);
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     await signInWithEmail(email, password);
   };
+
+  if (user) return null;
 
   return (
     <div className="relative flex min-h-[calc(100vh-4rem)] items-center justify-center px-4 py-12">
@@ -36,9 +38,7 @@ export default function LoginPage() {
             <Music className="h-7 w-7 text-white" />
           </div>
           <h1 className="text-2xl font-bold text-white">Bem-vindo de volta</h1>
-          <p className="mt-2 text-surface-400">
-            Entre para continuar participando das batalhas
-          </p>
+          <p className="mt-2 text-surface-400">Entre para continuar participando das batalhas</p>
         </div>
 
         <Card>
@@ -131,7 +131,10 @@ export default function LoginPage() {
 
         <p className="mt-6 text-center text-sm text-surface-500">
           Nao tem uma conta?{' '}
-          <Link href="/cadastro" className="font-semibold text-brand-400 transition-colors hover:text-brand-300">
+          <Link
+            href="/cadastro"
+            className="font-semibold text-brand-400 transition-colors hover:text-brand-300"
+          >
             Cadastre-se gratis
           </Link>
         </p>

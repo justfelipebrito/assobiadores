@@ -24,7 +24,7 @@ describe('admin battle form helpers', () => {
         description: 'Etapa classificatoria',
         type: 'official',
         format: 'group',
-        category: 'classico',
+        category: 'freestyle',
         status: 'draft',
         entryFee: 0,
         prizePool: 0,

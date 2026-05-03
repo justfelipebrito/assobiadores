@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { X, Swords, Trophy, User, LogOut, LogIn, UserPlus } from 'lucide-react';
+import { X, User, LogOut, LogIn, UserPlus } from 'lucide-react';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { Avatar } from '@batalha/ui';
 
@@ -9,19 +9,25 @@ interface MobileNavProps {
   open: boolean;
   onClose: () => void;
   user: FirebaseUser | null;
+  avatarSrc?: string;
+  displayName: string;
   onSignOut: () => void;
 }
 
-export function MobileNav({ open, onClose, user, onSignOut }: MobileNavProps) {
+export function MobileNav({
+  open,
+  onClose,
+  user,
+  avatarSrc,
+  displayName,
+  onSignOut,
+}: MobileNavProps) {
   if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-[100] md:hidden">
       {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
-      />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
       {/* Panel */}
       <div className="absolute bottom-0 left-0 right-0 top-0 w-[280px] animate-slide-in-left border-r border-white/5 bg-surface-950">
@@ -47,16 +53,9 @@ export function MobileNav({ open, onClose, user, onSignOut }: MobileNavProps) {
           {user && (
             <div className="border-b border-white/5 px-4 py-4">
               <div className="flex items-center gap-3">
-                <Avatar
-                  src={user.photoURL}
-                  name={user.displayName || 'U'}
-                  size="md"
-                  ring
-                />
+                <Avatar src={avatarSrc} name={displayName} size="md" ring />
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-white">
-                    {user.displayName}
-                  </p>
+                  <p className="truncate text-sm font-semibold text-white">{displayName}</p>
                   <p className="truncate text-xs text-surface-500">{user.email}</p>
                 </div>
               </div>
@@ -66,12 +65,6 @@ export function MobileNav({ open, onClose, user, onSignOut }: MobileNavProps) {
           {/* Navigation */}
           <nav className="flex-1 px-3 py-4">
             <div className="space-y-1">
-              <NavLink href="/batalhas" icon={<Swords className="h-5 w-5" />} onClick={onClose}>
-                Batalhas
-              </NavLink>
-              <NavLink href="/ranking" icon={<Trophy className="h-5 w-5" />} onClick={onClose}>
-                Ranking
-              </NavLink>
               {user && (
                 <NavLink href="/meu-perfil" icon={<User className="h-5 w-5" />} onClick={onClose}>
                   Meu Perfil

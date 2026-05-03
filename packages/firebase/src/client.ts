@@ -2,7 +2,7 @@ import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
 import { connectAuthEmulator, getAuth, type Auth } from 'firebase/auth';
 import { connectFirestoreEmulator, getFirestore, type Firestore } from 'firebase/firestore';
 
-function shouldUseEmulators() {
+export function shouldUseEmulators() {
   return process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === 'true';
 }
 

@@ -6,21 +6,25 @@ import { Swords, Users, Clock, ArrowRight, Trophy, Sparkles, Filter } from 'luci
 import { useCollection, orderBy } from '@batalha/firebase';
 import { Badge, Button, Card, CardContent, Skeleton, EmptyState } from '@batalha/ui';
 import { formatCurrency, formatRelativeTime, toDate } from '@batalha/utils';
-import type { Battle, BattleStatus, BattleCategory } from '@batalha/types';
+import {
+  COMPETITION_CATEGORIES,
+  COMPETITION_CATEGORY_LABELS,
+  type Battle,
+  type BattleStatus,
+  type BattleCategory,
+} from '@batalha/types';
 
-const STATUS_MAP: Record<string, { label: string; variant: 'success' | 'warning' | 'info' | 'default' | 'purple' }> = {
+const STATUS_MAP: Record<
+  string,
+  { label: string; variant: 'success' | 'warning' | 'info' | 'default' | 'purple' }
+> = {
   registration: { label: 'Inscricoes abertas', variant: 'success' },
   active: { label: 'Em andamento', variant: 'info' },
   voting: { label: 'Em votacao', variant: 'purple' },
   finished: { label: 'Finalizada', variant: 'default' },
 };
 
-const CATEGORY_MAP: Record<string, string> = {
-  classico: 'Classico',
-  imitacao: 'Imitacao',
-  freestyle: 'Freestyle',
-  melodia: 'Melodia',
-};
+const CATEGORY_MAP: Record<string, string> = COMPETITION_CATEGORY_LABELS;
 
 const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: 'all', label: 'Todas' },
@@ -32,10 +36,7 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
 
 const CATEGORY_OPTIONS: { value: string; label: string }[] = [
   { value: 'all', label: 'Todas' },
-  { value: 'classico', label: 'Classico' },
-  { value: 'imitacao', label: 'Imitacao' },
-  { value: 'freestyle', label: 'Freestyle' },
-  { value: 'melodia', label: 'Melodia' },
+  ...COMPETITION_CATEGORIES,
 ];
 
 const TYPE_OPTIONS: { value: string; label: string }[] = [
@@ -72,10 +73,11 @@ export default function BattlesPage() {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
 
-  const { data: battles, loading, error } = useCollection<Battle>(
-    'battles',
-    [orderBy('createdAt', 'desc')],
-  );
+  const {
+    data: battles,
+    loading,
+    error,
+  } = useCollection<Battle>('battles', [orderBy('createdAt', 'desc')]);
 
   const filtered = useMemo(() => {
     return battles.filter((b) => {
@@ -86,21 +88,27 @@ export default function BattlesPage() {
     });
   }, [battles, statusFilter, categoryFilter, typeFilter]);
 
-  const activeFilterCount = [statusFilter, categoryFilter, typeFilter].filter((f) => f !== 'all').length;
+  const activeFilterCount = [statusFilter, categoryFilter, typeFilter].filter(
+    (f) => f !== 'all',
+  ).length;
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-white">Batalhas</h1>
-        <p className="mt-1 text-surface-400">Encontre batalhas para participar e mostrar seu talento</p>
+        <p className="mt-1 text-surface-400">
+          Encontre batalhas para participar e mostrar seu talento
+        </p>
       </div>
 
       {/* Filters */}
       <div className="mt-6 space-y-4">
         {/* Status */}
         <div>
-          <p className="mb-2 text-xs font-medium uppercase tracking-wider text-surface-500">Status</p>
+          <p className="mb-2 text-xs font-medium uppercase tracking-wider text-surface-500">
+            Status
+          </p>
           <div className="flex flex-wrap gap-2">
             {STATUS_OPTIONS.map((opt) => (
               <FilterChip
@@ -116,7 +124,9 @@ export default function BattlesPage() {
         {/* Category + Type row */}
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <p className="mb-2 text-xs font-medium uppercase tracking-wider text-surface-500">Categoria</p>
+            <p className="mb-2 text-xs font-medium uppercase tracking-wider text-surface-500">
+              Categoria
+            </p>
             <div className="flex flex-wrap gap-2">
               {CATEGORY_OPTIONS.map((opt) => (
                 <FilterChip
@@ -129,7 +139,9 @@ export default function BattlesPage() {
             </div>
           </div>
           <div>
-            <p className="mb-2 text-xs font-medium uppercase tracking-wider text-surface-500">Tipo</p>
+            <p className="mb-2 text-xs font-medium uppercase tracking-wider text-surface-500">
+              Tipo
+            </p>
             <div className="flex flex-wrap gap-2">
               {TYPE_OPTIONS.map((opt) => (
                 <FilterChip
@@ -147,10 +159,15 @@ export default function BattlesPage() {
         {activeFilterCount > 0 && (
           <div className="flex items-center gap-3">
             <span className="text-xs text-surface-500">
-              {filtered.length} batalha{filtered.length !== 1 ? 's' : ''} encontrada{filtered.length !== 1 ? 's' : ''}
+              {filtered.length} batalha{filtered.length !== 1 ? 's' : ''} encontrada
+              {filtered.length !== 1 ? 's' : ''}
             </span>
             <button
-              onClick={() => { setStatusFilter('all'); setCategoryFilter('all'); setTypeFilter('all'); }}
+              onClick={() => {
+                setStatusFilter('all');
+                setCategoryFilter('all');
+                setTypeFilter('all');
+              }}
               className="text-xs text-brand-400 hover:text-brand-300 transition-colors"
             >
               Limpar filtros
@@ -162,9 +179,7 @@ export default function BattlesPage() {
       {/* Battle list */}
       <div className="mt-6 space-y-4">
         {loading ? (
-          Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-44" />
-          ))
+          Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-44" />)
         ) : error ? (
           <EmptyState
             icon={<Filter className="h-12 w-12" />}
@@ -174,14 +189,26 @@ export default function BattlesPage() {
         ) : filtered.length === 0 ? (
           <EmptyState
             icon={<Swords className="h-12 w-12" />}
-            title={activeFilterCount > 0 ? 'Nenhuma batalha com esses filtros' : 'Nenhuma batalha disponivel'}
-            description={activeFilterCount > 0 ? 'Tente ajustar os filtros para ver mais batalhas.' : 'Novas batalhas serao criadas em breve. Fique ligado!'}
+            title={
+              activeFilterCount > 0
+                ? 'Nenhuma batalha com esses filtros'
+                : 'Nenhuma batalha disponivel'
+            }
+            description={
+              activeFilterCount > 0
+                ? 'Tente ajustar os filtros para ver mais batalhas.'
+                : 'Novas batalhas serao criadas em breve. Fique ligado!'
+            }
             action={
               activeFilterCount > 0 ? (
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => { setStatusFilter('all'); setCategoryFilter('all'); setTypeFilter('all'); }}
+                  onClick={() => {
+                    setStatusFilter('all');
+                    setCategoryFilter('all');
+                    setTypeFilter('all');
+                  }}
                 >
                   Limpar filtros
                 </Button>
@@ -203,7 +230,9 @@ export default function BattlesPage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <Badge variant={status.variant}>{status.label}</Badge>
-                          <Badge variant="default">{CATEGORY_MAP[battle.category] || battle.category}</Badge>
+                          <Badge variant="default">
+                            {CATEGORY_MAP[battle.category] || battle.category}
+                          </Badge>
                           {battle.type === 'official' && (
                             <Badge variant="gold">
                               <Trophy className="mr-1 h-3 w-3" />
@@ -220,7 +249,8 @@ export default function BattlesPage() {
                           <span className="flex items-center gap-1.5">
                             <Users className="h-4 w-4" />
                             {battle.currentParticipants}
-                            {battle.maxParticipants > 0 && `/${battle.maxParticipants}`} participantes
+                            {battle.maxParticipants > 0 && `/${battle.maxParticipants}`}{' '}
+                            participantes
                           </span>
                           {registrationEnd && (
                             <span className="flex items-center gap-1.5">
@@ -235,8 +265,12 @@ export default function BattlesPage() {
                       <div className="flex items-center gap-4 sm:flex-col sm:items-end sm:gap-2">
                         {isPaid ? (
                           <div className="text-right">
-                            <p className="text-xs font-medium uppercase tracking-wider text-surface-500">Inscricao</p>
-                            <p className="text-lg font-bold text-brand-400">{formatCurrency(battle.entryFee)}</p>
+                            <p className="text-xs font-medium uppercase tracking-wider text-surface-500">
+                              Inscricao
+                            </p>
+                            <p className="text-lg font-bold text-brand-400">
+                              {formatCurrency(battle.entryFee)}
+                            </p>
                           </div>
                         ) : (
                           <Badge variant="success">

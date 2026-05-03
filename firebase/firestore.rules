@@ -24,16 +24,26 @@ service cloud.firestore {
             'schemaVersion',
             'username',
             'usernameLower',
+            'usernameChangeAvailableAt',
             'role',
             'accountType',
             'plan',
             'state',
+            'birthState',
             'country',
+            'addressChangeAvailableAt',
             'officialProfile',
+            'photoURL',
+            'photoPath',
+            'photoVersion',
+            'photoUpdatedAt',
+            'photoChangeAvailableAt',
             'points',
             'xp',
+            'casualPoints',
             'rank',
             'seasonPoints',
+            'seasonCategoryPoints',
             'stats',
             'badges'
           ]);
@@ -43,20 +53,40 @@ service cloud.firestore {
             'schemaVersion',
             'username',
             'usernameLower',
+            'usernameChangeAvailableAt',
             'role',
             'accountType',
             'plan',
             'state',
+            'birthState',
             'country',
+            'addressChangeAvailableAt',
             'officialProfile',
+            'photoURL',
+            'photoPath',
+            'photoVersion',
+            'photoUpdatedAt',
+            'photoChangeAvailableAt',
             'points',
             'xp',
+            'casualPoints',
             'rank',
             'seasonPoints',
+            'seasonCategoryPoints',
             'stats',
             'badges'
           ]);
       allow delete: if false;
+    }
+
+    match /userPrivate/{userId} {
+      allow read: if isOwner(userId);
+      allow create, update, delete: if false;
+    }
+
+    match /usernames/{username} {
+      allow read: if true;
+      allow create, update, delete: if false;
     }
 
     // Battles
@@ -102,6 +132,17 @@ service cloud.firestore {
       allow read: if true;
       allow create: if false;
       allow update, delete: if false;
+    }
+
+    // Daily Highlights
+    match /dailyHighlights/{dailyHighlightId} {
+      allow read: if true;
+      allow create, update, delete: if false;
+    }
+
+    match /dailyHighlightLikes/{likeId} {
+      allow read: if true;
+      allow create, update, delete: if false;
     }
 
     // Seasons

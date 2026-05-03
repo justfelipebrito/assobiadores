@@ -90,14 +90,22 @@ describe('finalizeChampionshipHandler', () => {
   it('throws if championship does not exist', async () => {
     const { db } = buildDb({ champData: null });
     await expect(
-      finalizeChampionshipHandler('c1', { db: db as never, fieldValue: fieldValue as never, logger }),
+      finalizeChampionshipHandler('c1', {
+        db: db as never,
+        fieldValue: fieldValue as never,
+        logger,
+      }),
     ).rejects.toThrow('not found');
   });
 
   it('throws if championship is already finished', async () => {
     const { db } = buildDb({ champData: { status: 'finished', prizeDistribution: null } });
     await expect(
-      finalizeChampionshipHandler('c1', { db: db as never, fieldValue: fieldValue as never, logger }),
+      finalizeChampionshipHandler('c1', {
+        db: db as never,
+        fieldValue: fieldValue as never,
+        logger,
+      }),
     ).rejects.toThrow('already finished');
   });
 
@@ -112,16 +120,18 @@ describe('finalizeChampionshipHandler', () => {
     });
 
     await expect(
-      finalizeChampionshipHandler('c1', { db: db as never, fieldValue: fieldValue as never, logger }),
+      finalizeChampionshipHandler('c1', {
+        db: db as never,
+        fieldValue: fieldValue as never,
+        logger,
+      }),
     ).rejects.toThrow('stage(s) still active');
   });
 
   it('determines champion from the Final stage winner', async () => {
     const { db, batch } = buildDb({
       champData: { status: 'active', prizeDistribution: null },
-      stagesDocs: [
-        { id: 's1', data: { name: 'Final', status: 'finished' } },
-      ],
+      stagesDocs: [{ id: 's1', data: { name: 'Final', status: 'finished' } }],
       matchesByStage: {
         s1: [
           {
@@ -153,9 +163,7 @@ describe('finalizeChampionshipHandler', () => {
   it('awards 2x points to all participants', async () => {
     const { db, batch } = buildDb({
       champData: { status: 'active', prizeDistribution: null },
-      stagesDocs: [
-        { id: 's1', data: { name: 'Final', status: 'finished' } },
-      ],
+      stagesDocs: [{ id: 's1', data: { name: 'Final', status: 'finished' } }],
       matchesByStage: {
         s1: [
           {
@@ -247,10 +255,13 @@ describe('finalizeChampionshipHandler', () => {
 
   it('writes season-scoped points when championship has a season', async () => {
     const { db, batch } = buildDb({
-      champData: { status: 'active', seasonId: '2026-s1', prizeDistribution: null },
-      stagesDocs: [
-        { id: 's1', data: { name: 'Final', status: 'finished' } },
-      ],
+      champData: {
+        status: 'active',
+        seasonId: '2026',
+        category: 'freestyle',
+        prizeDistribution: null,
+      },
+      stagesDocs: [{ id: 's1', data: { name: 'Final', status: 'finished' } }],
       matchesByStage: {
         s1: [
           {
@@ -278,10 +289,18 @@ describe('finalizeChampionshipHandler', () => {
     )?.[1];
 
     expect(champUpdate).toMatchObject({
-      'seasonPoints.2026-s1.points': { _increment: POINTS_TABLE.first * CHAMP_MULTIPLIER },
-      'seasonPoints.2026-s1.xp': { _increment: POINTS_TABLE.first * CHAMP_MULTIPLIER },
-      'seasonPoints.2026-s1.rank': 'Assobiador',
-      'seasonPoints.2026-s1.updatedAt': serverTimestamp,
+      'seasonPoints.2026.points': { _increment: POINTS_TABLE.first * CHAMP_MULTIPLIER },
+      'seasonPoints.2026.xp': { _increment: POINTS_TABLE.first * CHAMP_MULTIPLIER },
+      'seasonPoints.2026.rank': 'Assobiador',
+      'seasonPoints.2026.updatedAt': serverTimestamp,
+      'seasonCategoryPoints.2026.freestyle.points': {
+        _increment: POINTS_TABLE.first * CHAMP_MULTIPLIER,
+      },
+      'seasonCategoryPoints.2026.freestyle.xp': {
+        _increment: POINTS_TABLE.first * CHAMP_MULTIPLIER,
+      },
+      'seasonCategoryPoints.2026.freestyle.rank': 'Assobiador',
+      'seasonCategoryPoints.2026.freestyle.updatedAt': serverTimestamp,
     });
   });
 

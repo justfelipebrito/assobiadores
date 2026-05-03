@@ -5,11 +5,16 @@ import { FREE_TIER_GROUP_CAP } from '@batalha/types';
 
 function makeDates(offsetMinutes = 0) {
   const base = Date.now() + offsetMinutes * 60_000;
-  const regEnd      = new Date(base + 1 * 24 * 60 * 60_000).toISOString();
+  const regEnd = new Date(base + 1 * 24 * 60 * 60_000).toISOString();
   const subDeadline = new Date(base + 2 * 24 * 60 * 60_000).toISOString();
-  const voteStart   = new Date(base + 3 * 24 * 60 * 60_000).toISOString();
-  const voteEnd     = new Date(base + 4 * 24 * 60 * 60_000).toISOString();
-  return { registrationEnd: regEnd, submissionDeadline: subDeadline, votingStart: voteStart, votingEnd: voteEnd };
+  const voteStart = new Date(base + 3 * 24 * 60 * 60_000).toISOString();
+  const voteEnd = new Date(base + 4 * 24 * 60 * 60_000).toISOString();
+  return {
+    registrationEnd: regEnd,
+    submissionDeadline: subDeadline,
+    votingStart: voteStart,
+    votingEnd: voteEnd,
+  };
 }
 
 const validGroupBody = {
@@ -27,7 +32,7 @@ const validDuelBody = {
   title: 'Duelo Teste',
   description: '',
   format: 'duel',
-  category: 'classico',
+  category: 'passaros',
   maxParticipants: 2,
   votingType: 'public',
   rules: [],

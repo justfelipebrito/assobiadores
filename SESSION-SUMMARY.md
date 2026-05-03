@@ -25,7 +25,8 @@
 
 **Firebase backend** (`firebase/`):
 
-- `firestore.rules` — Hardened security rules (protected user/account/ranking metadata not client-writable; payments, battleEntries, submissions, votes, battleInvites not client-writable)
+- `firestore.rules` — Hardened security rules (protected user/account/ranking/photo metadata not client-writable; payments, battleEntries, submissions, votes, battleInvites not client-writable)
+- `storage.rules` — Public avatar reads with all client writes blocked; profile photo uploads go through the server API
 - `firestore.indexes.json` — 8 composite indexes
 - Cloud Functions:
   - `onUserCreate` (v1 auth trigger) — creates user doc with defaults
@@ -48,7 +49,7 @@
 **Profile pages:**
 
 - `/perfil/[userId]` — Public profile with LoL-style rank banner, XP progress bar, stats, badges
-- `/meu-perfil` — Edit own profile (name, bio, photo)
+- `/meu-perfil` — Edit own profile (username, name, bio, avatar upload, official profile data)
 
 **Layout components:**
 
@@ -143,8 +144,12 @@
   - National League.
   - Regional League by Brazilian state.
 - Season-based rankings should be first-class so users have a fresh, motivating path to stay near the top each season.
+- Homepage ranking summaries should present the active season (for example, `Temporada 2026`) rather than generic all-time copy.
+- Official ranking is category-scoped. The global competition categories are only `freestyle`, `melodia`, and `passaros` (`Pássaros` in UI copy).
 - Community users should have a pathway into official competitions through qualifiers.
 - Qualifiers should bridge community participation into official competition slots while preserving official ranking integrity.
+- Official competition participation should require a valid subscription; initial pricing direction is around USD $2, with exact payment/subscription rules still to be designed.
+- Competitions need category support for exactly Freestyle, Melodia, and Pássaros.
 - Official battles/championships require richer event/bracket modeling:
   - event dates and times surfaced in headers and details;
   - competitors surfaced in headers and details;
@@ -207,7 +212,8 @@
 
 ```
 championships/{id}
-  title, description, season (e.g. "2026-S1")
+  title, description, season (e.g. "2026")
+  category: 'freestyle' | 'melodia' | 'passaros'
   scope: 'national' | 'regional'
   region?: string  // Brazilian state code, e.g. 'SP'
   status: 'upcoming' | 'registration' | 'active' | 'finished'
@@ -233,7 +239,7 @@ championships/{id}/stages/{stageId}/matches/{matchId}
   scores: { [userId]: number }
 
 seasons/{id}
-  name: string  // e.g. "Temporada 1 — 2026"
+  name: string  // e.g. "Temporada 2026"
   scope: 'national' | 'regional'
   region?: string
   start, end
@@ -260,9 +266,9 @@ seasons/{id}
 - `finalizeMatch` / `finalizeChampionship` onCall CFs delegate to handlers for testability; auth + admin checks remain in the CF wrapper
 - `/ranking/temporadas` — Season archive page: lists upcoming/active/archived seasons with scope badges, date ranges, championship count; links back to ranking
 - `/ranking` — "Ver temporadas anteriores" link added
-- `/ranking` — Geral/Temporada switch; active season leaderboard orders by `seasonPoints.{seasonId}.points`
-- `User.seasonPoints` typed/defaulted/protected in Firestore rules; championship finalization writes per-season points when `seasonId` is present
-- Emulator seed now creates active season `2026-s1` and sample `seasonPoints`
+- `/ranking` — Geral/Temporada switch; active season leaderboard orders by year-based `seasonCategoryPoints.{year}.{category}.points`
+- `User.seasonPoints` and `User.seasonCategoryPoints` typed/defaulted/protected in Firestore rules; championship finalization writes per-year and per-category season points when `seasonId` is present
+- Emulator seed now creates active season `2026` and sample `seasonPoints`
 - Admin `/campeonatos` — Championship management page: lists all championships with status, qualifier count; per-championship `QualifierManager` for linking finished battles as qualifiers (toggle link/unlink via `arrayUnion`/`arrayRemove`)
 - Admin championship stage/match management UI — create stages, list stages, schedule matches, list matches, optional linked `battleId`
 - Admin championship bracket overview — horizontal stage columns with match cards, status labels, winner display, and completion progress
@@ -273,6 +279,34 @@ seasons/{id}
 **Still to do:**
 
 - Real-data bracket QA after seeded championship fixtures exist
+
+### Homepage Product Gaps / Priorities
+
+**Assessment (2026-05-03):** The homepage UX direction is strong, but several visible modules imply product rules that need explicit data/model support before production.
+
+**Priority A — close before broad public launch:**
+
+- `Destaques Diários` now has a separate `dailyHighlights` collection and no longer reuses battle submissions as the data source.
+- Daily highlight submissions award 10 casual points via trusted API route; casual points are intentionally separate from official season ranking points.
+- `/destaques` lists daily entries and uses a confirmation modal with embedded video before liking an entry.
+- Homepage `Submit yours` opens a modal that saves to `dailyHighlights` instead of routing through battle submission pages.
+- Ranking cards on the homepage now use active-season ranking fields when an active season exists, and the copy shows the active season label.
+- Regional ranking should eventually query official regional ranking data directly, not filter a broad user query client-side. The current client-side filter is an acceptable local/MVP workaround to avoid index issues and stuck loading states.
+
+**Priority B — Phase 6 / competition layer:**
+
+- The homepage now surfaces a `Campeonatos` module before standalone battles, but public championship detail pages still need to be built.
+- Production season bootstrap is still needed: each new official season should create National and Regional championship shells in a controlled admin/server process, not from client code.
+- The current `Batalhas` section mixes official and community standalone battles through badges, but the product distinction is not fully explained. Add compact labels/tooltips or section grouping so users understand: community battle, official battle, qualifier, championship match.
+- Battle ticker currently shows standalone battles only. Once championships are public, decide whether the ticker should include championship matches/events or have a separate official events strip.
+- Qualifier pathway needs a clear public explanation: official participation requires an active subscription, and community users can enter official competitions through qualifiers.
+- Competition categories are not modeled yet; upcoming design needs category tracks across qualifiers, battles, championship stages, scoring, and rankings.
+
+**Priority C — polish / clarity:**
+
+- Add lightweight contextual explanation without turning the homepage into a landing page: what counts for official ranking, what daily highlights are, and why regional ranking defaults to Sao Paulo.
+- Replace mixed-language CTA copy if we keep the UI fully pt-BR; currently `Submit yours` is intentionally present from the latest UX request but should be revisited during copy review.
+- Platform stats should eventually come from stable aggregate counters rather than sampled client queries.
 
 ### Phase 7: Polish
 
@@ -338,6 +372,53 @@ Latest hardening/refactor:
 - Split the homepage ranking rail into `Ranking Nacional` and `Ranking Regional`, each capped at 20 users; regional defaults to Sao Paulo and includes a styled state dropdown under the description.
 - Moved homepage `Plataforma` and `Ultimos vencedores` into the right column below the ranking cards.
 - Changed homepage regional ranking to filter locally from a broader points-ordered user query so missing regional data shows an empty state instead of a stuck shimmer.
+- Removed duplicated `Batalhas` and `Ranking` links from the header navigation and mobile drawer because the homepage now provides stronger access points for those flows.
+- Added a `Submit yours` CTA before `Ver mais` in the `Destaques Diários` section.
+- Reduced battle ticker CTA visual weight from primary green to a neutral secondary action with subtle brand hover.
+- Added separate daily highlights domain:
+  - `packages/types/src/daily-highlight.ts` with `DailyHighlight`, likes, and 10-point submission constant;
+  - trusted daily highlight submit/like services and API routes;
+  - `SubmitDailyHighlightModal` and like-confirmation modal;
+  - `/destaques` daily entry list with modal-confirmed likes;
+  - Firestore rules block client writes to `dailyHighlights` and `dailyHighlightLikes`;
+  - user `casualPoints` server-owned field added.
+- Updated homepage `Destaques Diários` to read `dailyHighlights` instead of battle submissions.
+- Updated homepage ranking copy/data to use active-season points when an active season exists and show the season label in the right rail.
+- Added homepage `Campeonatos` section before standalone `Batalhas`, with seeded local National/SP championship fixtures.
+- Fixed client-side redirects in login/register/profile pages by moving router updates out of render and into effects.
+- Changed Firestore rules tests to use `demo-batalha-rules-test` instead of the manual QA emulator project, preventing rules-test cleanup from wiping seeded local app data.
+- Hid `Submit yours` daily highlight CTA for logged-out users on the homepage and `/destaques`.
+- Added a focused visibility test for the daily highlight `Submit yours` CTA so logged-out users do not see it and logged-in users do.
+- Normalized official categories to Freestyle, Melodia, and Pássaros across battle schemas/forms/filters and championship data.
+- Added `category` to championships and category-scoped `seasonCategoryPoints` to users; championship finalization now writes season category ranking points.
+- Updated emulator championship seed to create the full official season shell: 3 national championships plus 27 regional states x 3 categories (84 championship docs total), with `Temporada 2026` as the season name.
+- Updated homepage and ranking page season rankings to use the selected category instead of a single blended season leaderboard.
+- Refined `/ranking` filter UX into a single aligned control panel with stable Liga/Periodo segmented controls and Categoria/Regiao selectors.
+- Capped homepage `Campeonatos` preview at 20 items and changed CTA to `Ver todos`.
+- Added public `/campeonatos` listing with league/category/state filters and individual `/campeonatos/{id}` detail pages showing championship participants.
+- Added championship `participantIds` support in the shared type and local seed data so detail pages can render competitor lists.
+- Expanded the user profile model:
+  - public `users/{uid}` now supports username, first name, surname, server-owned avatar metadata, and birth state (`Naturalidade`);
+  - private `userPrivate/{uid}` stores CPF, phone, and address so sensitive data is not exposed by public profile/ranking reads;
+  - `usernames/{username}` reservations support trusted username availability checks.
+- Added `/api/profile/username` and `/api/profile/update` so profile saves validate username uniqueness and CPF server-side before writing.
+- Added `/api/profile/photo` with Firebase Storage-backed avatar uploads, server-owned photo metadata, 14-day replacement cooldown, immutable cache headers, and `photoVersion` cache busting.
+- Updated `/meu-perfil` with compressed camera/avatar upload, username verification, first name, surname, CPF/address/phone warning, naturalidade dropdown, address, and phone fields.
+- Added shared profile validation for CPF, Brazilian phone with DDD, CEP, and basic address text fields. The UI now shows inline errors and the profile update API enforces the same validations server-side.
+- Simplified manual address entry by removing Bairro, Complemento, and Estado do endereço from `/meu-perfil`; those fields remain schema-compatible but should be derived by a future address validation provider.
+- Refined `/meu-perfil` official-data layout so CPF/phone and CEP/city/rua/numero fields use stable, balanced grid widths with shorter helper text.
+- Adjusted profile phone copy to request DDD + digits only, and reordered address fields to Cidade/CEP then Rua/Numero for consistent row alignment.
+- Matched CEP and Numero compact field widths in `/meu-perfil` for address layout consistency.
+- Removed extra helper text from compact CEP field and moved CEP/Numero examples into placeholders to keep field heights consistent.
+- Added profile edit locks: CPF and Naturalidade are immutable after first set; username and address changes start a 14-day cooldown enforced server-side and reflected in `/meu-perfil`.
+- Fixed profile address persistence: profile update now uses Firestore transaction `update()` for dotted private address paths so `userPrivate/{uid}.address` is updated as a nested object instead of creating literal `"address.street"` fields.
+- Fixed `/meu-perfil` username row alignment by making the input and `Verificar` button share the same fixed-height row, with helper/error text below both controls.
+- Hardened local emulator auth after emulator restarts: cached browser users now force-refresh their token and sign out if the emulator session was reset, preventing `/entrar` from immediately redirecting with a stale user.
+- Fixed header/mobile avatar rendering to use the Firestore profile avatar plus `photoVersion` cache busting instead of the stale Firebase Auth `photoURL`.
+- Removed avatars from the full `/ranking` list and championship participant lists. Product rule: photos can appear in homepage highlights/profile surfaces, but not in voting/comparison/full ranking contexts where they add bias and unnecessary Storage traffic.
+- Stabilized `/ranking` data loading by replacing dynamic nested Firestore `orderBy(seasonCategoryPoints.{year}.{category}.points)` queries with one broad `points` query plus in-memory season/category/regional sorting. This avoids intermittent empty/loading states when users lack a selected nested ranking field.
+- Applied the same stable ranking query strategy to homepage `Ranking Nacional` and `Ranking Regional`; both now use one broad `users` query and in-memory season/category/state sorting.
+- Fixed `/meu-perfil` username verification state bug where a successful availability check wrote `available` into the username value instead of updating `usernameStatus`, which could corrupt the profile update payload.
 - Hardened `onUserCreate` so it does not overwrite an existing user document, preventing emulator seed profile points from being reset by an auth-trigger race.
 - Added manual QA guide in `docs/MANUAL-QA.md`, including Phase 5 submission, moderation, voting, results, and negative browser checks.
 - Added emulator seed script: `pnpm seed:emulator` creates local Auth users plus free/paid, active submission, and voting battle fixtures.

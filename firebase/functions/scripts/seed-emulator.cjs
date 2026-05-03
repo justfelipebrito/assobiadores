@@ -13,6 +13,42 @@ if (getApps().length === 0) {
 const auth = getAuth();
 const db = getFirestore();
 
+const COMPETITION_CATEGORIES = [
+  { value: 'freestyle', label: 'Freestyle' },
+  { value: 'melodia', label: 'Melodia' },
+  { value: 'passaros', label: 'Pássaros' },
+];
+
+const BRAZIL_STATES = [
+  { value: 'AC', label: 'Acre' },
+  { value: 'AL', label: 'Alagoas' },
+  { value: 'AP', label: 'Amapa' },
+  { value: 'AM', label: 'Amazonas' },
+  { value: 'BA', label: 'Bahia' },
+  { value: 'CE', label: 'Ceara' },
+  { value: 'DF', label: 'Distrito Federal' },
+  { value: 'ES', label: 'Espirito Santo' },
+  { value: 'GO', label: 'Goias' },
+  { value: 'MA', label: 'Maranhao' },
+  { value: 'MT', label: 'Mato Grosso' },
+  { value: 'MS', label: 'Mato Grosso do Sul' },
+  { value: 'MG', label: 'Minas Gerais' },
+  { value: 'PA', label: 'Para' },
+  { value: 'PB', label: 'Paraiba' },
+  { value: 'PR', label: 'Parana' },
+  { value: 'PE', label: 'Pernambuco' },
+  { value: 'PI', label: 'Piaui' },
+  { value: 'RJ', label: 'Rio de Janeiro' },
+  { value: 'RN', label: 'Rio Grande do Norte' },
+  { value: 'RS', label: 'Rio Grande do Sul' },
+  { value: 'RO', label: 'Rondonia' },
+  { value: 'RR', label: 'Roraima' },
+  { value: 'SC', label: 'Santa Catarina' },
+  { value: 'SP', label: 'Sao Paulo' },
+  { value: 'SE', label: 'Sergipe' },
+  { value: 'TO', label: 'Tocantins' },
+];
+
 function normalizeUsername(value) {
   return value
     .normalize('NFD')
@@ -33,7 +69,9 @@ async function upsertUser({
   state = null,
   city = null,
   points = 0,
+  casualPoints = 0,
   seasonPoints = {},
+  seasonCategoryPoints = {},
 }) {
   try {
     await auth.getUser(uid);
@@ -43,6 +81,8 @@ async function upsertUser({
   }
 
   const username = normalizeUsername(displayName);
+  const [firstName = '', ...surnameParts] = displayName.split(' ');
+  const surname = surnameParts.join(' ');
 
   await db
     .collection('users')
@@ -53,14 +93,23 @@ async function upsertUser({
         schemaVersion: 1,
         username,
         usernameLower: username,
+        usernameChangeAvailableAt: null,
+        firstName,
+        surname,
         email,
         displayName,
         photoURL: null,
+        photoPath: null,
+        photoVersion: 0,
+        photoUpdatedAt: null,
+        photoChangeAvailableAt: null,
         bio: '',
         role,
         accountType,
         plan,
         state,
+        birthState: state,
+        addressChangeAvailableAt: null,
         city,
         country: 'BR',
         officialProfile: {
@@ -71,8 +120,10 @@ async function upsertUser({
         },
         points,
         xp: points,
+        casualPoints,
         rank: points >= 50 ? 'Aprendiz' : 'Iniciante',
         seasonPoints,
+        seasonCategoryPoints,
         stats: {
           battlesEntered: 0,
           battlesWon: 0,
@@ -83,28 +134,126 @@ async function upsertUser({
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),
       },
-      { merge: true },
+      { merge: false },
     );
+
+  await db.collection('usernames').doc(username).set({
+    userId: uid,
+    username,
+    createdAt: Timestamp.now(),
+    updatedAt: Timestamp.now(),
+  });
+
+  await db
+    .collection('userPrivate')
+    .doc(uid)
+    .set({
+      id: uid,
+      cpf: '',
+      phone: '',
+      address: {
+        postalCode: '',
+        street: '',
+        number: '',
+        complement: '',
+        neighborhood: '',
+        city: city || '',
+        state,
+      },
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+    });
 }
 
 async function seedSeasons() {
   const now = Date.now();
+  const existingSeasons = await db.collection('seasons').get();
+  await Promise.all(existingSeasons.docs.map((doc) => doc.ref.delete()));
+
   await db
     .collection('seasons')
-    .doc('2026-s1')
+    .doc('2026')
     .set({
-      id: '2026-s1',
-      name: 'Temporada 1 - 2026',
-      slug: '2026-s1',
+      id: '2026',
+      name: 'Temporada 2026',
+      slug: '2026',
       scope: 'national',
       region: null,
       status: 'active',
       start: Timestamp.fromDate(new Date(now - 7 * 24 * 60 * 60 * 1000)),
       end: Timestamp.fromDate(new Date(now + 90 * 24 * 60 * 60 * 1000)),
-      championshipIds: [],
+      championshipIds: [
+        ...COMPETITION_CATEGORIES.map((category) => `championship-national-2026-${category.value}`),
+        ...BRAZIL_STATES.flatMap((state) =>
+          COMPETITION_CATEGORIES.map(
+            (category) => `championship-${state.value.toLowerCase()}-2026-${category.value}`,
+          ),
+        ),
+      ],
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),
     });
+}
+
+async function seedChampionships() {
+  const now = Date.now();
+  const schedule = {
+    registrationStart: Timestamp.fromDate(new Date(now - 24 * 60 * 60 * 1000)),
+    registrationEnd: Timestamp.fromDate(new Date(now + 21 * 24 * 60 * 60 * 1000)),
+    start: Timestamp.fromDate(new Date(now + 30 * 24 * 60 * 60 * 1000)),
+    end: Timestamp.fromDate(new Date(now + 90 * 24 * 60 * 60 * 1000)),
+  };
+
+  const base = {
+    seasonId: '2026',
+    status: 'registration',
+    schedule,
+    maxParticipants: 64,
+    currentParticipants: 3,
+    participantIds: ['admin-local', 'user-local', 'voter-local'],
+    qualifierBattleIds: [],
+    prizePool: 0,
+    prizeDistribution: null,
+    createdBy: 'admin-local',
+    createdAt: Timestamp.now(),
+    updatedAt: Timestamp.now(),
+  };
+
+  const existingChampionships = await db.collection('championships').get();
+  await Promise.all(existingChampionships.docs.map((doc) => doc.ref.delete()));
+
+  const championships = [
+    ...COMPETITION_CATEGORIES.map((category) => ({
+      id: `championship-national-2026-${category.value}`,
+      title: `Campeonato Nacional ${category.label} 2026`,
+      description: `Temporada nacional oficial de ${category.label} com vagas por classificatorias.`,
+      category: category.value,
+      scope: 'national',
+      region: null,
+    })),
+    ...BRAZIL_STATES.flatMap((state) =>
+      COMPETITION_CATEGORIES.map((category) => ({
+        id: `championship-${state.value.toLowerCase()}-2026-${category.value}`,
+        title: `Campeonato Regional ${state.value} ${category.label} 2026`,
+        description: `Liga regional de ${state.label} em ${category.label} para a temporada oficial.`,
+        category: category.value,
+        scope: 'regional',
+        region: state.value,
+      })),
+    ),
+  ];
+
+  await Promise.all(
+    championships.map((championship) =>
+      db
+        .collection('championships')
+        .doc(championship.id)
+        .set({
+          ...base,
+          ...championship,
+        }),
+    ),
+  );
 }
 
 async function seedBattles() {
@@ -117,7 +266,7 @@ async function seedBattles() {
 
   const base = {
     type: 'official',
-    category: 'classico',
+    category: 'freestyle',
     status: 'registration',
     votingType: 'public',
     maxParticipants: 16,
@@ -249,7 +398,7 @@ async function seedSubmissionsAndVotes() {
       userDisplayName: 'User Local',
       entryId: 'entry-voting-user',
       videoURL: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-      title: 'Assobio classico local',
+      title: 'Assobio freestyle local',
       description: 'Fixture aprovada para testar votacao.',
       status: 'approved',
       moderationNote: 'Aprovado no seed local.',
@@ -346,6 +495,51 @@ async function seedSubmissionsAndVotes() {
   );
 }
 
+async function seedDailyHighlights() {
+  const now = Timestamp.now();
+  const dayKey = new Date().toISOString().slice(0, 10);
+  const highlights = [
+    {
+      id: 'daily-highlight-user',
+      userId: 'user-local',
+      userDisplayName: 'User Local',
+      videoURL: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+      voteCount: 2,
+    },
+    {
+      id: 'daily-highlight-voter',
+      userId: 'voter-local',
+      userDisplayName: 'Voter Local',
+      videoURL: 'https://www.youtube.com/watch?v=jNQXAC9IVRw',
+      voteCount: 1,
+    },
+    {
+      id: 'daily-highlight-admin',
+      userId: 'admin-local',
+      userDisplayName: 'Admin Local',
+      videoURL: 'https://www.youtube.com/watch?v=ScMzIvxBSi4',
+      voteCount: 0,
+    },
+  ];
+
+  await Promise.all(
+    highlights.map((highlight) =>
+      db
+        .collection('dailyHighlights')
+        .doc(highlight.id)
+        .set({
+          ...highlight,
+          dayKey,
+          videoPlatform: 'youtube',
+          status: 'active',
+          pointsAwarded: 10,
+          createdAt: now,
+          updatedAt: now,
+        }),
+    ),
+  );
+}
+
 async function main() {
   await upsertUser({
     uid: 'admin-local',
@@ -359,11 +553,18 @@ async function main() {
     city: 'Sao Paulo',
     points: 150,
     seasonPoints: {
-      '2026-s1': {
+      2026: {
         points: 80,
         xp: 80,
         rank: 'Aprendiz',
         updatedAt: Timestamp.now(),
+      },
+    },
+    seasonCategoryPoints: {
+      2026: {
+        freestyle: { points: 80, xp: 80, rank: 'Aprendiz', updatedAt: Timestamp.now() },
+        melodia: { points: 35, xp: 35, rank: 'Iniciante', updatedAt: Timestamp.now() },
+        passaros: { points: 15, xp: 15, rank: 'Iniciante', updatedAt: Timestamp.now() },
       },
     },
   });
@@ -376,11 +577,18 @@ async function main() {
     state: 'SP',
     city: 'Sao Paulo',
     seasonPoints: {
-      '2026-s1': {
+      2026: {
         points: 20,
         xp: 20,
         rank: 'Iniciante',
         updatedAt: Timestamp.now(),
+      },
+    },
+    seasonCategoryPoints: {
+      2026: {
+        freestyle: { points: 20, xp: 20, rank: 'Iniciante', updatedAt: Timestamp.now() },
+        melodia: { points: 10, xp: 10, rank: 'Iniciante', updatedAt: Timestamp.now() },
+        passaros: { points: 25, xp: 25, rank: 'Iniciante', updatedAt: Timestamp.now() },
       },
     },
   });
@@ -394,19 +602,28 @@ async function main() {
     city: 'Rio de Janeiro',
     points: 35,
     seasonPoints: {
-      '2026-s1': {
+      2026: {
         points: 35,
         xp: 35,
         rank: 'Iniciante',
         updatedAt: Timestamp.now(),
       },
     },
+    seasonCategoryPoints: {
+      2026: {
+        freestyle: { points: 35, xp: 35, rank: 'Iniciante', updatedAt: Timestamp.now() },
+        melodia: { points: 50, xp: 50, rank: 'Aprendiz', updatedAt: Timestamp.now() },
+        passaros: { points: 5, xp: 5, rank: 'Iniciante', updatedAt: Timestamp.now() },
+      },
+    },
   });
 
   await seedSeasons();
+  await seedChampionships();
   await seedBattles();
   await seedBattleEntries();
   await seedSubmissionsAndVotes();
+  await seedDailyHighlights();
 
   console.log('Seeded Firebase emulators.');
   console.log('User: user@example.test / password123');

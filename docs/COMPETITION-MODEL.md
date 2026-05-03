@@ -42,6 +42,9 @@ Official ranking should support:
 - National League
 - Regional League by Brazilian state
 - Season rankings with fresh starts, archives, and champions
+- Category-scoped rankings for the global categories: Freestyle, Melodia, and Pássaros
+
+Homepage ranking summaries should use active-season language, such as `Temporada 2026`, rather than generic all-time ranking copy.
 
 User profile records include `state`, `city`, `country`, and `officialProfile` metadata so regional leagues and official eligibility can be modeled separately from casual profile data.
 
@@ -55,6 +58,7 @@ Qualifiers should:
 
 - provide a bridge from community activity into official slots;
 - have clear eligibility rules;
+- require a valid subscription for official participation once subscription enforcement is designed;
 - make qualification visible on user profiles and competition pages;
 - preserve official ranking integrity by separating community/casual activity from official ranking points unless the event is explicitly an official qualifier.
 
@@ -73,6 +77,32 @@ Official battles/championships need sports-style scheduling and structure:
   - semi-finals;
   - finals.
 
+Official competitions use exactly three global category tracks:
+
+- Freestyle
+- Melodia
+- Pássaros
+
+Each official season should create championship shells for all category tracks:
+
+- 3 National championships, one per category
+- 81 Regional championships, one per Brazilian state per category
+- 84 official championship shells per season total
+
+Official season rankings are category-scoped through trusted server writes to `seasonCategoryPoints`.
+
+## Daily Highlights
+
+`Destaques Diários` is a casual daily feature and should not reuse the `Battle` or `Championship` entity as its primary model.
+
+Daily highlights:
+
+- store user-submitted video links in a separate daily highlights collection;
+- award casual points for submission;
+- keep casual points separate from official season ranking points;
+- support public likes/votes through a confirmation flow;
+- can later feed profile-level retention features such as streaks.
+
 ## Architecture Implications
 
 Future schema work likely needs concepts beyond `Battle`:
@@ -84,6 +114,9 @@ Future schema work likely needs concepts beyond `Battle`:
 - bracket seed;
 - competitor invite;
 - creator subscription/limits;
+- competition category;
+- daily highlight entry;
+- casual points;
 - ranking scope;
 - region/state;
 - official result.

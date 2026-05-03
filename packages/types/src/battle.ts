@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { timestampSchema } from './common';
+import { competitionCategorySchema } from './competition-category';
 
 export const battleTypeSchema = z.enum(['official', 'community']);
 export type BattleType = z.infer<typeof battleTypeSchema>;
@@ -7,16 +8,10 @@ export type BattleType = z.infer<typeof battleTypeSchema>;
 export const battleFormatSchema = z.enum(['duel', 'group']);
 export type BattleFormat = z.infer<typeof battleFormatSchema>;
 
-export const battleStatusSchema = z.enum([
-  'draft',
-  'registration',
-  'active',
-  'voting',
-  'finished',
-]);
+export const battleStatusSchema = z.enum(['draft', 'registration', 'active', 'voting', 'finished']);
 export type BattleStatus = z.infer<typeof battleStatusSchema>;
 
-export const battleCategorySchema = z.enum(['classico', 'imitacao', 'freestyle', 'melodia']);
+export const battleCategorySchema = competitionCategorySchema;
 export type BattleCategory = z.infer<typeof battleCategorySchema>;
 
 export const votingTypeSchema = z.enum(['public', 'judge', 'hybrid']);
@@ -95,7 +90,7 @@ export const createCommunityBattleSchema = z.object({
   category: battleCategorySchema,
   votingType: votingTypeSchema.default('public'),
   maxParticipants: z.number().int().min(2).default(FREE_TIER_GROUP_CAP),
-  registrationEnd: z.string().datetime(),   // ISO string from form
+  registrationEnd: z.string().datetime(), // ISO string from form
   submissionDeadline: z.string().datetime(),
   votingStart: z.string().datetime(),
   votingEnd: z.string().datetime(),

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { timestampSchema } from './common';
+import { competitionCategorySchema } from './competition-category';
 import { brazilStateSchema } from './user';
 
 // ── Season ────────────────────────────────────────────────────────────────────
@@ -12,8 +13,8 @@ export type SeasonScope = z.infer<typeof seasonScopeSchema>;
 
 export const seasonSchema = z.object({
   id: z.string(),
-  name: z.string().min(1).max(100),    // e.g. "Temporada 1 — 2026"
-  slug: z.string().min(1).max(50),     // e.g. "2026-s1"
+  name: z.string().min(1).max(100), // e.g. "Temporada 2026"
+  slug: z.string().min(1).max(50), // e.g. "2026"
   scope: seasonScopeSchema,
   region: brazilStateSchema.nullable().default(null),
   status: seasonStatusSchema.default('upcoming'),
@@ -27,12 +28,7 @@ export type Season = z.infer<typeof seasonSchema>;
 
 // ── Championship ──────────────────────────────────────────────────────────────
 
-export const championshipStatusSchema = z.enum([
-  'upcoming',
-  'registration',
-  'active',
-  'finished',
-]);
+export const championshipStatusSchema = z.enum(['upcoming', 'registration', 'active', 'finished']);
 export type ChampionshipStatus = z.infer<typeof championshipStatusSchema>;
 
 export const championshipScopeSchema = z.enum(['national', 'regional']);
@@ -50,12 +46,14 @@ export const championshipSchema = z.object({
   title: z.string().min(1).max(200),
   description: z.string().max(2000).default(''),
   seasonId: z.string().nullable().default(null),
+  category: competitionCategorySchema,
   scope: championshipScopeSchema,
   region: brazilStateSchema.nullable().default(null),
   status: championshipStatusSchema.default('upcoming'),
   schedule: championshipScheduleSchema,
   maxParticipants: z.number().int().nonnegative().default(0),
   currentParticipants: z.number().int().nonnegative().default(0),
+  participantIds: z.array(z.string()).default([]),
   qualifierBattleIds: z.array(z.string()).default([]),
   prizePool: z.number().int().nonnegative().default(0),
   prizeDistribution: z

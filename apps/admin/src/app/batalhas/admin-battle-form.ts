@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { Battle } from '@batalha/types';
 import {
+  COMPETITION_CATEGORIES,
   battleCategorySchema,
   battleFormatSchema,
   battleStatusSchema,
@@ -20,12 +21,7 @@ export const ADMIN_BATTLE_FORMAT_OPTIONS = [
   { value: 'duel', label: '1 vs 1' },
 ] as const;
 
-export const ADMIN_BATTLE_CATEGORY_OPTIONS = [
-  { value: 'classico', label: 'Classico' },
-  { value: 'imitacao', label: 'Imitacao' },
-  { value: 'freestyle', label: 'Freestyle' },
-  { value: 'melodia', label: 'Melodia' },
-] as const;
+export const ADMIN_BATTLE_CATEGORY_OPTIONS = [...COMPETITION_CATEGORIES] as const;
 
 export const ADMIN_BATTLE_STATUS_OPTIONS = [
   { value: 'draft', label: 'Rascunho' },
@@ -136,7 +132,7 @@ export function createDefaultAdminBattleFormValues(now = new Date()): AdminBattl
     description: '',
     type: 'official',
     format: 'group',
-    category: 'classico',
+    category: 'freestyle',
     status: 'draft',
     entryFee: '0',
     prizePool: '0',
@@ -172,7 +168,9 @@ export function battleToAdminFormValues(battle: Battle): AdminBattleFormValues {
   };
 }
 
-export function validateAdminBattleForm(values: AdminBattleFormValues): AdminBattleValidationResult {
+export function validateAdminBattleForm(
+  values: AdminBattleFormValues,
+): AdminBattleValidationResult {
   const parsed = adminBattleFormSchema.safeParse(values);
 
   if (!parsed.success) {
