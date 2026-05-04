@@ -15,6 +15,14 @@ import {
 } from 'firebase/firestore';
 import { getClientFirestore } from './client';
 
+function getConstraintKey(constraints: QueryConstraint[]) {
+  try {
+    return JSON.stringify(constraints);
+  } catch {
+    return constraints.map((constraint) => constraint.type).join('|');
+  }
+}
+
 export function useDocument<T>(collectionName: string, docId: string | undefined) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
@@ -24,8 +32,12 @@ export function useDocument<T>(collectionName: string, docId: string | undefined
     if (!docId) {
       setData(null);
       setLoading(false);
+      setError(null);
       return;
     }
+
+    setLoading(true);
+    setError(null);
 
     const db = getClientFirestore();
     const docRef = doc(db, collectionName, docId);
@@ -54,14 +66,25 @@ export function useDocument<T>(collectionName: string, docId: string | undefined
 }
 
 export function useCollection<T>(
-  collectionName: string,
+  collectionName: string | undefined,
   constraints: QueryConstraint[] = [],
 ) {
   const [data, setData] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const constraintsKey = getConstraintKey(constraints);
 
   useEffect(() => {
+    if (!collectionName) {
+      setData([]);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
     const db = getClientFirestore();
     const q = query(collection(db, collectionName), ...constraints);
 
@@ -80,7 +103,7 @@ export function useCollection<T>(
     );
 
     return unsubscribe;
-  }, [collectionName, ...constraints]);
+  }, [collectionName, constraintsKey]);
 
   return { data, loading, error };
 }

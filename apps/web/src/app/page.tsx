@@ -13,16 +13,18 @@ import {
   MapPin,
   Medal,
   Music,
+  Rocket,
   Sparkles,
   Swords,
   Trophy,
   TrendingUp,
   Users,
 } from 'lucide-react';
-import { limit, orderBy, useAuth, useCollection } from '@batalha/firebase';
+import { limit, orderBy, useAuth, useCollection, useDocument } from '@batalha/firebase';
 import { Avatar, Badge, Button, Card, CardContent, Skeleton } from '@batalha/ui';
 import { formatCurrency, formatNumber, formatRelativeTime, toDate } from '@batalha/utils';
 import {
+  BRAZIL_STATE_LABELS,
   COMPETITION_CATEGORIES,
   COMPETITION_CATEGORY_LABELS,
   type Battle,
@@ -30,13 +32,26 @@ import {
   type Championship,
   type CompetitionCategory,
   type DailyHighlight,
+  type QualifierTrack,
   type Season,
   type User,
 } from '@batalha/types';
 import { SubmitDailyHighlightButton } from '@/components/daily-highlights/submit-daily-highlight-button';
 import { SubmitDailyHighlightModal } from '@/components/daily-highlights/submit-daily-highlight-modal';
-import { getVisibleHomepageChampionships } from '@/lib/championship-view';
-import { VideoPreview } from '@/components/video/video-preview';
+import { getVisibleDailyHighlights } from '@/lib/daily-highlight-view';
+import {
+  getChampionshipDateCopy,
+  getChampionshipParticipantCount,
+  getChampionshipStatusCopy,
+  getVisibleHomepageChampionships,
+} from '@/lib/championship-view';
+import { MediaPreview } from '@/components/media/media-preview';
+import {
+  DEFAULT_PUBLIC_QUALIFIER_STATES,
+  getQualifierTrackStatusCopy,
+  getQualifierTracksForStates,
+  QUALIFIER_REGISTRATION_DEADLINE_LABEL,
+} from '@/lib/qualifier-tracks';
 
 const STATUS_MAP: Record<
   string,
@@ -54,35 +69,10 @@ const PLACE_ICONS = [
   <Award key="3" className="h-4 w-4 text-amber-600" />,
 ];
 
-const BRAZIL_STATES: { value: BrazilState; label: string }[] = [
-  { value: 'AC', label: 'Acre' },
-  { value: 'AL', label: 'Alagoas' },
-  { value: 'AP', label: 'Amapa' },
-  { value: 'AM', label: 'Amazonas' },
-  { value: 'BA', label: 'Bahia' },
-  { value: 'CE', label: 'Ceara' },
-  { value: 'DF', label: 'Distrito Federal' },
-  { value: 'ES', label: 'Espirito Santo' },
-  { value: 'GO', label: 'Goias' },
-  { value: 'MA', label: 'Maranhao' },
-  { value: 'MT', label: 'Mato Grosso' },
-  { value: 'MS', label: 'Mato Grosso do Sul' },
-  { value: 'MG', label: 'Minas Gerais' },
-  { value: 'PA', label: 'Para' },
-  { value: 'PB', label: 'Paraiba' },
-  { value: 'PR', label: 'Parana' },
-  { value: 'PE', label: 'Pernambuco' },
-  { value: 'PI', label: 'Piaui' },
-  { value: 'RJ', label: 'Rio de Janeiro' },
-  { value: 'RN', label: 'Rio Grande do Norte' },
-  { value: 'RS', label: 'Rio Grande do Sul' },
-  { value: 'RO', label: 'Rondonia' },
-  { value: 'RR', label: 'Roraima' },
-  { value: 'SC', label: 'Santa Catarina' },
-  { value: 'SP', label: 'Sao Paulo' },
-  { value: 'SE', label: 'Sergipe' },
-  { value: 'TO', label: 'Tocantins' },
-];
+const BRAZIL_STATES = Object.entries(BRAZIL_STATE_LABELS).map(([value, label]) => ({
+  value: value as BrazilState,
+  label,
+}));
 
 function RankingList({
   users,
@@ -164,6 +154,7 @@ export default function HomePage() {
     useState<CompetitionCategory>('freestyle');
   const [submitDailyOpen, setSubmitDailyOpen] = useState(false);
   const { user, loading: authLoading } = useAuth();
+  const { data: profile } = useDocument<User>('users', user?.uid);
   const { data: activeSeasons } = useCollection<Season>('seasons', [
     orderBy('start', 'desc'),
     limit(3),
@@ -189,6 +180,10 @@ export default function HomePage() {
 
   const { data: highlightedSubmissions, loading: highlightsLoading } =
     useCollection<DailyHighlight>('dailyHighlights', [orderBy('createdAt', 'desc'), limit(24)]);
+  const { data: qualifierTracks, loading: qualifierTracksLoading } = useCollection<QualifierTrack>(
+    'qualifierTracks',
+    [limit(200)],
+  );
 
   const { data: recentlyUpdatedBattles, loading: winnersLoading } = useCollection<Battle>(
     'battles',
@@ -211,36 +206,25 @@ export default function HomePage() {
     [recentlyUpdatedBattles],
   );
   const dailyHighlights = useMemo(() => {
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-
-    const approved = highlightedSubmissions.filter((submission) => submission.status === 'active');
-    const todaysApproved = approved.filter((submission) => {
-      const createdAt = toDate(submission.createdAt);
-      return createdAt ? createdAt.getTime() >= todayStart.getTime() : false;
-    });
-    const source = todaysApproved.length >= 3 ? todaysApproved : approved;
-
-    return [...source]
-      .sort((a, b) => {
-        const voteDiff = (b.voteCount ?? 0) - (a.voteCount ?? 0);
-        if (voteDiff !== 0) return voteDiff;
-
-        const aCreatedAt = toDate(a.createdAt)?.getTime() ?? 0;
-        const bCreatedAt = toDate(b.createdAt)?.getTime() ?? 0;
-        return bCreatedAt - aCreatedAt;
-      })
-      .slice(0, 3);
+    return getVisibleDailyHighlights({ highlights: highlightedSubmissions, limit: 3 });
   }, [highlightedSubmissions]);
   const featuredHighlight = dailyHighlights[0];
   const secondaryHighlights = dailyHighlights.slice(1, 3);
   const highlightUsersById = useMemo(
-    () => new Map(highlightUsers.map((user) => [user.id, user.displayName])),
+    () => new Map(highlightUsers.map((highlightUser) => [highlightUser.id, highlightUser])),
     [highlightUsers],
   );
   const highlightsMoreHref = '/destaques';
 
   const hasActiveBattles = activeBattles.length > 0;
+  const qualifierStates = useMemo<BrazilState[]>(
+    () => (user && profile?.birthState ? [profile.birthState] : DEFAULT_PUBLIC_QUALIFIER_STATES),
+    [profile?.birthState, user],
+  );
+  const visibleQualifierTracks = useMemo(
+    () => getQualifierTracksForStates({ tracks: qualifierTracks, states: qualifierStates }),
+    [qualifierStates, qualifierTracks],
+  );
   const sortedRankingUsers = useMemo(
     () =>
       [...rankingUsers].sort((a, b) => {
@@ -267,6 +251,11 @@ export default function HomePage() {
   const selectedRegionalStateLabel =
     BRAZIL_STATES.find((state) => state.value === selectedRegionalState)?.label ?? 'Sao Paulo';
   const selectedRankingCategoryLabel = COMPETITION_CATEGORY_LABELS[selectedRankingCategory];
+  const getHighlightNaturalidade = (highlight: DailyHighlight) => {
+    const userProfile = highlightUsersById.get(highlight.userId);
+    const state = highlight.userBirthState ?? userProfile?.birthState ?? userProfile?.state ?? null;
+    return state ? BRAZIL_STATE_LABELS[state] : null;
+  };
 
   return (
     <>
@@ -280,7 +269,7 @@ export default function HomePage() {
               <div>
                 <h1 className="text-2xl font-bold text-white">Destaques Diários</h1>
                 <p className="text-sm text-surface-500">
-                  Videos em destaque escolhidos pelos votos da comunidade
+                  Escolhidos e premiados pelos votos da comunidade, envie o seu e concorra!
                 </p>
               </div>
             </div>
@@ -300,60 +289,56 @@ export default function HomePage() {
 
           {highlightsLoading ? (
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(300px,0.75fr)]">
-              <Skeleton className="h-[360px]" />
+              <Skeleton className="aspect-video" />
               <div className="grid gap-4">
-                <Skeleton className="h-[172px]" />
-                <Skeleton className="h-[172px]" />
+                <Skeleton className="aspect-video" />
+                <Skeleton className="aspect-video" />
               </div>
             </div>
           ) : featuredHighlight ? (
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(300px,0.75fr)]">
-              <Card className="overflow-hidden">
-                <CardContent className="p-0">
-                  <VideoPreview url={featuredHighlight.videoURL} />
-                  <div className="space-y-4 p-5">
-                    <div>
-                      <h2 className="text-xl font-bold text-white">
-                        {featuredHighlight.userDisplayName ||
-                          highlightUsersById.get(featuredHighlight.userId) ||
-                          'Assobiador'}
-                      </h2>
-                      <p className="mt-1 text-sm font-medium text-surface-500">
-                        {formatNumber(featuredHighlight.voteCount)} votos
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(300px,0.75fr)] lg:items-stretch">
+              <MediaPreview
+                mediaType={featuredHighlight.mediaType}
+                mediaURL={featuredHighlight.mediaURL}
+                videoURL={featuredHighlight.videoURL}
+                username={
+                  featuredHighlight.userDisplayName ||
+                  highlightUsersById.get(featuredHighlight.userId)?.displayName ||
+                  'Assobiador'
+                }
+                naturalidade={getHighlightNaturalidade(featuredHighlight)}
+                category={featuredHighlight.category}
+                durationSeconds={featuredHighlight.mediaDurationSeconds}
+                voteCount={featuredHighlight.voteCount}
+              />
 
-              <div className="grid gap-4">
-                {secondaryHighlights.map((submission, index) => (
-                  <Card key={submission.id} className="overflow-hidden">
-                    <CardContent className="grid gap-3 p-3 sm:grid-cols-[180px_minmax(0,1fr)] lg:grid-cols-1 xl:grid-cols-[180px_minmax(0,1fr)]">
-                      <VideoPreview url={submission.videoURL} />
-                      <div className="flex min-w-0 flex-col justify-between gap-3">
-                        <div>
-                          <h3 className="line-clamp-2 font-semibold text-white">
-                            {submission.userDisplayName ||
-                              highlightUsersById.get(submission.userId) ||
-                              'Assobiador'}
-                          </h3>
-                          <p className="mt-1 text-xs font-medium text-surface-500">
-                            {formatNumber(submission.voteCount)} votos
-                          </p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+              <div className="grid gap-4 lg:grid-rows-2">
+                {secondaryHighlights.map((highlight) => (
+                  <MediaPreview
+                    key={highlight.id}
+                    mediaType={highlight.mediaType}
+                    mediaURL={highlight.mediaURL}
+                    videoURL={highlight.videoURL}
+                    username={
+                      highlight.userDisplayName ||
+                      highlightUsersById.get(highlight.userId)?.displayName ||
+                      'Assobiador'
+                    }
+                    naturalidade={getHighlightNaturalidade(highlight)}
+                    category={highlight.category}
+                    durationSeconds={highlight.mediaDurationSeconds}
+                    voteCount={highlight.voteCount}
+                    size="compact"
+                  />
                 ))}
                 {secondaryHighlights.length < 2 &&
                   Array.from({ length: 2 - secondaryHighlights.length }).map((_, index) => (
                     <div
                       key={`empty-highlight-${index}`}
-                      className="flex min-h-[150px] items-center justify-center rounded-xl border border-dashed border-white/10 bg-white/[0.02] px-5 text-center"
+                      className="flex aspect-video items-center justify-center rounded-xl border border-dashed border-white/10 bg-white/[0.02] px-5 text-center"
                     >
                       <p className="text-sm text-surface-500">
-                        Mais videos aparecem conforme a comunidade vota.
+                        Mais assobios aparecem conforme a comunidade vota.
                       </p>
                     </div>
                   ))}
@@ -363,7 +348,7 @@ export default function HomePage() {
             <div className="glass-card text-center">
               <Music className="mx-auto h-10 w-10 text-surface-600" />
               <p className="text-sm text-surface-500">
-                Os destaques diarios aparecem quando houver videos aprovados e votados.
+                Os destaques diarios aparecem quando houver assobios aprovados e votados.
               </p>
             </div>
           )}
@@ -372,6 +357,59 @@ export default function HomePage() {
 
       <div className="mx-auto grid max-w-6xl gap-8 px-4 py-8 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="min-w-0 space-y-10">
+          <section>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-yellow-500/10 text-yellow-400">
+                  <Rocket className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-white">Classificatórias</h2>
+                  <p className="text-sm text-surface-500">
+                    {user && profile?.birthState
+                      ? `Categorias abertas para ${BRAZIL_STATE_LABELS[profile.birthState]}`
+                      : 'Abertas em São Paulo e Rio de Janeiro'}
+                  </p>
+                </div>
+              </div>
+              <Link href="/classificatorias">
+                <Button variant="ghost" size="sm">
+                  Ver todas
+                  <ArrowRight className="ml-1 h-4 w-4" />
+                </Button>
+              </Link>
+            </div>
+
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              {qualifierTracksLoading
+                ? Array.from({ length: user ? 3 : 4 }).map((_, index) => (
+                    <Skeleton key={index} className="h-44" />
+                  ))
+                : visibleQualifierTracks.slice(0, 6).map((track) => (
+                    <Link key={track.id} href={`/classificatorias/${track.slug}`}>
+                      <Card className="group h-full cursor-pointer">
+                        <CardContent className="flex h-full flex-col">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant="gold">{getQualifierTrackStatusCopy(track)}</Badge>
+                            <Badge variant="default">{BRAZIL_STATE_LABELS[track.region]}</Badge>
+                          </div>
+                          <h3 className="mt-4 font-semibold text-white transition-colors group-hover:text-brand-400">
+                            {COMPETITION_CATEGORY_LABELS[track.category]}
+                          </h3>
+                          <p className="mt-2 flex-1 text-sm text-surface-500">
+                            Entrada aberta para todos. Até 64 melhores avançam ao Regional da
+                            categoria.
+                          </p>
+                          <p className="mt-4 text-xs text-surface-500">
+                            Inscrições até {QUALIFIER_REGISTRATION_DEADLINE_LABEL}
+                          </p>
+                        </CardContent>
+                      </Card>
+                    </Link>
+                  ))}
+            </div>
+          </section>
+
           <section>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -396,7 +434,8 @@ export default function HomePage() {
                 Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-44" />)
               ) : visibleChampionships.length > 0 ? (
                 visibleChampionships.map((championship) => {
-                  const start = toDate(championship.schedule.start);
+                  const dateCopy = getChampionshipDateCopy(championship);
+                  const participantCount = getChampionshipParticipantCount(championship);
                   return (
                     <Link key={championship.id} href={`/campeonatos/${championship.id}`}>
                       <Card className="group h-full cursor-pointer">
@@ -414,24 +453,36 @@ export default function HomePage() {
                                 {COMPETITION_CATEGORY_LABELS[championship.category]}
                               </Badge>
                             </div>
-                            <Badge variant="default">{championship.status}</Badge>
                           </div>
-                          <h3 className="mt-3 font-semibold text-white transition-colors group-hover:text-brand-400">
+                          <p className="mt-3 min-h-4 text-xs font-medium text-surface-500">
+                            {getChampionshipStatusCopy(championship)}
+                          </p>
+                          <h3 className="mt-3 min-h-12 font-semibold text-white transition-colors group-hover:text-brand-400">
                             {championship.title}
                           </h3>
-                          <p className="mt-2 line-clamp-2 flex-1 text-sm text-surface-500">
+                          <p className="mt-2 line-clamp-2 min-h-10 flex-1 text-sm text-surface-500">
                             {championship.description ||
                               'Participe das classificatorias para disputar vagas oficiais.'}
                           </p>
-                          <div className="mt-4 flex items-center justify-between gap-3 text-sm">
-                            <span className="text-surface-400">
-                              {championship.currentParticipants}/{championship.maxParticipants}{' '}
-                              competidores
-                            </span>
-                            {start && (
-                              <span className="flex items-center gap-1 text-surface-500">
+                          <div className="mt-4 flex items-end justify-between gap-3 text-sm">
+                            {participantCount > 0 && (
+                              <span className="min-w-0 text-surface-400">
+                                <span className="tabular-nums">
+                                  {participantCount}/{championship.maxParticipants}
+                                </span>{' '}
+                                competidores
+                              </span>
+                            )}
+                            {dateCopy && (
+                              <span
+                                className={
+                                  participantCount > 0
+                                    ? 'flex min-w-0 items-center justify-end gap-1 text-right text-surface-500'
+                                    : 'flex min-w-0 items-center gap-1 text-left text-surface-500'
+                                }
+                              >
                                 <Clock className="h-3.5 w-3.5" />
-                                {formatRelativeTime(start)}
+                                {dateCopy}
                               </span>
                             )}
                           </div>
@@ -736,17 +787,12 @@ export default function HomePage() {
             <div className="glass-card mx-auto max-w-xl">
               <h3 className="text-lg font-bold text-white">Quer participar?</h3>
               <p className="mt-1 text-sm text-surface-400">
-                Crie sua conta gratis e entre na proxima batalha de assobio.
+                Crie sua conta gratis e participe de batalhas, campeonatos e muito mais.
               </p>
               <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:justify-center">
                 <Link href="/cadastro">
                   <Button size="md" className="w-full sm:w-auto">
                     Criar conta gratis
-                  </Button>
-                </Link>
-                <Link href="/batalhas">
-                  <Button variant="ghost" size="md" className="w-full sm:w-auto">
-                    Explorar batalhas
                   </Button>
                 </Link>
               </div>

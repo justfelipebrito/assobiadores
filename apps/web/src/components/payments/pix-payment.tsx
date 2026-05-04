@@ -2,14 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import {
-  AlertCircle,
-  CheckCircle2,
-  Clipboard,
-  Clock,
-  QrCode,
-  RefreshCw,
-} from 'lucide-react';
+import { AlertCircle, CheckCircle2, Clipboard, Clock, QrCode, RefreshCw } from 'lucide-react';
 import { Button, Card, CardContent } from '@batalha/ui';
 import { formatCurrency } from '@batalha/utils';
 import { toast } from 'sonner';
@@ -17,14 +10,22 @@ import { toast } from 'sonner';
 type PaymentStatus = 'pending' | 'approved' | 'rejected' | 'refunded';
 
 interface PixPaymentProps {
-  battleId: string;
-  battleTitle: string;
+  title: string;
   amount: number;
   paymentId: string;
   pixQrCode: string;
   pixCopiaECola: string;
   expiresAt: string;
   getAuthToken: () => Promise<string>;
+  approvedTitle?: string;
+  approvedDescription?: string;
+  rejectedDescription?: string;
+  primaryHref?: string;
+  primaryLabel?: string;
+  secondaryHref?: string;
+  secondaryLabel?: string;
+  allowTestApproval?: boolean;
+  onApproved?: () => void;
 }
 
 function formatRemainingTime(ms: number) {
@@ -35,14 +36,22 @@ function formatRemainingTime(ms: number) {
 }
 
 export function PixPayment({
-  battleId,
-  battleTitle,
+  title,
   amount,
   paymentId,
   pixQrCode,
   pixCopiaECola,
   expiresAt,
   getAuthToken,
+  approvedTitle = 'Inscricao confirmada!',
+  approvedDescription,
+  rejectedDescription = 'Este Pix expirou ou nao foi aprovado. Gere um novo pagamento para continuar.',
+  primaryHref = '/',
+  primaryLabel = 'Continuar',
+  secondaryHref,
+  secondaryLabel,
+  allowTestApproval = false,
+  onApproved,
 }: PixPaymentProps) {
   const [status, setStatus] = useState<PaymentStatus>('pending');
   const [checking, setChecking] = useState(false);
@@ -80,6 +89,7 @@ export function PixPayment({
       setStatus(data.status);
       if (data.status === 'approved') {
         toast.success('Pagamento aprovado! Inscricao confirmada.');
+        onApproved?.();
       } else if (data.status === 'rejected' || data.status === 'refunded') {
         toast.error('Pagamento nao aprovado.');
       } else if (!silent) {
@@ -89,6 +99,32 @@ export function PixPayment({
       if (!silent) {
         toast.error(err instanceof Error ? err.message : 'Erro ao consultar pagamento');
       }
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  const simulateApproval = async () => {
+    if (status !== 'pending') return;
+
+    setChecking(true);
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`/api/payments/${paymentId}/simulate-approval`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Erro ao simular pagamento');
+      }
+
+      setStatus(data.status);
+      toast.success('Pagamento aprovado no ambiente de teste.');
+      onApproved?.();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao simular pagamento');
     } finally {
       setChecking(false);
     }
@@ -120,17 +156,26 @@ export function PixPayment({
           <div className="mx-auto mb-4 inline-flex h-16 w-16 items-center justify-center rounded-full bg-brand-500/10">
             <CheckCircle2 className="h-8 w-8 text-brand-400" />
           </div>
-          <h1 className="text-xl font-bold text-white">Inscricao confirmada!</h1>
+          <h1 className="text-xl font-bold text-white">{approvedTitle}</h1>
           <p className="mt-2 text-surface-400">
-            Seu pagamento foi aprovado e voce ja esta em <span className="font-semibold text-white">{battleTitle}</span>.
+            {approvedDescription ?? (
+              <>
+                Seu pagamento foi aprovado para{' '}
+                <span className="font-semibold text-white">{title}</span>.
+              </>
+            )}
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
-            <Link href={`/batalhas/${battleId}`}>
-              <Button size="md">Ver batalha</Button>
+            <Link href={primaryHref}>
+              <Button size="md">{primaryLabel}</Button>
             </Link>
-            <Link href="/batalhas">
-              <Button variant="ghost" size="md">Explorar batalhas</Button>
-            </Link>
+            {secondaryHref && secondaryLabel && (
+              <Link href={secondaryHref}>
+                <Button variant="ghost" size="md">
+                  {secondaryLabel}
+                </Button>
+              </Link>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -145,17 +190,19 @@ export function PixPayment({
             <AlertCircle className="h-8 w-8 text-red-400" />
           </div>
           <h1 className="text-xl font-bold text-white">Pagamento nao concluido</h1>
-          <p className="mt-2 text-surface-400">
-            Este Pix expirou ou nao foi aprovado. Gere um novo pagamento para participar da batalha.
-          </p>
+          <p className="mt-2 text-surface-400">{rejectedDescription}</p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
             <Button size="md" onClick={() => window.location.reload()}>
               <RefreshCw className="mr-2 h-4 w-4" />
               Gerar novo Pix
             </Button>
-            <Link href={`/batalhas/${battleId}`}>
-              <Button variant="ghost" size="md">Voltar para a batalha</Button>
-            </Link>
+            {secondaryHref && secondaryLabel && (
+              <Link href={secondaryHref}>
+                <Button variant="ghost" size="md">
+                  {secondaryLabel}
+                </Button>
+              </Link>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -170,7 +217,7 @@ export function PixPayment({
             <QrCode className="h-4 w-4" />
             Pagamento Pix
           </div>
-          <h1 className="mt-2 text-xl font-bold text-white">{battleTitle}</h1>
+          <h1 className="mt-2 text-xl font-bold text-white">{title}</h1>
           <p className="mt-1 text-sm text-surface-400">
             Pague {formatCurrency(amount)} para confirmar sua inscricao.
           </p>
@@ -216,12 +263,18 @@ export function PixPayment({
           </Button>
           <Button variant="secondary" onClick={() => checkStatus(false)} loading={checking}>
             {!checking && <RefreshCw className="mr-2 h-4 w-4" />}
-            Ja paguei
+            Verificar pagamento
           </Button>
         </div>
 
+        {allowTestApproval && (
+          <Button variant="ghost" className="w-full" onClick={simulateApproval} disabled={checking}>
+            Aprovar no teste
+          </Button>
+        )}
+
         <p className="text-center text-xs text-surface-600">
-          A confirmacao pode levar alguns segundos apos o pagamento.
+          A confirmacao acontece somente depois que o Pix for aprovado pelo Mercado Pago.
         </p>
       </CardContent>
     </Card>

@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { ArrowLeft, ArrowRight, ChevronDown, Trophy } from 'lucide-react';
 import { limit, orderBy, useCollection } from '@batalha/firebase';
 import { Badge, Card, CardContent, EmptyState, Skeleton } from '@batalha/ui';
-import { formatRelativeTime, toDate } from '@batalha/utils';
 import {
   COMPETITION_CATEGORIES,
   COMPETITION_CATEGORY_LABELS,
@@ -13,7 +12,12 @@ import {
   type Championship,
   type CompetitionCategory,
 } from '@batalha/types';
-import { sortChampionshipsForDisplay } from '@/lib/championship-view';
+import {
+  getChampionshipDateCopy,
+  getChampionshipParticipantCount,
+  getChampionshipStatusCopy,
+  sortChampionshipsForDisplay,
+} from '@/lib/championship-view';
 
 const BRAZIL_STATES: { value: BrazilState; label: string }[] = [
   { value: 'AC', label: 'Acre' },
@@ -164,7 +168,8 @@ export default function ChampionshipsPage() {
           Array.from({ length: 8 }).map((_, index) => <Skeleton key={index} className="h-44" />)
         ) : filteredChampionships.length > 0 ? (
           filteredChampionships.map((championship) => {
-            const start = toDate(championship.schedule.start);
+            const dateCopy = getChampionshipDateCopy(championship);
+            const participantCount = getChampionshipParticipantCount(championship);
             return (
               <Link key={championship.id} href={`/campeonatos/${championship.id}`}>
                 <Card className="group h-full cursor-pointer">
@@ -180,18 +185,35 @@ export default function ChampionshipsPage() {
                       </div>
                       <ArrowRight className="h-4 w-4 text-surface-600 transition-colors group-hover:text-brand-400" />
                     </div>
-                    <h2 className="mt-3 font-semibold text-white transition-colors group-hover:text-brand-400">
+                    <p className="mt-3 min-h-4 text-xs font-medium text-surface-500">
+                      {getChampionshipStatusCopy(championship)}
+                    </p>
+                    <h2 className="mt-3 min-h-12 font-semibold text-white transition-colors group-hover:text-brand-400">
                       {championship.title}
                     </h2>
-                    <p className="mt-2 line-clamp-2 flex-1 text-sm text-surface-500">
+                    <p className="mt-2 line-clamp-2 min-h-10 flex-1 text-sm text-surface-500">
                       {championship.description}
                     </p>
-                    <div className="mt-4 flex items-center justify-between gap-3 text-sm text-surface-400">
-                      <span>
-                        {championship.currentParticipants}/{championship.maxParticipants}{' '}
-                        competidores
-                      </span>
-                      {start && <span>{formatRelativeTime(start)}</span>}
+                    <div className="mt-4 flex items-end justify-between gap-3 text-sm text-surface-400">
+                      {participantCount > 0 && (
+                        <span className="min-w-0">
+                          <span className="tabular-nums">
+                            {participantCount}/{championship.maxParticipants}
+                          </span>{' '}
+                          competidores
+                        </span>
+                      )}
+                      {dateCopy && (
+                        <span
+                          className={
+                            participantCount > 0
+                              ? 'min-w-0 text-right text-surface-500'
+                              : 'min-w-0 text-left text-surface-500'
+                          }
+                        >
+                          {dateCopy}
+                        </span>
+                      )}
                     </div>
                   </CardContent>
                 </Card>

@@ -1,12 +1,5 @@
 import type { Firestore, FieldValue } from 'firebase-admin/firestore';
-import {
-  calculateRank,
-  getPointsForPlace,
-  getPrizeForPlace,
-  POINTS_TABLE,
-} from '../domain/ranking';
-
-const CHAMPIONSHIP_POINTS_MULTIPLIER = 2;
+import { calculateRank, getChampionshipPlacementPoints, getPrizeForPlace } from '../domain/ranking';
 
 export interface FinalizeChampionshipDeps {
   db: Firestore;
@@ -86,8 +79,7 @@ export async function finalizeChampionshipHandler(
 
   for (const userId of participantIds) {
     const place = placementMap.get(userId) ?? 0;
-    const basePoints = place > 0 ? getPointsForPlace(place) : POINTS_TABLE.participation;
-    const pointsAwarded = basePoints * CHAMPIONSHIP_POINTS_MULTIPLIER;
+    const pointsAwarded = place > 0 ? getChampionshipPlacementPoints(champ.scope, place) : 0;
     const prize = place > 0 ? getPrizeForPlace(place, champ.prizeDistribution) : 0;
 
     if (place > 0) {
@@ -105,10 +97,14 @@ export async function finalizeChampionshipHandler(
     if (place <= 3 && place > 0) statsUpdate['stats.topThreeFinishes'] = fieldValue.increment(1);
 
     batch.update(db.collection('users').doc(userId), {
-      points: fieldValue.increment(pointsAwarded),
-      xp: fieldValue.increment(pointsAwarded),
+      ...(pointsAwarded > 0
+        ? {
+            points: fieldValue.increment(pointsAwarded),
+            xp: fieldValue.increment(pointsAwarded),
+          }
+        : {}),
       rank: newRank,
-      ...(champ.seasonId
+      ...(champ.seasonId && pointsAwarded > 0
         ? {
             [`seasonPoints.${champ.seasonId}.points`]: fieldValue.increment(pointsAwarded),
             [`seasonPoints.${champ.seasonId}.xp`]: fieldValue.increment(pointsAwarded),
@@ -116,7 +112,7 @@ export async function finalizeChampionshipHandler(
             [`seasonPoints.${champ.seasonId}.updatedAt`]: fieldValue.serverTimestamp(),
           }
         : {}),
-      ...(champ.seasonId && champ.category
+      ...(champ.seasonId && champ.category && pointsAwarded > 0
         ? {
             [`seasonCategoryPoints.${champ.seasonId}.${champ.category}.points`]:
               fieldValue.increment(pointsAwarded),

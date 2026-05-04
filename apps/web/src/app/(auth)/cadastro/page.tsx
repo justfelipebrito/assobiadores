@@ -5,24 +5,115 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button, Input, Card, CardContent } from '@batalha/ui';
 import { useAuth } from '@batalha/firebase';
+import { BRAZIL_STATE_LABELS, type BrazilState } from '@batalha/types';
 import { Music, UserPlus } from 'lucide-react';
+
+const BRAZIL_STATES = Object.entries(BRAZIL_STATE_LABELS).map(([value, label]) => ({
+  value: value as BrazilState,
+  label,
+}));
 
 export default function RegisterPage() {
   const router = useRouter();
   const { signUp, signInWithGoogle, signInWithApple, loading, error, user } = useAuth();
   const [name, setName] = useState('');
+  const [birthState, setBirthState] = useState<BrazilState | ''>('');
+  const [pixKey, setPixKey] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [authActionLoading, setAuthActionLoading] = useState(false);
 
   useEffect(() => {
     if (user) {
-      router.push('/');
+      router.push('/meu-perfil');
     }
   }, [router, user]);
 
+  const bootstrapUser = async (authUser: Awaited<ReturnType<typeof signUp>>) => {
+    if (!authUser) return false;
+    const token = await authUser.getIdToken(true);
+    const res = await fetch('/api/auth/bootstrap', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        displayName: authUser.displayName,
+        photoURL: authUser.photoURL,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erro ao preparar perfil');
+    return true;
+  };
+
+  const handleSocialSignIn = async (provider: 'google' | 'apple') => {
+    setLocalError(null);
+    setAuthActionLoading(true);
+    try {
+      const signedUser = provider === 'google' ? await signInWithGoogle() : await signInWithApple();
+      if (!signedUser) return;
+      await bootstrapUser(signedUser);
+      router.push('/meu-perfil');
+    } catch (err) {
+      setLocalError(err instanceof Error ? err.message : 'Erro ao preparar perfil');
+    } finally {
+      setAuthActionLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await signUp(email, password, name);
+    setLocalError(null);
+    setAuthActionLoading(true);
+
+    try {
+      if (!birthState) {
+        setLocalError('Selecione sua naturalidade para criar a conta.');
+        return;
+      }
+      if (!pixKey.trim()) {
+        setLocalError('Informe sua Chave Pix para criar a conta.');
+        return;
+      }
+
+      const createdUser = await signUp(email, password, name);
+      if (!createdUser) return;
+      await bootstrapUser(createdUser);
+
+      const token = await createdUser.getIdToken(true);
+      const saveProfile = async () => {
+        const res = await fetch('/api/profile/update', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            displayName: name,
+            birthState,
+            pixKey,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Erro ao salvar naturalidade');
+      };
+
+      let lastError: unknown;
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        try {
+          await saveProfile();
+          lastError = null;
+          break;
+        } catch (err) {
+          lastError = err;
+          await new Promise((resolve) => window.setTimeout(resolve, 400));
+        }
+      }
+      if (lastError) throw lastError;
+      router.push('/meu-perfil');
+    } catch (err) {
+      setLocalError(err instanceof Error ? err.message : 'Erro ao salvar naturalidade');
+      router.push('/meu-perfil');
+    } finally {
+      setAuthActionLoading(false);
+    }
   };
 
   if (user) return null;
@@ -48,8 +139,8 @@ export default function RegisterPage() {
               variant="secondary"
               size="lg"
               className="w-full gap-3"
-              onClick={signInWithGoogle}
-              loading={loading}
+              onClick={() => handleSocialSignIn('google')}
+              loading={loading || authActionLoading}
             >
               <svg className="h-5 w-5" viewBox="0 0 24 24">
                 <path
@@ -77,8 +168,8 @@ export default function RegisterPage() {
               variant="secondary"
               size="lg"
               className="w-full gap-3"
-              onClick={signInWithApple}
-              loading={loading}
+              onClick={() => handleSocialSignIn('apple')}
+              loading={loading || authActionLoading}
             >
               <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
@@ -112,6 +203,32 @@ export default function RegisterPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
               />
+              <div>
+                <label className="mb-2 block text-sm font-medium text-surface-300">
+                  Naturalidade
+                </label>
+                <select
+                  value={birthState}
+                  onChange={(e) => setBirthState(e.target.value as BrazilState | '')}
+                  className="h-12 w-full rounded-xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none transition-all focus:border-brand-500/50 focus:ring-2 focus:ring-brand-500/20"
+                  required
+                >
+                  <option value="">Selecione o estado onde nasceu</option>
+                  {BRAZIL_STATES.map((state) => (
+                    <option key={state.value} value={state.value}>
+                      {state.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <Input
+                label="Chave Pix"
+                type="text"
+                placeholder="CPF, CNPJ, email, telefone ou chave aleatoria"
+                value={pixKey}
+                onChange={(e) => setPixKey(e.target.value)}
+                required
+              />
               <Input
                 label="Senha"
                 type="password"
@@ -122,13 +239,18 @@ export default function RegisterPage() {
                 required
               />
 
-              {error && (
+              {(error || localError) && (
                 <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
-                  {error}
+                  {localError || error}
                 </div>
               )}
 
-              <Button type="submit" size="lg" className="w-full" loading={loading}>
+              <Button
+                type="submit"
+                size="lg"
+                className="w-full"
+                loading={loading || authActionLoading}
+              >
                 <UserPlus className="mr-2 h-4 w-4" />
                 Criar conta
               </Button>

@@ -3,6 +3,7 @@ import type { UserAddress } from '@batalha/types';
 export type ProfileValidationErrors = {
   cpf?: string;
   phone?: string;
+  pixKey?: string;
   postalCode?: string;
   street?: string;
   number?: string;
@@ -30,6 +31,28 @@ export function isValidCpf(value: string) {
   return calculateDigit(9) === Number(digits[9]) && calculateDigit(10) === Number(digits[10]);
 }
 
+export function normalizeCnpj(value: string) {
+  return value.replace(/\D/g, '');
+}
+
+export function isValidCnpj(value: string) {
+  const digits = normalizeCnpj(value);
+  if (!digits) return true;
+  if (digits.length !== 14 || /^(\d)\1+$/.test(digits)) return false;
+
+  const calculateDigit = (length: number) => {
+    const weights =
+      length === 12
+        ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
+        : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+    const sum = weights.reduce((total, weight, index) => total + Number(digits[index]) * weight, 0);
+    const rest = sum % 11;
+    return rest < 2 ? 0 : 11 - rest;
+  };
+
+  return calculateDigit(12) === Number(digits[12]) && calculateDigit(13) === Number(digits[13]);
+}
+
 export function normalizePhone(value: string) {
   return value.replace(/\D/g, '');
 }
@@ -39,6 +62,30 @@ export function isValidBrazilPhone(value: string) {
   if (!digits) return true;
   const localDigits = digits.startsWith('55') ? digits.slice(2) : digits;
   return /^[1-9]{2}9?\d{8}$/.test(localDigits) && !/^(\d)\1+$/.test(localDigits);
+}
+
+export function normalizePixKey(value: string) {
+  return value.trim();
+}
+
+export function isValidPixKey(value: string) {
+  const trimmed = normalizePixKey(value);
+  if (!trimmed) return true;
+
+  const digits = trimmed.replace(/\D/g, '');
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+  return (
+    (digits.length === 11 && isValidCpf(trimmed)) ||
+    (digits.length === 14 && isValidCnpj(trimmed)) ||
+    (digits.length >= 10 && digits.length <= 13 && isValidBrazilPhone(trimmed)) ||
+    emailPattern.test(trimmed) ||
+    uuidPattern.test(trimmed) ||
+    (trimmed.length >= 20 && trimmed.length <= 120 && /^[A-Za-z0-9._@+-]+$/.test(trimmed)) ||
+    (digits.length === 11 && isValidCpf(digits)) ||
+    (digits.length === 14 && isValidCnpj(digits))
+  );
 }
 
 export function normalizeCep(value: string) {
@@ -53,10 +100,12 @@ export function isValidCep(value: string) {
 export function validateOfficialProfileFields({
   cpf,
   phone,
+  pixKey,
   address,
 }: {
   cpf?: string;
   phone?: string;
+  pixKey?: string;
   address?: Partial<UserAddress>;
 }) {
   const errors: ProfileValidationErrors = {};
@@ -66,6 +115,9 @@ export function validateOfficialProfileFields({
   }
   if (phone !== undefined && !isValidBrazilPhone(phone)) {
     errors.phone = 'Use DDD + telefone, somente numeros.';
+  }
+  if (pixKey !== undefined && !isValidPixKey(pixKey)) {
+    errors.pixKey = 'Use uma Chave Pix valida: CPF, CNPJ, email, telefone ou chave aleatoria.';
   }
 
   if (address) {

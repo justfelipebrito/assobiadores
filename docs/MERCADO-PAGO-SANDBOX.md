@@ -39,6 +39,12 @@ https://<region>-<project-id>.cloudfunctions.net/onPaymentWebhook
 
 This project uses region `southamerica-east1`.
 
+Current sandbox webhook URL:
+
+```text
+https://southamerica-east1-assobiadores-3f0f6.cloudfunctions.net/onPaymentWebhook
+```
+
 ## Mercado Pago Dashboard
 
 In the Mercado Pago developer dashboard:
@@ -49,6 +55,13 @@ In the Mercado Pago developer dashboard:
 4. Reveal/copy the webhook secret and set it as `MP_WEBHOOK_SECRET`.
 
 ## Manual Flow
+
+Before browser QA, validate local credentials without printing secrets:
+
+```bash
+pnpm validate:mp
+pnpm validate:mp:order
+```
 
 1. Seed or create a paid battle with `status = registration` and `entryFee > 0`.
 2. Sign in as a regular user.
@@ -103,6 +116,23 @@ Before marking Phase 4 externally validated:
 1. Retry the paid battle browser flow with the seller test token in local env.
 2. Configure the webhook/notifications topic for Orders API.
 3. Validate the webhook updates Firestore from pending to approved.
+
+## Current Deploy Status
+
+As of 2026-05-03:
+
+- `MP_ACCESS_TOKEN` is set in Firebase Secret Manager.
+- `MP_WEBHOOK_SECRET` is set in Firebase Secret Manager.
+- `onPaymentWebhook` is deployed to `southamerica-east1`.
+- The deployed webhook matches Mercado Pago Orders API payment notifications against `payments.externalPaymentId`, with legacy `payments.externalId` fallback.
+- Qualifier fee payments use the same Orders API Pix flow with `payments.targetType = qualifier_registration`; approval confirms the linked `qualifierRegistrations` document. The Regional is derived from the user's profile `Naturalidade`, not from client input.
+- Local emulator browser QA may use the test-only `Aprovar no teste` control to validate approved-payment UX. Real Mercado Pago validation still requires an actual sandbox-approved Pix payment and dashboard webhook event.
+- `GET` requests return `405`, confirming the endpoint is reachable and method-gated.
+- Unsigned `POST` requests return `401`, confirming signature validation is active.
+- Artifact Registry cleanup policy is enabled for `southamerica-east1` with a 7-day retention window.
+- Local paid payment route QA creates an Orders API Pix payment from the seeded `battle-paid-open` fixture, writes a pending `payments` doc, writes a pending `battleEntries` doc, and the owner-only status route returns the pending payment.
+
+Local emulator users use `.test` email addresses, which Mercado Pago rejects as payer emails. The payment route replaces non-deliverable local/test email domains with a Mercado Pago-compatible `@testuser.com` payer email before calling Orders API. Real user emails are preserved.
 
 ## Test User Credential Step
 

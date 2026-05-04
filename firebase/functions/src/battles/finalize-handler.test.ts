@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { finalizeBattleHandler, shouldAwardOfficialBattlePoints } from './finalize-handler';
+import {
+  finalizeBattleHandler,
+  getBattleScoringEligibility,
+  shouldAwardOfficialBattlePoints,
+} from './finalize-handler';
 
 class TestHttpsError extends Error {
   constructor(
@@ -92,14 +96,61 @@ function createDb({
 
 describe('finalizeBattleHandler', () => {
   it('identifies which battle types award official points', () => {
-    expect(shouldAwardOfficialBattlePoints({ type: 'official' })).toBe(true);
+    expect(shouldAwardOfficialBattlePoints({ type: 'official', category: 'freestyle' })).toBe(true);
+    expect(shouldAwardOfficialBattlePoints({ type: 'community', category: 'melodia' })).toBe(true);
     expect(shouldAwardOfficialBattlePoints({ type: 'community' })).toBe(false);
   });
 
-  it('awards points and updates user ranks for official battles', async () => {
+  it('requires real competition signals before battle points can be awarded', () => {
+    expect(
+      getBattleScoringEligibility({
+        battle: { format: 'duel', category: 'freestyle' },
+        entries: [{ userId: 'a' }, { userId: 'b' }],
+        submissions: [
+          { userId: 'a', voteCount: 1 },
+          { userId: 'b', voteCount: 0 },
+        ],
+      }),
+    ).toMatchObject({ eligible: true, reason: null });
+
+    expect(
+      getBattleScoringEligibility({
+        battle: { format: 'group', category: 'freestyle' },
+        entries: [
+          { userId: 'a' },
+          { userId: 'b' },
+          { userId: 'c' },
+          { userId: 'd' },
+          { userId: 'e' },
+        ],
+        submissions: [
+          { userId: 'a', voteCount: 1 },
+          { userId: 'b', voteCount: 0 },
+          { userId: 'c', voteCount: 0 },
+          { userId: 'd', voteCount: 0 },
+        ],
+      }),
+    ).toMatchObject({ eligible: false, reason: 'not-enough-approved-submissions' });
+
+    expect(
+      getBattleScoringEligibility({
+        battle: { format: 'duel', category: 'freestyle' },
+        entries: [{ userId: 'a' }, { userId: 'b' }],
+        submissions: [
+          { userId: 'a', voteCount: 0 },
+          { userId: 'b', voteCount: 0 },
+        ],
+      }),
+    ).toMatchObject({ eligible: false, reason: 'no-public-votes' });
+  });
+
+  it('awards unified season/category points for 1v1 battle wins', async () => {
     const { db, updates } = createDb({
       battle: {
         type: 'official',
+        format: 'duel',
+        category: 'freestyle',
+        seasonId: '2026',
         status: 'voting',
         prizeDistribution: { first: 1000, second: 500, third: 0 },
       },
@@ -114,33 +165,94 @@ describe('finalizeBattleHandler', () => {
     });
 
     expect(result.officialScoringApplied).toBe(true);
-    expect(result.winners[0]).toEqual({ userId: 'winner-1', place: 1, points: 100, prize: 1000 });
+    expect(result.winners[0]).toEqual({ userId: 'winner-1', place: 1, points: 10, prize: 1000 });
+    expect(result.winners[1]).toEqual({ userId: 'winner-2', place: 2, points: 0, prize: 500 });
     expect(updates).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           ref: expect.objectContaining({ id: 'winner-1' }),
           data: expect.objectContaining({
-            points: { _increment: 100 },
-            xp: { _increment: 100 },
-            rank: 'Aprendiz',
+            points: { _increment: 10 },
+            xp: { _increment: 10 },
+            rank: 'Iniciante',
+            'seasonPoints.2026.points': { _increment: 10 },
+            'seasonPoints.2026.xp': { _increment: 10 },
+            'seasonCategoryPoints.2026.freestyle.points': { _increment: 10 },
+            'seasonCategoryPoints.2026.freestyle.xp': { _increment: 10 },
             'stats.battlesWon': { _increment: 1 },
           }),
         }),
         expect.objectContaining({
           ref: expect.objectContaining({ id: 'participant-1' }),
           data: expect.objectContaining({
-            points: { _increment: 10 },
-            xp: { _increment: 10 },
+            'stats.battlesEntered': { _increment: 1 },
+          }),
+        }),
+      ]),
+    );
+    expect(
+      updates.find(({ ref }) => (ref as { id?: string }).id === 'participant-1')?.data,
+    ).not.toHaveProperty('points');
+  });
+
+  it('awards unified season/category points for community group battle wins', async () => {
+    const { db, updates } = createDb({
+      battle: {
+        type: 'community',
+        format: 'group',
+        category: 'melodia',
+        seasonId: '2026',
+        status: 'voting',
+        prizeDistribution: { first: 1000, second: 500, third: 0 },
+      },
+      submissions: [
+        { userId: 'winner-1', voteCount: 5 },
+        { userId: 'winner-2', voteCount: 3 },
+        { userId: 'participant-1', voteCount: 1 },
+        { userId: 'participant-2', voteCount: 0 },
+        { userId: 'participant-3', voteCount: 0 },
+      ],
+      entries: [
+        { userId: 'winner-1' },
+        { userId: 'winner-2' },
+        { userId: 'participant-1' },
+        { userId: 'participant-2' },
+        { userId: 'participant-3' },
+      ],
+    });
+
+    const result = await finalizeBattleHandler({
+      db: db as never,
+      battleId: 'battle-1',
+      fieldValue,
+      logger: { info: vi.fn() },
+      HttpsError: TestHttpsError,
+    });
+
+    expect(result.officialScoringApplied).toBe(true);
+    expect(result.winners[0]).toEqual({ userId: 'winner-1', place: 1, points: 20, prize: 1000 });
+    expect(updates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          ref: expect.objectContaining({ id: 'winner-1' }),
+          data: expect.objectContaining({
+            points: { _increment: 20 },
+            xp: { _increment: 20 },
+            'seasonPoints.2026.points': { _increment: 20 },
+            'seasonCategoryPoints.2026.melodia.points': { _increment: 20 },
           }),
         }),
       ]),
     );
   });
 
-  it('finalizes community battles without official points or user ranking updates', async () => {
+  it('finalizes community group battles without points when anti-farming eligibility fails', async () => {
     const { db, updates, battleRef } = createDb({
       battle: {
         type: 'community',
+        format: 'group',
+        category: 'melodia',
+        seasonId: '2026',
         status: 'voting',
         prizeDistribution: { first: 1000, second: 500, third: 0 },
       },
@@ -161,7 +273,45 @@ describe('finalizeBattleHandler', () => {
       ref: expect.objectContaining(battleRef),
       data: expect.objectContaining({
         status: 'finished',
+        seasonScoringApplied: false,
+        seasonScoringEligibility: {
+          eligible: false,
+          reason: 'not-enough-confirmed-participants',
+        },
+      }),
+    });
+  });
+
+  it('finalizes battles without category without ranking updates', async () => {
+    const { db, updates, battleRef } = createDb({
+      battle: {
+        type: 'community',
+        format: 'group',
+        status: 'voting',
+        prizeDistribution: { first: 1000, second: 500, third: 0 },
+      },
+    });
+
+    const result = await finalizeBattleHandler({
+      db: db as never,
+      battleId: 'battle-1',
+      fieldValue,
+      logger: { info: vi.fn() },
+      HttpsError: TestHttpsError,
+    });
+
+    expect(result.officialScoringApplied).toBe(false);
+    expect(updates).toHaveLength(1);
+    expect(updates[0]).toEqual({
+      ref: expect.objectContaining(battleRef),
+      data: expect.objectContaining({
+        status: 'finished',
         officialScoringApplied: false,
+        seasonScoringApplied: false,
+        seasonScoringEligibility: {
+          eligible: false,
+          reason: 'missing-category',
+        },
       }),
     });
   });

@@ -1,8 +1,21 @@
 export const POINTS_TABLE = {
-  first: 100,
-  second: 70,
-  third: 50,
-  participation: 10,
+  dailyHighlightSubmission: 1,
+  dailyHighlightFirst: 15,
+  dailyHighlightSecond: 10,
+  dailyHighlightThird: 5,
+  duelBattleWin: 10,
+  groupBattleWin: 20,
+  qualifierEntry: 50,
+  qualifierPhaseAdvance: 200,
+  qualifyForRegional: 500,
+  regionalPhaseAdvance: 1000,
+  regionalFirst: 10000,
+  regionalSecond: 6000,
+  regionalThird: 4000,
+  nationalPhaseAdvance: 5000,
+  nationalFirst: 40000,
+  nationalSecond: 25000,
+  nationalThird: 15000,
 } as const;
 
 export const RANKS = [
@@ -28,13 +41,51 @@ export function calculateRank(points: number): string {
 export function getPointsForPlace(place: number): number {
   switch (place) {
     case 1:
-      return POINTS_TABLE.first;
+      return POINTS_TABLE.regionalFirst;
     case 2:
-      return POINTS_TABLE.second;
+      return POINTS_TABLE.regionalSecond;
     case 3:
-      return POINTS_TABLE.third;
+      return POINTS_TABLE.regionalThird;
     default:
-      return POINTS_TABLE.participation;
+      return 0;
+  }
+}
+
+export function getDailyHighlightPlacementPoints(place: number): number {
+  switch (place) {
+    case 1:
+      return POINTS_TABLE.dailyHighlightFirst;
+    case 2:
+      return POINTS_TABLE.dailyHighlightSecond;
+    case 3:
+      return POINTS_TABLE.dailyHighlightThird;
+    default:
+      return 0;
+  }
+}
+
+export function getBattleWinPoints(format: unknown): number {
+  return format === 'duel' ? POINTS_TABLE.duelBattleWin : POINTS_TABLE.groupBattleWin;
+}
+
+export function getChampionshipPhaseAdvancePoints(scope: unknown): number {
+  return scope === 'national'
+    ? POINTS_TABLE.nationalPhaseAdvance
+    : POINTS_TABLE.regionalPhaseAdvance;
+}
+
+export function getChampionshipPlacementPoints(scope: unknown, place: number): number {
+  const national = scope === 'national';
+
+  switch (place) {
+    case 1:
+      return national ? POINTS_TABLE.nationalFirst : POINTS_TABLE.regionalFirst;
+    case 2:
+      return national ? POINTS_TABLE.nationalSecond : POINTS_TABLE.regionalSecond;
+    case 3:
+      return national ? POINTS_TABLE.nationalThird : POINTS_TABLE.regionalThird;
+    default:
+      return 0;
   }
 }
 

@@ -125,7 +125,14 @@ NEXT_PUBLIC_USE_FIREBASE_EMULATORS=true
 For paid Pix sandbox QA, also set the Mercado Pago sandbox access token in `apps/web/.env.local`:
 
 ```bash
-MP_ACCESS_TOKEN=TEST-your-sandbox-token
+MP_ACCESS_TOKEN=APP_USR-your-seller-test-user-token
+```
+
+Validate the token and Orders API Pix creation without printing secrets:
+
+```bash
+pnpm validate:mp
+pnpm validate:mp:order
 ```
 
 For deployed webhook QA, also follow `docs/MERCADO-PAGO-SANDBOX.md` and configure:

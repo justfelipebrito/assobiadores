@@ -83,6 +83,17 @@ describe('createCommunityBattle', () => {
     );
   });
 
+  it('rejects group battles below the scoring minimum', async () => {
+    const { db } = makeDb();
+    await expect(
+      createCommunityBattle(db as never, {
+        userId: 'user-1',
+        userPlan: 'free',
+        body: { ...validGroupBody, maxParticipants: 2 },
+      }),
+    ).rejects.toMatchObject({ status: 400, message: expect.stringContaining('pelo menos 5') });
+  });
+
   it('blocks free-tier users from exceeding the group cap', async () => {
     const { db } = makeDb();
     await expect(

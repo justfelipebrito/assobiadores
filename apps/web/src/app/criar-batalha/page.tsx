@@ -10,6 +10,7 @@ import { COMPETITION_CATEGORIES, FREE_TIER_GROUP_CAP } from '@batalha/types';
 import { toast } from 'sonner';
 
 const CATEGORIES = COMPETITION_CATEGORIES;
+const GROUP_BATTLE_MIN_PARTICIPANTS = 5;
 
 function offsetDate(days: number) {
   const d = new Date(Date.now() + days * 24 * 60 * 60_000);
@@ -195,7 +196,7 @@ export default function CreateBattlePage() {
               <div className="flex items-center gap-4">
                 <input
                   type="range"
-                  min={2}
+                  min={GROUP_BATTLE_MIN_PARTICIPANTS}
                   max={FREE_TIER_GROUP_CAP}
                   value={maxParticipants}
                   onChange={(e) => setMaxParticipants(Number(e.target.value))}

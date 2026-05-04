@@ -4,6 +4,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { checkBattleEntryEligibility } from '@batalha/utils';
 import { ApiError, getErrorResponse } from '../../../../server/api-errors';
 import { requireDecodedToken } from '../../../../server/auth';
+import { createMercadoPagoPixOrder } from '../../../../server/mercado-pago-orders';
 import { readJsonObject } from '../../../../server/request';
 
 function getMillis(value: unknown): number | null {
@@ -16,76 +17,6 @@ function getMillis(value: unknown): number | null {
     return (value as { seconds: number }).seconds * 1000;
   }
   return null;
-}
-
-function getMercadoPagoAccessToken() {
-  const token = process.env.MP_ACCESS_TOKEN;
-  if (!token) {
-    throw new Error('MP_ACCESS_TOKEN is not configured');
-  }
-  return token;
-}
-
-function formatOrderAmount(amountInCents: number) {
-  return (amountInCents / 100).toFixed(2);
-}
-
-async function createMercadoPagoPixOrder({
-  amountInCents,
-  payerEmail,
-  idempotencyKey,
-}: {
-  amountInCents: number;
-  payerEmail: string;
-  idempotencyKey: string;
-}) {
-  const amount = formatOrderAmount(amountInCents);
-  const response = await fetch('https://api.mercadopago.com/v1/orders', {
-    method: 'POST',
-    headers: {
-      accept: 'application/json',
-      'content-type': 'application/json',
-      authorization: `Bearer ${getMercadoPagoAccessToken()}`,
-      'x-idempotency-key': idempotencyKey,
-    },
-    body: JSON.stringify({
-      type: 'online',
-      total_amount: amount,
-      external_reference: idempotencyKey,
-      processing_mode: 'automatic',
-      payer: { email: payerEmail },
-      transactions: {
-        payments: [
-          {
-            amount,
-            payment_method: {
-              id: 'pix',
-              type: 'bank_transfer',
-            },
-            expiration_time: 'PT30M',
-          },
-        ],
-      },
-    }),
-  });
-
-  const result = await response.json();
-  if (!response.ok) {
-    throw new Error(`Mercado Pago order creation failed with status ${response.status}`);
-  }
-
-  const payment = result.transactions?.payments?.[0];
-  const pixData = payment?.payment_method;
-  if (!result.id || !payment?.id || !pixData?.qr_code_base64 || !pixData.qr_code) {
-    throw new Error('Mercado Pago Pix order response is missing required payment data');
-  }
-
-  return {
-    orderId: String(result.id),
-    paymentId: String(payment.id),
-    pixQrCode: pixData.qr_code_base64,
-    pixCopiaECola: pixData.qr_code,
-  };
 }
 
 export async function POST(req: NextRequest) {
@@ -199,8 +130,11 @@ export async function POST(req: NextRequest) {
       externalId: mpResult.orderId,
       externalPaymentId: mpResult.paymentId,
       userId,
+      targetType: 'battle_entry',
+      targetId: entryRef.id,
       battleId,
       entryId: entryRef.id,
+      qualifierRegistrationId: null,
       amount: battle.entryFee,
       status: 'pending',
       pixQrCode: mpResult.pixQrCode,

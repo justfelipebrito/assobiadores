@@ -151,6 +151,7 @@ async function upsertUser({
       id: uid,
       cpf: '',
       phone: '',
+      pixKey: email,
       address: {
         postalCode: '',
         street: '',
@@ -196,24 +197,30 @@ async function seedSeasons() {
 }
 
 async function seedChampionships() {
-  const now = Date.now();
-  const schedule = {
-    registrationStart: Timestamp.fromDate(new Date(now - 24 * 60 * 60 * 1000)),
-    registrationEnd: Timestamp.fromDate(new Date(now + 21 * 24 * 60 * 60 * 1000)),
-    start: Timestamp.fromDate(new Date(now + 30 * 24 * 60 * 60 * 1000)),
-    end: Timestamp.fromDate(new Date(now + 90 * 24 * 60 * 60 * 1000)),
+  const qualifierSchedule = {
+    registrationStart: Timestamp.fromDate(new Date('2026-05-04T00:00:00-03:00')),
+    registrationEnd: Timestamp.fromDate(new Date('2026-05-31T23:59:59-03:00')),
+  };
+  const regionalSchedule = {
+    ...qualifierSchedule,
+    start: Timestamp.fromDate(new Date('2026-07-20T00:00:00-03:00')),
+    end: Timestamp.fromDate(new Date('2026-09-27T23:59:59-03:00')),
+  };
+  const nationalSchedule = {
+    ...qualifierSchedule,
+    start: Timestamp.fromDate(new Date('2026-10-05T00:00:00-03:00')),
+    end: Timestamp.fromDate(new Date('2026-12-13T23:59:59-03:00')),
   };
 
   const base = {
     seasonId: '2026',
-    status: 'registration',
-    schedule,
+    status: 'upcoming',
     maxParticipants: 64,
-    currentParticipants: 3,
-    participantIds: ['admin-local', 'user-local', 'voter-local'],
+    currentParticipants: 0,
+    participantIds: [],
     qualifierBattleIds: [],
     prizePool: 0,
-    prizeDistribution: null,
+    prizeDistribution: { first: 50, second: 30, third: 20 },
     createdBy: 'admin-local',
     createdAt: Timestamp.now(),
     updatedAt: Timestamp.now(),
@@ -230,6 +237,7 @@ async function seedChampionships() {
       category: category.value,
       scope: 'national',
       region: null,
+      schedule: nationalSchedule,
     })),
     ...BRAZIL_STATES.flatMap((state) =>
       COMPETITION_CATEGORIES.map((category) => ({
@@ -239,6 +247,7 @@ async function seedChampionships() {
         category: category.value,
         scope: 'regional',
         region: state.value,
+        schedule: regionalSchedule,
       })),
     ),
   ];
@@ -252,6 +261,90 @@ async function seedChampionships() {
           ...base,
           ...championship,
         }),
+    ),
+  );
+}
+
+async function seedQualifierTracks() {
+  const existingTracks = await db.collection('qualifierTracks').get();
+  await Promise.all(existingTracks.docs.map((doc) => doc.ref.delete()));
+
+  const countByTrack = {
+    'SP-freestyle': { registeredCount: 4, confirmedCount: 3, pendingPaymentCount: 1 },
+    'SP-melodia': { registeredCount: 4, confirmedCount: 3, pendingPaymentCount: 1 },
+    'SP-passaros': { registeredCount: 4, confirmedCount: 3, pendingPaymentCount: 1 },
+    'RJ-freestyle': { registeredCount: 4, confirmedCount: 3, pendingPaymentCount: 1 },
+    'RJ-melodia': { registeredCount: 4, confirmedCount: 3, pendingPaymentCount: 1 },
+    'RJ-passaros': { registeredCount: 4, confirmedCount: 3, pendingPaymentCount: 1 },
+  };
+
+  const tracks = ['SP', 'RJ'].flatMap((state) =>
+    COMPETITION_CATEGORIES.map((category) => {
+      const id = `qualifier-${state.toLowerCase()}-2026-${category.value}`;
+      const count = countByTrack[`${state}-${category.value}`] ?? {
+        registeredCount: 0,
+        confirmedCount: 0,
+        pendingPaymentCount: 0,
+      };
+
+      return {
+        id,
+        slug: `${state.toLowerCase()}-${category.value}-2026`,
+        seasonId: 'season-2026',
+        seasonYear: 2026,
+        category: category.value,
+        region: state,
+        status: 'registration_open',
+        entryFeeCents: 400,
+        registrationDeadline: Timestamp.fromDate(new Date('2026-05-31T23:59:59-03:00')),
+        bracketStart: Timestamp.fromDate(new Date('2026-06-01T00:00:00-03:00')),
+        bracketEnd: Timestamp.fromDate(new Date('2026-07-12T23:59:59-03:00')),
+        maxQualified: 64,
+        ...count,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      };
+    }),
+  );
+
+  await Promise.all(
+    tracks.map((track) => db.collection('qualifierTracks').doc(track.id).set(track)),
+  );
+}
+
+async function seedQualifierParticipants() {
+  const existingParticipants = await db.collection('qualifierParticipants').get();
+  await Promise.all(existingParticipants.docs.map((doc) => doc.ref.delete()));
+
+  const participants = [
+    { userId: 'admin-local', displayName: 'Admin Local' },
+    { userId: 'voter-local', displayName: 'Voter Local' },
+    { userId: 'user-local', displayName: 'User Local' },
+  ];
+
+  await Promise.all(
+    ['SP', 'RJ'].flatMap((state) =>
+      COMPETITION_CATEGORIES.flatMap((category) =>
+        participants.map((participant, index) => {
+          const confirmedAt = Timestamp.fromDate(new Date(Date.UTC(2026, 4, 4, 12, index * 10, 0)));
+
+          return db
+            .collection('qualifierParticipants')
+            .doc(`qualifier-${state.toLowerCase()}-2026-${category.value}-${participant.userId}`)
+            .set({
+              userId: participant.userId,
+              seasonId: 'season-2026',
+              seasonYear: 2026,
+              category: category.value,
+              region: state,
+              displayName: participant.displayName,
+              rank: index === 0 ? 'Aprendiz' : 'Iniciante',
+              points: Math.max(0, 80 - index * 20),
+              confirmedAt,
+              updatedAt: confirmedAt,
+            });
+        }),
+      ),
     ),
   );
 }
@@ -496,47 +589,64 @@ async function seedSubmissionsAndVotes() {
 }
 
 async function seedDailyHighlights() {
-  const now = Timestamp.now();
-  const dayKey = new Date().toISOString().slice(0, 10);
+  const seedDate = new Date();
+  seedDate.setHours(9, 0, 0, 0);
+  const dayKey = seedDate.toISOString().slice(0, 10);
+  const sampleAudioURL =
+    'http://127.0.0.1:9199/v0/b/demo-batalha.appspot.com/o/daily-highlights%2Fuser-local%2F1777799597771-freestyle.webm?alt=media&token=bd04dec7-c397-4bff-9d3d-2424765b5380';
+  const sampleAudioPath = 'daily-highlights/user-local/1777799597771-freestyle.webm';
   const highlights = [
     {
       id: 'daily-highlight-user',
-      userId: 'user-local',
+      userId: 'daily-seed-1',
       userDisplayName: 'User Local',
-      videoURL: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-      voteCount: 2,
+      userBirthState: 'SP',
+      voteCount: 0,
+      category: 'freestyle',
     },
     {
       id: 'daily-highlight-voter',
-      userId: 'voter-local',
+      userId: 'daily-seed-2',
       userDisplayName: 'Voter Local',
-      videoURL: 'https://www.youtube.com/watch?v=jNQXAC9IVRw',
-      voteCount: 1,
+      userBirthState: 'RJ',
+      voteCount: 0,
+      category: 'melodia',
     },
     {
       id: 'daily-highlight-admin',
-      userId: 'admin-local',
+      userId: 'daily-seed-3',
       userDisplayName: 'Admin Local',
-      videoURL: 'https://www.youtube.com/watch?v=ScMzIvxBSi4',
+      userBirthState: 'SP',
       voteCount: 0,
+      category: 'passaros',
     },
   ];
 
   await Promise.all(
-    highlights.map((highlight) =>
-      db
+    highlights.map((highlight, index) => {
+      const createdAt = new Date(seedDate.getTime() + index * 60 * 60 * 1000);
+      const timestamp = Timestamp.fromDate(createdAt);
+
+      return db
         .collection('dailyHighlights')
         .doc(highlight.id)
         .set({
           ...highlight,
           dayKey,
-          videoPlatform: 'youtube',
+          mediaType: 'audio',
+          mediaURL: sampleAudioURL,
+          mediaPath: sampleAudioPath,
+          mediaContentType: 'audio/webm;codecs=opus',
+          mediaDurationSeconds: 6,
+          mediaSizeBytes: 94964,
+          videoURL: sampleAudioURL,
+          videoPlatform: 'other',
           status: 'active',
-          pointsAwarded: 10,
-          createdAt: now,
-          updatedAt: now,
-        }),
-    ),
+          pointsAwarded: 1,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        });
+    }),
   );
 }
 
@@ -620,6 +730,8 @@ async function main() {
 
   await seedSeasons();
   await seedChampionships();
+  await seedQualifierTracks();
+  await seedQualifierParticipants();
   await seedBattles();
   await seedBattleEntries();
   await seedSubmissionsAndVotes();

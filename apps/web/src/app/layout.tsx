@@ -2,14 +2,20 @@ import type { Metadata, Viewport } from 'next';
 import { Toaster } from 'sonner';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
+import { QualifierRegistrationNotice } from '@/components/qualifiers/qualifier-registration-notice';
 import './globals.css';
 
 export const metadata: Metadata = {
   title: {
-    default: 'Assobiador - Batalhas de Assobio',
-    template: '%s | Assobiador',
+    default: 'A casa do assobiador',
+    template: '%s | A casa do assobiador',
   },
-  description: 'A plataforma de competicao de assobio mais divertida do Brasil. Participe de batalhas, mostre seu talento e conquiste o topo do ranking!',
+  description: 'A casa do assobiador: competicoes, rankings e destaques de assobio no Brasil.',
+  icons: {
+    icon: '/favicon.png',
+    shortcut: '/favicon.png',
+    apple: '/logo.png',
+  },
 };
 
 export const viewport: Viewport = {
@@ -26,6 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Header />
         <main className="flex-1">{children}</main>
         <Footer />
+        <QualifierRegistrationNotice />
         <Toaster
           position="top-center"
           richColors

@@ -8,6 +8,8 @@ export interface CreateCommunityBattleParams {
   body: unknown;
 }
 
+export const GROUP_BATTLE_MIN_PARTICIPANTS_FOR_SCORING = 5;
+
 export async function createCommunityBattle(
   db: Firestore,
   { userId, userPlan, body }: CreateCommunityBattleParams,
@@ -28,6 +30,15 @@ export async function createCommunityBattle(
       `Plano gratuito permite no maximo ${FREE_TIER_GROUP_CAP} participantes. Faca upgrade para criar batalhas maiores.`,
     );
   }
+  if (
+    input.format === 'group' &&
+    input.maxParticipants < GROUP_BATTLE_MIN_PARTICIPANTS_FOR_SCORING
+  ) {
+    throw new ApiError(
+      400,
+      `Batalhas em grupo precisam de pelo menos ${GROUP_BATTLE_MIN_PARTICIPANTS_FOR_SCORING} participantes.`,
+    );
+  }
 
   // Duel battles are always 2 participants
   const maxParticipants = input.format === 'duel' ? 2 : input.maxParticipants;
@@ -40,9 +51,12 @@ export async function createCommunityBattle(
   const now = new Date();
 
   if (regEnd <= now) throw new ApiError(400, 'Data de encerramento das inscricoes deve ser futura');
-  if (subDeadline <= regEnd) throw new ApiError(400, 'Prazo de submissao deve ser apos o encerramento das inscricoes');
-  if (voteStart <= subDeadline) throw new ApiError(400, 'Inicio da votacao deve ser apos o prazo de submissao');
-  if (voteEnd <= voteStart) throw new ApiError(400, 'Fim da votacao deve ser apos o inicio da votacao');
+  if (subDeadline <= regEnd)
+    throw new ApiError(400, 'Prazo de submissao deve ser apos o encerramento das inscricoes');
+  if (voteStart <= subDeadline)
+    throw new ApiError(400, 'Inicio da votacao deve ser apos o prazo de submissao');
+  if (voteEnd <= voteStart)
+    throw new ApiError(400, 'Fim da votacao deve ser apos o inicio da votacao');
 
   const battleRef = db.collection('battles').doc();
   await battleRef.set({

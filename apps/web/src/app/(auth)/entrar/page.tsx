@@ -12,6 +12,8 @@ export default function LoginPage() {
   const { signInWithGoogle, signInWithApple, signInWithEmail, loading, error, user } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [authActionLoading, setAuthActionLoading] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -21,7 +23,49 @@ export default function LoginPage() {
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    await signInWithEmail(email, password);
+    setLocalError(null);
+    setAuthActionLoading(true);
+    try {
+      const signedUser = await signInWithEmail(email, password);
+      if (!signedUser) return;
+      await bootstrapUser(signedUser);
+      router.push('/');
+    } catch (err) {
+      setLocalError(err instanceof Error ? err.message : 'Erro ao preparar perfil');
+    } finally {
+      setAuthActionLoading(false);
+    }
+  };
+
+  const bootstrapUser = async (authUser: Awaited<ReturnType<typeof signInWithEmail>>) => {
+    if (!authUser) return false;
+    const token = await authUser.getIdToken(true);
+    const res = await fetch('/api/auth/bootstrap', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        displayName: authUser.displayName,
+        photoURL: authUser.photoURL,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erro ao preparar perfil');
+    return true;
+  };
+
+  const handleSocialSignIn = async (provider: 'google' | 'apple') => {
+    setLocalError(null);
+    setAuthActionLoading(true);
+    try {
+      const signedUser = provider === 'google' ? await signInWithGoogle() : await signInWithApple();
+      if (!signedUser) return;
+      await bootstrapUser(signedUser);
+      router.push('/');
+    } catch (err) {
+      setLocalError(err instanceof Error ? err.message : 'Erro ao preparar perfil');
+    } finally {
+      setAuthActionLoading(false);
+    }
   };
 
   if (user) return null;
@@ -48,8 +92,8 @@ export default function LoginPage() {
               variant="secondary"
               size="lg"
               className="w-full gap-3"
-              onClick={signInWithGoogle}
-              loading={loading}
+              onClick={() => handleSocialSignIn('google')}
+              loading={loading || authActionLoading}
             >
               <svg className="h-5 w-5" viewBox="0 0 24 24">
                 <path
@@ -77,8 +121,8 @@ export default function LoginPage() {
               variant="secondary"
               size="lg"
               className="w-full gap-3"
-              onClick={signInWithApple}
-              loading={loading}
+              onClick={() => handleSocialSignIn('apple')}
+              loading={loading || authActionLoading}
             >
               <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
@@ -115,13 +159,18 @@ export default function LoginPage() {
                 required
               />
 
-              {error && (
+              {(error || localError) && (
                 <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
-                  {error}
+                  {localError || error}
                 </div>
               )}
 
-              <Button type="submit" size="lg" className="w-full" loading={loading}>
+              <Button
+                type="submit"
+                size="lg"
+                className="w-full"
+                loading={loading || authActionLoading}
+              >
                 <Mail className="mr-2 h-4 w-4" />
                 Entrar com email
               </Button>

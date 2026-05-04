@@ -6,7 +6,18 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import { deleteDoc, doc, getDoc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+  where,
+} from 'firebase/firestore';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 const PROJECT_ID = 'demo-batalha-rules-test';
@@ -387,21 +398,80 @@ describe('server-owned collections rules', () => {
     });
     await seed('dailyHighlights/daily-1', {
       userId: 'user-1',
+      dayKey: '2026-05-03',
       status: 'active',
       voteCount: 0,
     });
     await seed('dailyHighlightLikes/like-1', {
+      dayKey: '2026-05-03',
       dailyHighlightId: 'daily-1',
       userId: 'user-2',
     });
+    await seed('qualifierRegistrations/qualifier-registration-1', {
+      userId: 'user-1',
+      seasonId: '2026',
+      category: 'freestyle',
+      region: 'SP',
+      status: 'confirmed',
+    });
+    await seed('qualifierMatches/qualifier-match-1', {
+      seasonId: '2026',
+      category: 'freestyle',
+      region: 'SP',
+      roundNumber: 1,
+      participantIds: ['user-1', 'user-2'],
+      registrationIds: ['qualifier-registration-1', 'qualifier-registration-2'],
+      status: 'scheduled',
+    });
+    await seed('qualifierTracks/qualifier-sp-2026-freestyle', {
+      seasonId: 'season-2026',
+      seasonYear: 2026,
+      category: 'freestyle',
+      region: 'SP',
+      status: 'registration_open',
+      confirmedCount: 12,
+      maxQualified: 64,
+    });
+    await seed('qualifierParticipants/qualifier-registration-1', {
+      userId: 'user-1',
+      seasonId: 'season-2026',
+      seasonYear: 2026,
+      category: 'freestyle',
+      region: 'SP',
+      displayName: 'User One',
+      rank: 'Iniciante',
+      points: 25,
+    });
   });
 
-  it('allows public reads for entries, submissions, votes, and daily highlights', async () => {
+  it('allows public reads for entries, submissions, votes, daily highlights, and qualifier fixtures', async () => {
     await assertSucceeds(getDoc(doc(unauthDb(), 'battleEntries/entry-1')));
     await assertSucceeds(getDoc(doc(unauthDb(), 'submissions/submission-1')));
     await assertSucceeds(getDoc(doc(unauthDb(), 'votes/vote-1')));
     await assertSucceeds(getDoc(doc(unauthDb(), 'dailyHighlights/daily-1')));
     await assertSucceeds(getDoc(doc(unauthDb(), 'dailyHighlightLikes/like-1')));
+    await assertSucceeds(getDoc(doc(unauthDb(), 'qualifierMatches/qualifier-match-1')));
+    await assertSucceeds(getDoc(doc(unauthDb(), 'qualifierTracks/qualifier-sp-2026-freestyle')));
+    await assertSucceeds(getDoc(doc(unauthDb(), 'qualifierParticipants/qualifier-registration-1')));
+  });
+
+  it('allows users to read only their own qualifier registrations', async () => {
+    await assertSucceeds(
+      getDoc(doc(authedDb('user-1'), 'qualifierRegistrations/qualifier-registration-1')),
+    );
+    await assertFails(
+      getDoc(doc(authedDb('user-2'), 'qualifierRegistrations/qualifier-registration-1')),
+    );
+    await assertFails(getDoc(doc(unauthDb(), 'qualifierRegistrations/qualifier-registration-1')));
+
+    await assertSucceeds(
+      getDocs(
+        query(
+          collection(authedDb('user-1'), 'qualifierRegistrations'),
+          where('userId', '==', 'user-1'),
+        ),
+      ),
+    );
   });
 
   it('prevents direct client writes to battle entries', async () => {
@@ -460,6 +530,73 @@ describe('server-owned collections rules', () => {
         dailyHighlightId: 'daily-1',
         userId: 'user-1',
       }),
+    );
+  });
+
+  it('prevents direct client writes to qualifier registrations', async () => {
+    await assertFails(
+      setDoc(doc(authedDb('user-1'), 'qualifierRegistrations/qualifier-registration-2'), {
+        userId: 'user-1',
+        seasonId: '2026',
+        status: 'pending_payment',
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(authedDb('user-1'), 'qualifierRegistrations/qualifier-registration-1'), {
+        status: 'confirmed',
+      }),
+    );
+    await assertFails(
+      deleteDoc(doc(authedDb('user-1'), 'qualifierRegistrations/qualifier-registration-1')),
+    );
+  });
+
+  it('prevents direct client writes to qualifier matches', async () => {
+    await assertFails(
+      setDoc(doc(authedDb('user-1'), 'qualifierMatches/qualifier-match-2'), {
+        seasonId: '2026',
+        status: 'scheduled',
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(authedDb('user-1'), 'qualifierMatches/qualifier-match-1'), {
+        status: 'finished',
+      }),
+    );
+    await assertFails(deleteDoc(doc(authedDb('user-1'), 'qualifierMatches/qualifier-match-1')));
+  });
+
+  it('prevents direct client writes to qualifier tracks', async () => {
+    await assertFails(
+      setDoc(doc(authedDb('user-1'), 'qualifierTracks/qualifier-rj-2026-freestyle'), {
+        seasonId: 'season-2026',
+        status: 'registration_open',
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(authedDb('user-1'), 'qualifierTracks/qualifier-sp-2026-freestyle'), {
+        confirmedCount: 99,
+      }),
+    );
+    await assertFails(
+      deleteDoc(doc(authedDb('user-1'), 'qualifierTracks/qualifier-sp-2026-freestyle')),
+    );
+  });
+
+  it('prevents direct client writes to qualifier participants', async () => {
+    await assertFails(
+      setDoc(doc(authedDb('user-1'), 'qualifierParticipants/qualifier-registration-2'), {
+        userId: 'user-1',
+        seasonId: 'season-2026',
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(authedDb('user-1'), 'qualifierParticipants/qualifier-registration-1'), {
+        points: 999,
+      }),
+    );
+    await assertFails(
+      deleteDoc(doc(authedDb('user-1'), 'qualifierParticipants/qualifier-registration-1')),
     );
   });
 });

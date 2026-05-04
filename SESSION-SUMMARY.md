@@ -29,7 +29,6 @@
 - `storage.rules` — Public avatar reads with all client writes blocked; profile photo uploads go through the server API
 - `firestore.indexes.json` — 8 composite indexes
 - Cloud Functions:
-  - `onUserCreate` (v1 auth trigger) — creates user doc with defaults
   - `onPaymentWebhook` (v2 onRequest) — Mercado Pago webhook handler with idempotency
   - `expirePayments` (v2 scheduler, every 30min)
   - `finalizeBattle` (v2 onCall, admin-only) — tallies votes, awards points, updates ranks
@@ -45,6 +44,7 @@
 
 - `/entrar` — Login with Google + Apple + Email/Password
 - `/cadastro` — Register with Google + Apple + Email/Password
+- User profile bootstrap now runs through trusted web API route `/api/auth/bootstrap` after verified sign-in/sign-up. It creates/backfills `users/{uid}`, `usernames/{username}`, and `userPrivate/{uid}` without relying on the legacy `v1` Auth trigger.
 
 **Profile pages:**
 
@@ -59,7 +59,7 @@
 
 **Other pages:**
 
-- `/` — Content-first homepage with `Destaques Diários` video highlights, live battles, right-column ranking, platform stats, and recent winners (no auth required)
+- `/` — Content-first homepage with `Destaques Diários` audio/media highlights, live battles, right-column ranking, platform stats, and recent winners (no auth required)
 - `/ranking` — Full leaderboard with gold/silver/bronze top-3
 - `/loading.tsx`, `/not-found.tsx`, `/error.tsx` — Loading, 404, error boundary
 
@@ -76,8 +76,8 @@
 - Battle status auto-transitions — Cloud Function already in place
 - **Community battle creation:**
   - `packages/types/src/battle.ts` — `battleFormatSchema` ('duel'|'group'), `createCommunityBattleSchema`, `battleInviteSchema`, `FREE_TIER_GROUP_CAP = 50`
-  - `apps/web/src/server/battle-service.ts` — `createCommunityBattle()`: validates format/dates, enforces free-tier group cap (403 for non-pro users exceeding 50), writes battle with `type:'community'`, `status:'registration'`, `entryFee:0`
-  - `apps/web/src/server/battle-service.test.ts` — 10 tests: group/duel creation, duel forced to 2 participants, free-tier cap enforcement (403), pro user bypass, field validation, date ordering
+  - `apps/web/src/server/battle-service.ts` — `createCommunityBattle()`: validates format/dates, enforces free-tier group cap (403 for non-pro users exceeding 50), requires group battles to allow at least 5 participants for scoring integrity, writes battle with `type:'community'`, `status:'registration'`, `entryFee:0`
+  - `apps/web/src/server/battle-service.test.ts` — 11 tests: group/duel creation, duel forced to 2 participants, group minimum participant enforcement, free-tier cap enforcement (403), pro user bypass, field validation, date ordering
   - `apps/web/src/app/api/battles/create` — POST route with auth token, user plan fetch, delegates to service
   - `/criar-batalha` — Full form page: format selector (group/duel), title/description, category chips, participant slider (2-50), 4 datetime fields, rules editor (add/remove, max 10); auth guard; on success redirects to battle detail
   - Header — "Criar batalha" button added for logged-in users (desktop)
@@ -115,6 +115,7 @@
 - Pix creation now uses Mercado Pago Orders API (`/v1/orders`) with a seller test user `APP_USR-...` token for sandbox validation
 - Webhook/expiration handlers are extracted and unit-tested
 - Webhook origin validation — `onPaymentWebhook` validates Mercado Pago `x-signature` + `x-request-id` before processing
+- Webhook Orders API compatibility — Mercado Pago payment webhooks now match the stored `externalPaymentId` from the Orders API payment transaction, with legacy `externalId` fallback
 - Payment route hardening — missing `MP_ACCESS_TOKEN` and malformed Pix responses fail as controlled errors
 - `docs/MERCADO-PAGO-ACCOUNT-SETUP.md` — owner-facing steps for creating the Mercado Pago application, using the receiver account, and collecting sandbox/production credentials safely
 - `docs/MERCADO-PAGO-SANDBOX.md` — repeatable sandbox/deployed webhook validation checklist
@@ -123,8 +124,16 @@
 
 - Mercado Pago seller test token is configured locally and authenticates successfully against `users/me`
 - Direct Orders API Pix creation succeeds and returns QR/copia-e-cola/ticket URL
+- `pnpm validate:mp` and `pnpm validate:mp:order` now provide repeatable secret-safe Mercado Pago validation; current local token validates against `users/me` and can create Orders API Pix successfully.
 - Remaining: browser paid-battle QA against the local route using Orders API
-- Remaining: `MP_WEBHOOK_SECRET`, Orders API webhook/notification configuration, and reachable deployed webhook URL test
+- `MP_WEBHOOK_SECRET` and `MP_ACCESS_TOKEN` are set in Firebase Secret Manager for `assobiadores-3f0f6`.
+- `onPaymentWebhook` is deployed at `https://southamerica-east1-assobiadores-3f0f6.cloudfunctions.net/onPaymentWebhook`; latest redeploy includes the Orders API `externalPaymentId` webhook fix, and GET returns 405 while unsigned POST returns 401, confirming reachability and signature gating.
+- Cloud Functions package runtime has been upgraded to Node.js 22. Production `v2` functions currently listed on `nodejs22`: `expirePayments`, `finalizeBattle`, `finalizeChampionship`, `finalizeMatch`, `onPaymentWebhook`, and `scheduledBattleStatusUpdater`.
+- Runtime validation passed locally under Node 22 with `pnpm --filter functions test`, `pnpm --filter functions type-check`, and `pnpm --filter functions build`.
+- Resolved deploy caveat: the legacy `onUserCreate` `v1` Auth trigger was removed from the Cloud Functions export because it cannot be deployed under the Node.js 22 functions package. User document bootstrap is now owned by the web app's trusted `/api/auth/bootstrap` route instead.
+- Artifact Registry cleanup policy is configured for `southamerica-east1` with 7-day retention.
+- Local paid-route QA is passing: the seeded `battle-paid-open` fixture creates an Orders API Pix, writes a pending payment, writes a pending battle entry, and the owner-only status route returns the pending payment.
+- Remaining: browser payment UI pass with a sandbox-approved Pix payment and Mercado Pago dashboard webhook event confirmation.
 
 ---
 
@@ -138,28 +147,41 @@
 - User-created battles can be `1v1` or group battles.
 - User-created group battles are limited to 50 entries unless the creator has a subscription/plan.
 - Users should be able to invite competitors by searching and adding exact usernames in an "add to battle" flow.
-- Official battles count toward XP and official rankings.
-- Community/user-created battles should not affect official XP/rankings unless explicitly changed later.
-- Official rankings should support a sports-style leaderboard:
+- Rankings now use one unified season/category points model: daily highlights, standalone battles, qualifiers, Regionals, and Nationals can all award points when finalized by trusted server code and backed by documented scoring rules.
+- Casual/community actions award small points so regular users can appear in the season table; official competition progression awards much larger proportional boosts so Regional/National winners still lead meaningfully.
+- Season rankings should support a sports-style leaderboard:
   - National League.
   - Regional League by Brazilian state.
 - Season-based rankings should be first-class so users have a fresh, motivating path to stay near the top each season.
 - Homepage ranking summaries should present the active season (for example, `Temporada 2026`) rather than generic all-time copy.
 - Official ranking is category-scoped. The global competition categories are only `freestyle`, `melodia`, and `passaros` (`Pássaros` in UI copy).
 - Community users should have a pathway into official competitions through qualifiers.
-- Qualifiers should bridge community participation into official competition slots while preserving official ranking integrity.
-- Official competition participation should require a valid subscription; initial pricing direction is around USD $2, with exact payment/subscription rules still to be designed.
+- Qualifiers bridge community participation into official competition slots and grant larger season point boosts for entry, phase advancement, and qualification.
+- Official competition participation should require the entry payment/subscription rules defined for that event. Open Qualifiers now have a concrete `R$ 4,00` entry-fee direction; broader subscription rules are still to be designed.
 - Competitions need category support for exactly Freestyle, Melodia, and Pássaros.
+- 2026 official competition direction is documented in `docs/COMPETITION-MODEL.md`: Open Qualifiers feed Regionals, Regional top performers feed Nationals, async match submissions close at 14:59 BRT, voting runs 15:00-21:59 BRT, Qualifiers are 100% public vote, and Regional/National voting is 70% judges plus 30% public.
+- Regional competitions use flexible brackets per state/category: minimum 16, preferred/full 64, accepted sizes 16/32/64. National qualification is top 10 for 64-player Regionals, top 6 for 32-player Regionals, and top 4 for 16-player Regionals.
+- Qualifier entry pricing direction: `R$ 4,00` per contestant/category; platform keeps 20%; 80% funds the Regional category prize pool. Regional prize distribution is 50% to 1st place, 30% to 2nd place, and 20% to 3rd place.
+- Open Qualifier UX now has a persistent notice for logged-in users without an active registration and a `/classificatorias` page with rules/payment terms. Notice hides when `qualifierRegistrations` has `pending_payment` or `confirmed` for the user/season.
+- Homepage `Campeonatos` cards and `/campeonatos` listing now display product status copy from official dates instead of raw status labels (`registration`, `inscricoes`, `envios`). Regionals show only the date range `20/07/2026 - 27/09/2026`; Nationals show `Status: Classificados do Regional` and `Início em 05/10/2026`.
+- Championship cards reserve consistent title/description/footer space and align participant counts/dates in a stable two-column footer so desktop cards do not wrap dates unevenly.
+- Competition detail pages now include a `Ver Regras` button and rules section. Visible participant counts use real `participantIds` as the source of truth, and empty participant states explain the qualification path: Nationals wait for Regional top 10, Regionals wait for up to 64 Classifieds from Classificatórias.
+- Emulator championship seed now starts all 84 official championship shells with `currentParticipants: 0` and empty `participantIds`, matching the pre-qualifier product state. The running Firestore emulator was also patched to clear existing seeded championship participants for QA.
+- Championship cards/details hide the `0/64 competidores` block while there are no real participants; date information takes that visual space until classified participants exist.
+- Unified 2026 season scoring direction is documented in `docs/COMPETITION-MODEL.md`: daily submission 1, daily top 3 = 15/10/5, 1v1 battle win 10, group battle win 20, qualifier entry 50, qualifier phase advance 200, qualify for Regional 500, Regional phase advance 1,000, Regional podium 10,000/6,000/4,000, qualify for National 3,000, National phase advance 5,000, and National podium 40,000/25,000/15,000.
+- Unified scoring tests are now in place for the shared point table, daily highlight submission ledger writes, community/official battle win ledger writes, and Regional/National championship podium writes.
+- Remaining implementation gap: qualifier entry/advancement scoring, Regional/National phase-advance scoring, and daily top-3 placement scoring still need concrete server flows/jobs before they can be integration-tested beyond the pure scoring contract.
 - Official battles/championships require richer event/bracket modeling:
   - event dates and times surfaced in headers and details;
   - competitors surfaced in headers and details;
   - group stage support;
   - knockout phases such as round of 32, round of 16, round of 8, quarter-finals, semi-finals, finals.
-- Important architecture implication: do not overfit the current `battle` model to simple one-off battles; upcoming phases need room for community battle creation, invitations, subscriptions/limits, leagues, states, championships, stages, rounds, matches, and official-only ranking calculations.
+- Important architecture implication: do not overfit the current `battle` model to simple one-off battles; upcoming phases need room for community battle creation, invitations, subscriptions/limits, leagues, states, championships, stages, rounds, matches, and unified season/category scoring.
 
 ### Phase 3 remaining
 
 - Complete
+- Latest hardening: community battle scoring now has anti-farming eligibility checks in `finalizeBattle`. A battle can finish without ranking points, but season/category points are awarded only when it has a category, enough confirmed participants, enough approved submissions from confirmed participants, and at least one public vote. Group battle creation now requires at least 5 participants; duels remain 2. Voting already rejects self-votes server-side, and the voting UI no longer shows the vote button on the user's own entry.
 
 ### Phase 4: Payments (Pix)
 
@@ -168,7 +190,23 @@
 - `/batalhas/[battleId]/pagamento` page for paid battle entry — done
 - Payment status polling route — done
 - Webhook signature validation — done
-- Remaining external validation: test against real Mercado Pago sandbox credentials, `MP_WEBHOOK_SECRET`, and deployed webhook
+- Orders API payment-ID webhook matching — done
+- Qualifier registration fee payment UX/API — done: `/classificatorias` now lets logged-in users choose category only, derives the Regional from immutable `users/{uid}.birthState` (`Naturalidade`) server-side, opens the R$ 4,00 Pix in a modal, blocks duplicate Pix generation after the category registration is confirmed, and confirms `qualifierRegistrations` through the shared payment status/webhook path
+- `/classificatorias` now also shows a post-registration `Suas Classificatórias` status section for confirmed registrations, with registered category/state, qualifier battle window (`01/06/2026 - 12/07/2026`), submission deadline (`14:59 BRT`), and voting window (`15:00 - 21:59 BRT`).
+- Qualifier UX/data layer — in progress: `qualifierTracks` is modeled as public read/server-owned discovery data with shareable slugs like `sp-freestyle-2026`, open registration counts, and the number of Regional qualification slots; `qualifierRegistrations` carry bracket journey fields; `qualifierMatches` is modeled as public read/server-owned official fixture data; `/classificatorias/{state-category-year}` shows the public qualifier track; and `/classificatorias/{registrationId}` shows the participant's private category/state journey, deadlines, current status, and generated matches.
+- Homepage now has a left-column `Classificatórias` discovery section before Campeonatos so the Rankings rail remains visible: logged-in users see all three category tracks for their `Naturalidade`, logged-out users see SP/RJ defaults, cards avoid registration counts/slot counts, and every card links to the public shareable track while `Ver todas` opens `/classificatorias`.
+- Public qualifier track pages no longer show price, no longer treat `64` as a counter/stat card, and no longer show a `Ver todas` CTA in `Como funciona`. The Regional qualification count now appears as explanatory rules copy, and confirmed participants render after `Como funciona` from the server-owned public `qualifierParticipants` projection ordered by confirmation date, first to last, without `#1/#2` list markers but still showing each user's category rank and points.
+- Qualifier payment confirmation now writes `qualifierParticipants/{registrationId}` alongside `qualifierRegistrations`/`qualifierTracks`, avoiding public reads of private payment registration docs while still enabling participant lists on public track pages.
+- Firestore client collection hook now supports disabled collection reads, and `/classificatorias` skips the private `qualifierRegistrations` listener until auth is available. This avoids unauthenticated private-listener churn and stabilizes the page's realtime query setup.
+- Homepage loading stability fix: `useCollection` now keys realtime subscriptions by the semantic query constraints instead of the identity of freshly-created `orderBy`/`where`/`limit` objects. This prevents repeated unsubscribe/resubscribe loops on render and reduces intermittent blank homepage sections / Firestore internal assertion failures.
+- Daily highlight list consistency fix: homepage and `/destaques` now use the shared `getVisibleDailyHighlights` selector. It is strictly daily: only today's active entries are eligible, vote count sorts first, and zero-vote ties show the earliest submissions first.
+- `/destaques` entries now render as stable ranked playable media rows: fixed-width rank column for large numbers, compact `#1234` rank label, compact audio/media card as the main content, and a plain `Votar` action aligned with the row. Vote confirmation modal no longer repeats the media; it uses title `Votar`, explains the vote cannot be undone, and only offers `Cancelar` / `Confirmar voto`.
+- Mercado Pago local credential validation — done with `pnpm validate:mp`
+- Mercado Pago direct Orders API Pix validation — done with `pnpm validate:mp:order`
+- Firebase secrets/deployed webhook — done for `MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET`, and `onPaymentWebhook`
+- Cloud Functions Node.js 22 runtime — done: all deployed functions are `v2` functions on Node.js 22. The obsolete `onUserCreate` `v1` Auth trigger was removed and replaced with the trusted web bootstrap route.
+- Local paid-route QA — done against `battle-paid-open`
+- Remaining external validation: real Mercado Pago sandbox-approved Pix payment and dashboard webhook event confirmation. Local emulator browser QA can use the test-only `Aprovar no teste` control to validate post-payment UX without polluting Mercado Pago/payment state.
 
 ### Phase 5: Submissions + Voting
 
@@ -198,7 +236,7 @@
 - Created by any user (community) or admin (official one-offs)
 - Single phase: registration → active → voting → finished
 - Optional entry fee, prize pool
-- Affects community stats only (unless `type === 'official'` for simple official battles)
+- Can award small unified season/category points when finalized through trusted scoring rules
 
 `Championship` (new, Phase 6) — structured competition
 
@@ -206,7 +244,7 @@
 - Multi-stage lifecycle managed by a parent doc
 - Sub-collections: `stages`, `matches`
 - Qualifier battles (community `Battle` docs) can feed registration slots
-- All results feed official XP, National/Regional league rankings
+- All results feed larger unified season/category point boosts and National/Regional league rankings
 
 **Proposed Firestore schema:**
 
@@ -254,7 +292,7 @@ seasons/{id}
 **Done:**
 
 - `finalizeBattle` Cloud Function (standalone battles — awards points, updates rank, sets winners)
-- `firebase/functions/src/battles/finalize-handler.ts` + `.test.ts` — pure handler for standalone battle finalization; official battles award XP/ranking points, community battles finalize winners without official scoring
+- `firebase/functions/src/battles/finalize-handler.ts` + `.test.ts` — pure handler for standalone battle finalization; eligible official and community battle wins now write unified season/category points (`10` for 1v1 wins, `20` for group wins)
 - `packages/types/src/championship.ts` — `Season`, `Championship`, `Stage`, `Match` Zod schemas + TypeScript types
 - `/ranking` page upgraded — National/Regional tabs, state selector (all 27 Brazilian states), regional ranking queries by `state` field, state badge on each user row
 - Admin `/batalhas` page — real-time battle table with status, participants, entry fee; "Aguardando finalizacao" section surfaces voting-phase battles prominently with a one-click Finalize button that calls the `finalizeBattle` Cloud Function
@@ -262,7 +300,7 @@ seasons/{id}
 **Done (continued):**
 
 - `firebase/functions/src/championships/finalize-match-handler.ts` + `.test.ts` — pure handler for match finalization; tests cover: match not found, wrong status, winner from top vote, null winner when no submissions, stage auto-finish when last match, no stage finish when others still active (5 cases)
-- `firebase/functions/src/championships/finalize-championship-handler.ts` + `.test.ts` — pure handler for championship finalization; tests cover: not found, already finished, active stages blocking, champion from Final stage, 2× points for all places, 2× participation points for knocked-out players, championship marked finished in batch (7 cases)
+- `firebase/functions/src/championships/finalize-championship-handler.ts` + `.test.ts` — pure handler for championship finalization; tests cover: not found, already finished, active stages blocking, champion from Final stage, Regional/National podium point writes, no placement points for non-placing participants, championship marked finished in batch
 - `finalizeMatch` / `finalizeChampionship` onCall CFs delegate to handlers for testability; auth + admin checks remain in the CF wrapper
 - `/ranking/temporadas` — Season archive page: lists upcoming/active/archived seasons with scope badges, date ranges, championship count; links back to ranking
 - `/ranking` — "Ver temporadas anteriores" link added
@@ -287,9 +325,9 @@ seasons/{id}
 **Priority A — close before broad public launch:**
 
 - `Destaques Diários` now has a separate `dailyHighlights` collection and no longer reuses battle submissions as the data source.
-- Daily highlight submissions award 10 casual points via trusted API route; casual points are intentionally separate from official season ranking points.
-- `/destaques` lists daily entries and uses a confirmation modal with embedded video before liking an entry.
-- Homepage `Submit yours` opens a modal that saves to `dailyHighlights` instead of routing through battle submission pages.
+- Daily highlight submissions award 1 point through a trusted API route and write to the unified season/category points model.
+- `/destaques` lists daily entries and uses a confirmation modal with embedded media before voting on an entry.
+- Homepage `Enviar` opens a modal that saves to `dailyHighlights` instead of routing through battle submission pages.
 - Ranking cards on the homepage now use active-season ranking fields when an active season exists, and the copy shows the active season label.
 - Regional ranking should eventually query official regional ranking data directly, not filter a broad user query client-side. The current client-side filter is an acceptable local/MVP workaround to avoid index issues and stuck loading states.
 
@@ -300,12 +338,12 @@ seasons/{id}
 - The current `Batalhas` section mixes official and community standalone battles through badges, but the product distinction is not fully explained. Add compact labels/tooltips or section grouping so users understand: community battle, official battle, qualifier, championship match.
 - Battle ticker currently shows standalone battles only. Once championships are public, decide whether the ticker should include championship matches/events or have a separate official events strip.
 - Qualifier pathway needs a clear public explanation: official participation requires an active subscription, and community users can enter official competitions through qualifiers.
-- Competition categories are not modeled yet; upcoming design needs category tracks across qualifiers, battles, championship stages, scoring, and rankings.
+- Competition categories are now modeled as Freestyle, Melodia, and Pássaros across battles, championships, scoring, and rankings; qualifier flows still need category-aware public explanation.
 
 **Priority C — polish / clarity:**
 
 - Add lightweight contextual explanation without turning the homepage into a landing page: what counts for official ranking, what daily highlights are, and why regional ranking defaults to Sao Paulo.
-- Replace mixed-language CTA copy if we keep the UI fully pt-BR; currently `Submit yours` is intentionally present from the latest UX request but should be revisited during copy review.
+- Keep daily highlight CTA copy in pt-BR (`Enviar`) unless product direction changes.
 - Platform stats should eventually come from stable aggregate counters rather than sampled client queries.
 
 ### Phase 7: Polish
@@ -364,8 +402,10 @@ Latest hardening/refactor:
   - added homepage daily highlight area;
   - changed ranking defaults/labels to `Ranking Oficial` and `Ranking Regional`, defaulting regional to Sao Paulo.
 - Replaced the old homepage hero copy with `Destaques Diários` as the first visible section and removed public streak language from that area; streaks are reserved for later profile gamification.
-- Converted `Destaques Diários` from user/ranking cards to a media-forward YouTube submission layout: one featured approved video, two secondary approved videos, loading states, and empty states.
-- Refined `Destaques Diários` rules: highlight cards always target three approved submissions when available, sort by vote count with recency as the no-vote fallback, display only user name + vote count, and use one `Ver mais` path into the voting flow.
+- Converted `Destaques Diários` from user/ranking cards to a media-forward audio layout: #1 gets larger left-side real estate while #2 and #3 stack equally on the right within the same overall height, using the same minimal player treatment as the `Enviar` modal.
+- Daily highlight audio cards use one shared player layout across homepage and modals: `{displayName} - {naturalidade}` on the left, category on the right, icon-only play control, waveform, and current/total time below.
+- Daily highlight audio cards render `displayName` brighter and `naturalidade` in softer grey so location reads as secondary metadata.
+- Refined `Destaques Diários` rules: highlight cards always target three approved submissions when available, sort by vote count with recency as the no-vote fallback, display user name/category/vote count in the audio player, and use one `Ver mais` path into the voting flow.
 - Added `userDisplayName` denormalization to new submissions and updated emulator seed data with three approved voting submissions for local homepage QA.
 - Hid the homepage `Quer participar?` signup card for authenticated users.
 - Removed sticky behavior from the homepage ranking rail so it scrolls together with the main homepage content row.
@@ -373,22 +413,28 @@ Latest hardening/refactor:
 - Moved homepage `Plataforma` and `Ultimos vencedores` into the right column below the ranking cards.
 - Changed homepage regional ranking to filter locally from a broader points-ordered user query so missing regional data shows an empty state instead of a stuck shimmer.
 - Removed duplicated `Batalhas` and `Ranking` links from the header navigation and mobile drawer because the homepage now provides stronger access points for those flows.
-- Added a `Submit yours` CTA before `Ver mais` in the `Destaques Diários` section.
+- Added an `Enviar` CTA before `Ver mais` in the `Destaques Diários` section.
 - Reduced battle ticker CTA visual weight from primary green to a neutral secondary action with subtle brand hover.
 - Added separate daily highlights domain:
-  - `packages/types/src/daily-highlight.ts` with `DailyHighlight`, likes, and 10-point submission constant;
+  - `packages/types/src/daily-highlight.ts` with `DailyHighlight`, likes, and 1-point submission constant;
   - trusted daily highlight submit/like services and API routes;
   - `SubmitDailyHighlightModal` and like-confirmation modal;
   - `/destaques` daily entry list with modal-confirmed likes;
   - Firestore rules block client writes to `dailyHighlights` and `dailyHighlightLikes`;
-  - user `casualPoints` server-owned field added.
+  - user `casualPoints` server-owned field was added for the earlier daily-highlight model; rename or migrate this concept into the unified season/category points ledger.
+- Daily highlight voting now allows only one vote per user per `dayKey` from 00:00 to 23:59. Vote docs use deterministic IDs (`{dayKey}_{userId}`), so voting a second video on the same day is blocked transactionally.
+- Daily highlight day entries are created lazily from user submissions using `dayKey`; no daily scheduler is required just to open a new day. A scheduled cleanup/archival function may be added later for moderation or retention.
+- Added on-platform audio recording for `Destaques Diários`: users record up to 2 minutes in-browser, choose Freestyle/Melodia/Pássaros, upload compressed audio through a trusted API to Firebase Storage, and the new audio media is rendered with a same-footprint audio player showing play/pause, waveform bars, progress/duration, category, and username.
+- Improved daily highlight recording UX with live recording feedback: timer, progress bar, and animated waveform-style bars before stopping the recording.
+- Updated daily highlight local seed data to use today's audio entries with dedicated seed user IDs, keeping homepage and `/destaques` populated without consuming the seeded login users' one-submission-per-day slot.
+- Daily highlights now support media metadata (`mediaType`, `mediaURL`, Storage path/content type/size/duration) while keeping legacy `videoURL` compatibility for seeded/existing YouTube entries.
 - Updated homepage `Destaques Diários` to read `dailyHighlights` instead of battle submissions.
 - Updated homepage ranking copy/data to use active-season points when an active season exists and show the season label in the right rail.
 - Added homepage `Campeonatos` section before standalone `Batalhas`, with seeded local National/SP championship fixtures.
 - Fixed client-side redirects in login/register/profile pages by moving router updates out of render and into effects.
 - Changed Firestore rules tests to use `demo-batalha-rules-test` instead of the manual QA emulator project, preventing rules-test cleanup from wiping seeded local app data.
-- Hid `Submit yours` daily highlight CTA for logged-out users on the homepage and `/destaques`.
-- Added a focused visibility test for the daily highlight `Submit yours` CTA so logged-out users do not see it and logged-in users do.
+- Hid `Enviar` daily highlight CTA for logged-out users on the homepage and `/destaques`.
+- Added a focused visibility test for the daily highlight `Enviar` CTA so logged-out users do not see it and logged-in users do.
 - Normalized official categories to Freestyle, Melodia, and Pássaros across battle schemas/forms/filters and championship data.
 - Added `category` to championships and category-scoped `seasonCategoryPoints` to users; championship finalization now writes season category ranking points.
 - Updated emulator championship seed to create the full official season shell: 3 national championships plus 27 regional states x 3 categories (84 championship docs total), with `Temporada 2026` as the season name.
@@ -400,12 +446,13 @@ Latest hardening/refactor:
 - Added championship `participantIds` support in the shared type and local seed data so detail pages can render competitor lists.
 - Expanded the user profile model:
   - public `users/{uid}` now supports username, first name, surname, server-owned avatar metadata, and birth state (`Naturalidade`);
-  - private `userPrivate/{uid}` stores CPF, phone, and address so sensitive data is not exposed by public profile/ranking reads;
+  - private `userPrivate/{uid}` stores CPF, phone, Chave Pix, and address so sensitive identity/contact/payout data is not exposed by public profile/ranking reads;
   - `usernames/{username}` reservations support trusted username availability checks.
+- Naturalidade and Chave Pix are required before a profile can be finalized: email/password registration asks for both upfront, `/meu-perfil` requires both before save, and the trusted profile update API rejects profiles that still have no `birthState` or private `pixKey`.
 - Added `/api/profile/username` and `/api/profile/update` so profile saves validate username uniqueness and CPF server-side before writing.
 - Added `/api/profile/photo` with Firebase Storage-backed avatar uploads, server-owned photo metadata, 14-day replacement cooldown, immutable cache headers, and `photoVersion` cache busting.
 - Updated `/meu-perfil` with compressed camera/avatar upload, username verification, first name, surname, CPF/address/phone warning, naturalidade dropdown, address, and phone fields.
-- Added shared profile validation for CPF, Brazilian phone with DDD, CEP, and basic address text fields. The UI now shows inline errors and the profile update API enforces the same validations server-side.
+- Added shared profile validation for CPF, Brazilian phone with DDD, Chave Pix, CEP, and basic address text fields. The UI now shows inline errors and the profile update API enforces the same validations server-side.
 - Simplified manual address entry by removing Bairro, Complemento, and Estado do endereço from `/meu-perfil`; those fields remain schema-compatible but should be derived by a future address validation provider.
 - Refined `/meu-perfil` official-data layout so CPF/phone and CEP/city/rua/numero fields use stable, balanced grid widths with shorter helper text.
 - Adjusted profile phone copy to request DDD + digits only, and reordered address fields to Cidade/CEP then Rua/Numero for consistent row alignment.
@@ -420,7 +467,7 @@ Latest hardening/refactor:
 - Stabilized `/ranking` data loading by replacing dynamic nested Firestore `orderBy(seasonCategoryPoints.{year}.{category}.points)` queries with one broad `points` query plus in-memory season/category/regional sorting. This avoids intermittent empty/loading states when users lack a selected nested ranking field.
 - Applied the same stable ranking query strategy to homepage `Ranking Nacional` and `Ranking Regional`; both now use one broad `users` query and in-memory season/category/state sorting.
 - Fixed `/meu-perfil` username verification state bug where a successful availability check wrote `available` into the username value instead of updating `usernameStatus`, which could corrupt the profile update payload.
-- Hardened `onUserCreate` so it does not overwrite an existing user document, preventing emulator seed profile points from being reset by an auth-trigger race.
+- Replaced the former `onUserCreate` behavior with `/api/auth/bootstrap`, which does not overwrite existing user documents and backfills missing private profile data when needed.
 - Added manual QA guide in `docs/MANUAL-QA.md`, including Phase 5 submission, moderation, voting, results, and negative browser checks.
 - Added emulator seed script: `pnpm seed:emulator` creates local Auth users plus free/paid, active submission, and voting battle fixtures.
 - Verified the Phase 5 emulator seed with `firebase emulators:exec --only auth,firestore "pnpm seed:emulator"`.
@@ -429,6 +476,23 @@ Latest hardening/refactor:
 - Added `docs/MERCADO-PAGO-ACCOUNT-SETUP.md` with the Mercado Pago account/application steps the payment receiver should take.
 - Added `docs/MERCADO-PAGO-SANDBOX.md` with the required external sandbox validation steps and secrets.
 - Configured the Mercado Pago seller test access token locally, verified token auth with `users/me`, created Mercado Pago seller/buyer test users, validated direct Orders API Pix creation, migrated app Pix creation to Mercado Pago Orders API with idempotency/expiration fields, and added owner-only Orders API status polling for pending payments.
+- Added `pnpm validate:mp` and `pnpm validate:mp:order` for repeatable Mercado Pago sandbox validation without printing secrets; latest run returned `users/me` 200 and Orders API Pix creation 201 with QR/copia-e-cola present.
+- Deployed `onPaymentWebhook` to `southamerica-east1` for project `assobiadores-3f0f6`, set Firebase secrets for Mercado Pago access token and webhook secret, verified endpoint reachability/method gating/signature rejection, and enabled Artifact Registry cleanup policy.
+- Upgraded Cloud Functions runtime target to Node.js 22 in `firebase/functions/package.json`, installed Node 22 locally through `nvm`, updated `.nvmrc` and root `package.json` engines to Node 22, enabled pnpm through Corepack, upgraded the Firebase CLI to `15.16.0`, verified functions tests/type-check/build and web type-check under Node 22, and deployed the full production `v2` function set on `nodejs22`.
+- Removed the obsolete `onUserCreate` `v1` Auth trigger from Cloud Functions and replaced it with a trusted `/api/auth/bootstrap` web route. The route verifies the Firebase ID token server-side, creates/backfills public/private user docs transactionally, reserves a unique username with uid-suffixed fallback, and is called after Google/Apple/email sign-in and email registration. Added focused bootstrap service and route tests.
+- Fixed local Mercado Pago paid-route QA for emulator users by replacing `.test`/non-deliverable payer emails with a Mercado Pago-compatible `@testuser.com` payer email before creating Orders API Pix payments.
+- Fixed and redeployed the Mercado Pago webhook to match Orders API payment webhooks by `externalPaymentId` first, with legacy `externalId` fallback; added regression tests for the payment-ID path.
+- Added the qualifier registration fee payment structure: `/classificatorias` has category selection, derives Regional from profile `Naturalidade`, `POST /api/qualifiers/register` creates/reuses a R$ 4,00 Orders API Pix, payments now support `targetType: qualifier_registration`, and status/webhook confirmation updates `qualifierRegistrations` to `confirmed`.
+- Added an emulator-only payment approval endpoint/control for local browser QA: `POST /api/payments/[paymentId]/simulate-approval` is unavailable outside Firebase emulator mode and lets testers complete the Pix success UX without pretending that "Verificar pagamento" can approve an unpaid Pix.
+- Polished qualifier payment UX: Pix now opens in a modal instead of expanding the page grid, the qualifier notice is hidden on `/classificatorias`, the notice copy is shortened to `Classificatórias`, and confirmed category registrations disable new Pix creation while still allowing other categories.
+- Added qualifier journey structure:
+  - `QualifierRegistration` now has `bracketStatus`, `currentRound`, `currentMatchId`, `matchIds`, and `qualifiedChampionshipId`;
+  - `QualifierMatch` models random 1v1 official fixtures with round, participants, deadlines, submissions, public votes, W.O./disqualification, and next-match linkage;
+  - `qualifierMatches` are public-readable but never client-writable in Firestore rules;
+  - `/classificatorias/{registrationId}` shows the user's status, deadlines, empty draw state, and generated matches;
+  - `/classificatorias` links confirmed registrations to the journey page instead of only showing a static status card;
+  - `docs/COMPETITION-MODEL.md` documents the qualifier collections and ownership boundaries;
+  - focused qualifier helper/API tests and Firestore rules tests pass, including public read/server-owned write protection for `qualifierMatches`.
 - Extracted scheduled payment expiration logic into `firebase/functions/src/payments/expire-handler.ts` with tests for empty runs, pending entry deletion, and confirmed-entry preservation.
 - Expanded the user entity with `schemaVersion`, `username`, `usernameLower`, `accountType`, `plan`, `state`, `city`, `country`, and `officialProfile`.
 - Updated auth user creation defaults and emulator seed data for the expanded user entity.
@@ -455,10 +519,10 @@ Latest hardening/refactor:
   - added admin nav helper tests;
   - aligned admin Tailwind colors with the shared UI/web palette;
   - normalized remaining admin page styling for the shared shell.
-- Enforced official/community ranking separation for standalone battles:
+- Historical implementation note: official/community ranking separation was enforced for standalone battles, but the current product rule has changed to unified season/category scoring:
   - extracted `finalizeBattle` into a pure tested handler;
-  - official battles still award points, XP, rank, and official stats;
-  - community battles now finalize winners without official points/rank writes.
+  - eligible official and community battle wins now award the documented low-weight season/category points through trusted server code;
+  - remaining work: add anti-farming controls and broader QA for community scoring.
 - Added season-scoped ranking:
   - added `seasonPoints` to the user model and auth defaults;
   - protected `seasonPoints` in Firestore rules;
@@ -471,12 +535,23 @@ Latest hardening/refactor:
   - bracket overview with stage progress and match cards;
   - finalize match/championship admin actions;
   - tested payload/date/participant/progress/finalization helpers.
+- Updated Classificatórias browsing:
+  - `/classificatorias` now shows all 2026 state/category qualifier tracks publicly, logged in or logged out;
+  - logged users still get their Naturalidade-eligible tracks first, with clear copy that registration outside their birth state is not allowed;
+  - public track cards link to the shareable `/classificatorias/{state-category-year}` pages and preserve confirmed participant counts;
+  - the page now keeps `Inscrição` immediately after available tracks, hides it once the logged user has all three eligible categories active, shows rules before broader browsing, and paginates the all-state discovery grid with SP/RJ/MG/BA/RS prioritized.
+- Updated branding assets/copy:
+  - official logo assets from `/Users/fehbrito/work/assobiador` are now available in the web and admin public folders;
+  - web/admin metadata and favicon assets use the official green-background logo (`logo-background-colour.png`);
+  - header/mobile header now show the official logo with `assobiador.com`;
+  - footer keeps the shorter `Assobiador` brand label;
+  - former `Batalha(s) de Assobio` branding copy was rebranded to `A casa do assobiador`.
 
 Security/test work to do before expanding features:
 
 - Add integration coverage for real Mercado Pago sandbox payload shapes once credentials/webhook URL are available.
 - Optional: consolidate web/functions rank constants into one built shared domain package once package build/runtime strategy is upgraded.
-- Official/community ranking separation is enforced for standalone battle finalization: `finalizeBattle` applies XP/rank updates only to `type === 'official'` battles. Community battles can be finalized without official scoring.
+- Remaining standalone battle scoring gap: eligible community battle wins now have basic anti-farming controls, but broader browser QA and abuse-monitoring thresholds are still needed before relying on community scoring in production.
 - Season-scoped ranking is implemented for championship results with `seasonPoints`; current season regional filtering is client-side over the top 200 active-season users to avoid dynamic per-season composite indexes.
 
 Code quality audit:
@@ -514,7 +589,7 @@ Still needed:
 - [ ] Enable Apple sign-in provider in Firebase Auth (Apple Developer account is available; provider configuration still needed)
 - [ ] Deploy Firestore security rules: `firebase deploy --only firestore:rules`
 - [ ] Deploy Firestore indexes: `firebase deploy --only firestore:indexes`
-- [ ] Deploy Cloud Functions: `firebase deploy --only functions`
+- [x] Deploy Cloud Functions cleanly: all production functions are deployed as active `v2` functions on Node.js 22
 - [ ] Set up Firebase App Hosting for `apps/web`
 
 ---

@@ -1,4 +1,4 @@
-import { calculateRank, getPointsForPlace, getPrizeForPlace, POINTS_TABLE } from '../domain/ranking';
+import { calculateRank, getBattleWinPoints, getPrizeForPlace } from '../domain/ranking';
 
 export interface FinalizeBattleFieldValue {
   increment(value: number): unknown;
@@ -33,8 +33,105 @@ export interface BattleWinnerResult {
   prize: number;
 }
 
+export interface BattleScoringEligibility {
+  eligible: boolean;
+  reason: string | null;
+  confirmedParticipantIds: string[];
+}
+
+export const GROUP_BATTLE_MIN_PARTICIPANTS_FOR_SCORING = 5;
+
+export function hasBattleCategoryForSeasonScoring(battle: Record<string, unknown>) {
+  return typeof battle.category === 'string' && battle.category.trim().length > 0;
+}
+
+export function getBattleScoringEligibility({
+  battle,
+  entries,
+  submissions,
+}: {
+  battle: Record<string, unknown>;
+  entries: Array<Record<string, any>>;
+  submissions: Array<Record<string, any>>;
+}): BattleScoringEligibility {
+  if (!hasBattleCategoryForSeasonScoring(battle)) {
+    return { eligible: false, reason: 'missing-category', confirmedParticipantIds: [] };
+  }
+
+  const confirmedParticipantIds = Array.from(
+    new Set(
+      entries
+        .map((entry) => entry.userId)
+        .filter((userId): userId is string => typeof userId === 'string' && userId.length > 0),
+    ),
+  );
+  const approvedSubmissionUserIds = Array.from(
+    new Set(
+      submissions
+        .map((submission) => submission.userId)
+        .filter((userId): userId is string => typeof userId === 'string' && userId.length > 0),
+    ),
+  );
+
+  const minParticipants = battle.format === 'group' ? GROUP_BATTLE_MIN_PARTICIPANTS_FOR_SCORING : 2;
+  if (confirmedParticipantIds.length < minParticipants) {
+    return {
+      eligible: false,
+      reason: 'not-enough-confirmed-participants',
+      confirmedParticipantIds,
+    };
+  }
+
+  const submittedByConfirmedParticipants = approvedSubmissionUserIds.filter((userId) =>
+    confirmedParticipantIds.includes(userId),
+  );
+  if (submittedByConfirmedParticipants.length < minParticipants) {
+    return {
+      eligible: false,
+      reason: 'not-enough-approved-submissions',
+      confirmedParticipantIds,
+    };
+  }
+
+  const totalVotes = submissions.reduce((sum, submission) => {
+    const voteCount = typeof submission.voteCount === 'number' ? submission.voteCount : 0;
+    return sum + voteCount;
+  }, 0);
+  if (totalVotes <= 0) {
+    return { eligible: false, reason: 'no-public-votes', confirmedParticipantIds };
+  }
+
+  return { eligible: true, reason: null, confirmedParticipantIds };
+}
+
 export function shouldAwardOfficialBattlePoints(battle: Record<string, unknown>) {
-  return battle.type === 'official';
+  return hasBattleCategoryForSeasonScoring(battle);
+}
+
+function getBattleSeasonId(battle: Record<string, unknown>) {
+  if (typeof battle.seasonId === 'string' && battle.seasonId.trim()) {
+    return battle.seasonId;
+  }
+
+  const dateSource = battle.votingEnd ?? battle.votingStart ?? battle.createdAt;
+  if (dateSource instanceof Date) return String(dateSource.getUTCFullYear());
+  if (
+    dateSource &&
+    typeof dateSource === 'object' &&
+    'seconds' in dateSource &&
+    typeof dateSource.seconds === 'number'
+  ) {
+    return String(new Date(dateSource.seconds * 1000).getUTCFullYear());
+  }
+
+  return String(new Date().getUTCFullYear());
+}
+
+function getNestedSeasonPoints(user: Record<string, any>, seasonId: string, category: string) {
+  return {
+    seasonPoints: user.seasonPoints?.[seasonId]?.points ?? 0,
+    seasonCategoryPoints: user.seasonCategoryPoints?.[seasonId]?.[category]?.points ?? 0,
+  };
 }
 
 export async function finalizeBattleHandler({
@@ -63,7 +160,10 @@ export async function finalizeBattleHandler({
 
   const battle = battleDoc.data()!;
   if (battle.status !== 'voting') {
-    throw new HttpsError('failed-precondition', 'Batalha precisa estar em votacao para ser finalizada');
+    throw new HttpsError(
+      'failed-precondition',
+      'Batalha precisa estar em votacao para ser finalizada',
+    );
   }
 
   const submissions = await db
@@ -83,7 +183,17 @@ export async function finalizeBattleHandler({
     .where('status', '==', 'confirmed')
     .get();
 
-  const awardsOfficialPoints = shouldAwardOfficialBattlePoints(battle);
+  const submissionData = submissions.docs.map((doc: { data(): Record<string, any> }) => doc.data());
+  const entryData = entries.docs.map((doc: { data(): Record<string, any> }) => doc.data());
+  const scoringEligibility = getBattleScoringEligibility({
+    battle,
+    entries: entryData,
+    submissions: submissionData,
+  });
+  const awardsOfficialPoints = scoringEligibility.eligible;
+  const seasonId = getBattleSeasonId(battle);
+  const category = typeof battle.category === 'string' ? battle.category : null;
+  const winPoints = getBattleWinPoints(battle.format);
   const batch = db.batch();
   const winners: BattleWinnerResult[] = [];
 
@@ -95,25 +205,24 @@ export async function finalizeBattleHandler({
     winners.push({
       userId: sub.data().userId,
       place,
-      points: awardsOfficialPoints ? getPointsForPlace(place) : 0,
+      points: awardsOfficialPoints && place === 1 ? winPoints : 0,
       prize: getPrizeForPlace(place, battle.prizeDistribution),
     });
   }
 
-  if (awardsOfficialPoints) {
-    const participantIds = new Set<string>();
-    entries.docs.forEach((entry: { data(): Record<string, any> }) => {
-      participantIds.add(entry.data().userId);
-    });
-
-    for (const userId of participantIds) {
+  if (awardsOfficialPoints && category) {
+    for (const userId of scoringEligibility.confirmedParticipantIds) {
       const userRef = db.collection('users').doc(userId);
       const winner = winners.find((w) => w.userId === userId);
 
-      const pointsAwarded = winner ? winner.points : POINTS_TABLE.participation;
       const currentUser = await userRef.get();
-      const currentPoints = currentUser.data()?.points || 0;
+      const user = currentUser.data() ?? {};
+      const pointsAwarded = winner?.points ?? 0;
+      const currentPoints = user.points || 0;
+      const nestedPoints = getNestedSeasonPoints(user, seasonId, category);
       const newRank = calculateRank(currentPoints + pointsAwarded);
+      const seasonRank = calculateRank(nestedPoints.seasonPoints + pointsAwarded);
+      const categoryRank = calculateRank(nestedPoints.seasonCategoryPoints + pointsAwarded);
 
       const statsUpdate: Record<string, unknown> = {
         'stats.battlesEntered': fieldValue.increment(1),
@@ -129,8 +238,23 @@ export async function finalizeBattleHandler({
       }
 
       batch.update(userRef, {
-        points: fieldValue.increment(pointsAwarded),
-        xp: fieldValue.increment(pointsAwarded),
+        ...(pointsAwarded > 0
+          ? {
+              points: fieldValue.increment(pointsAwarded),
+              xp: fieldValue.increment(pointsAwarded),
+              [`seasonPoints.${seasonId}.points`]: fieldValue.increment(pointsAwarded),
+              [`seasonPoints.${seasonId}.xp`]: fieldValue.increment(pointsAwarded),
+              [`seasonPoints.${seasonId}.rank`]: seasonRank,
+              [`seasonPoints.${seasonId}.updatedAt`]: fieldValue.serverTimestamp(),
+              [`seasonCategoryPoints.${seasonId}.${category}.points`]:
+                fieldValue.increment(pointsAwarded),
+              [`seasonCategoryPoints.${seasonId}.${category}.xp`]:
+                fieldValue.increment(pointsAwarded),
+              [`seasonCategoryPoints.${seasonId}.${category}.rank`]: categoryRank,
+              [`seasonCategoryPoints.${seasonId}.${category}.updatedAt`]:
+                fieldValue.serverTimestamp(),
+            }
+          : {}),
         rank: newRank,
         ...statsUpdate,
         updatedAt: fieldValue.serverTimestamp(),
@@ -142,6 +266,11 @@ export async function finalizeBattleHandler({
     status: 'finished',
     winners,
     officialScoringApplied: awardsOfficialPoints,
+    seasonScoringApplied: awardsOfficialPoints,
+    seasonScoringEligibility: {
+      eligible: scoringEligibility.eligible,
+      reason: scoringEligibility.reason,
+    },
     updatedAt: fieldValue.serverTimestamp(),
   });
 

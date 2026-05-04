@@ -121,6 +121,7 @@ describe('profile service', () => {
         birthState: 'SP',
         cpf: '529.982.247-25',
         phone: '(11) 99999-9999',
+        pixKey: 'ana@example.com',
         address: { city: 'Sao Paulo', state: 'SP' },
       }),
     ).resolves.toEqual({ ok: true, username: 'newuser' });
@@ -144,6 +145,7 @@ describe('profile service', () => {
       expect.objectContaining({
         cpf: '52998224725',
         phone: '11999999999',
+        pixKey: 'ana@example.com',
         'address.city': 'Sao Paulo',
       }),
     );
@@ -151,13 +153,16 @@ describe('profile service', () => {
 
   it('rejects invalid CPF', async () => {
     await expect(
-      updateUserProfile(createDb().db as never, 'user-1', { cpf: '11111111111' }),
+      updateUserProfile(createDb().db as never, 'user-1', {
+        birthState: 'SP',
+        cpf: '11111111111',
+      }),
     ).rejects.toMatchObject({ status: 400 });
   });
 
   it('rejects invalid Brazilian phone and CEP values', async () => {
     await expect(
-      updateUserProfile(createDb().db as never, 'user-1', { phone: '12345' }),
+      updateUserProfile(createDb().db as never, 'user-1', { birthState: 'SP', phone: '12345' }),
     ).rejects.toMatchObject({
       status: 400,
       message: 'Use DDD + telefone, somente numeros.',
@@ -165,25 +170,73 @@ describe('profile service', () => {
 
     await expect(
       updateUserProfile(createDb().db as never, 'user-1', {
+        birthState: 'SP',
         address: { postalCode: '123' },
       }),
     ).rejects.toMatchObject({ status: 400, message: 'Use um CEP valido com 8 digitos.' });
   });
 
+  it('rejects invalid Pix keys', async () => {
+    await expect(
+      updateUserProfile(createDb().db as never, 'user-1', {
+        birthState: 'SP',
+        pixKey: 'pix invalido com espaco',
+      }),
+    ).rejects.toMatchObject({
+      status: 400,
+      message: 'Use uma Chave Pix valida: CPF, CNPJ, email, telefone ou chave aleatoria.',
+    });
+  });
+
+  it('requires birth state before finishing the profile', async () => {
+    await expect(
+      updateUserProfile(createDb().db as never, 'user-1', {
+        displayName: 'User Local',
+      }),
+    ).rejects.toMatchObject({
+      status: 400,
+      message: 'Naturalidade e obrigatoria para finalizar o perfil',
+    });
+  });
+
+  it('requires Pix key before finishing the profile', async () => {
+    await expect(
+      updateUserProfile(createDb().db as never, 'user-1', {
+        displayName: 'User Local',
+        birthState: 'SP',
+      }),
+    ).rejects.toMatchObject({
+      status: 400,
+      message: 'Chave Pix e obrigatoria para finalizar o perfil',
+    });
+  });
+
   it('blocks CPF and birth state changes after they are set', async () => {
     await expect(
-      updateUserProfile(createDb({ privateData: { cpf: '52998224725' } }).db as never, 'user-1', {
-        cpf: '390.533.447-05',
-      }),
+      updateUserProfile(
+        createDb({ privateData: { cpf: '52998224725', pixKey: 'user@example.com' } }).db as never,
+        'user-1',
+        {
+          birthState: 'SP',
+          cpf: '390.533.447-05',
+        },
+      ),
     ).rejects.toMatchObject({
       status: 409,
       message: 'CPF nao pode ser alterado depois de definido',
     });
 
     await expect(
-      updateUserProfile(createDb({ userData: { birthState: 'SP' } }).db as never, 'user-1', {
-        birthState: 'RJ',
-      }),
+      updateUserProfile(
+        createDb({
+          userData: { birthState: 'SP' },
+          privateData: { pixKey: 'user@example.com' },
+        }).db as never,
+        'user-1',
+        {
+          birthState: 'RJ',
+        },
+      ),
     ).rejects.toMatchObject({
       status: 409,
       message: 'Naturalidade nao pode ser alterada depois de definida',
@@ -197,7 +250,7 @@ describe('profile service', () => {
       updateUserProfile(
         createDb({ userData: { usernameChangeAvailableAt: future } }).db as never,
         'user-1',
-        { username: 'newuser' },
+        { username: 'newuser', birthState: 'SP', pixKey: 'user@example.com' },
       ),
     ).rejects.toMatchObject({
       status: 429,
@@ -213,7 +266,11 @@ describe('profile service', () => {
           },
         }).db as never,
         'user-1',
-        { address: { city: 'Sao Paulo', postalCode: '01310100', street: 'Rua B', number: '1' } },
+        {
+          birthState: 'SP',
+          pixKey: 'user@example.com',
+          address: { city: 'Sao Paulo', postalCode: '01310100', street: 'Rua B', number: '1' },
+        },
       ),
     ).rejects.toMatchObject({
       status: 429,

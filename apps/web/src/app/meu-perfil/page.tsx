@@ -163,6 +163,7 @@ export default function MyProfilePage() {
   const [bio, setBio] = useState('');
   const [cpf, setCpf] = useState('');
   const [phone, setPhone] = useState('');
+  const [pixKey, setPixKey] = useState('');
   const [birthState, setBirthState] = useState<BrazilState | ''>('');
   const [postalCode, setPostalCode] = useState('');
   const [street, setStreet] = useState('');
@@ -189,6 +190,7 @@ export default function MyProfilePage() {
     if (privateProfile) {
       setCpf(privateProfile.cpf || '');
       setPhone(privateProfile.phone || '');
+      setPixKey(privateProfile.pixKey || '');
       setPostalCode(privateProfile.address?.postalCode || '');
       setStreet(privateProfile.address?.street || '');
       setNumber(privateProfile.address?.number || '');
@@ -251,6 +253,7 @@ export default function MyProfilePage() {
       const nextValidationErrors = validateOfficialProfileFields({
         cpf,
         phone,
+        pixKey,
         address: {
           postalCode,
           street,
@@ -261,6 +264,12 @@ export default function MyProfilePage() {
       setValidationErrors(nextValidationErrors);
       if (hasProfileValidationErrors(nextValidationErrors)) {
         throw new Error('Revise os campos destacados antes de salvar.');
+      }
+      if (!profile?.birthState && !birthState) {
+        throw new Error('Selecione sua naturalidade para finalizar o perfil.');
+      }
+      if (!privateProfile?.pixKey && !pixKey.trim()) {
+        throw new Error('Informe sua Chave Pix para finalizar o perfil.');
       }
 
       const isUsernameAvailable = await checkUsername();
@@ -281,6 +290,7 @@ export default function MyProfilePage() {
           birthState: birthState || null,
           cpf,
           phone,
+          pixKey,
           address: {
             postalCode,
             street,
@@ -510,6 +520,7 @@ export default function MyProfilePage() {
                   onChange={(e) => setBirthState(e.target.value as BrazilState | '')}
                   disabled={birthStateLocked}
                   className="h-12 w-full rounded-xl border border-white/10 bg-white/5 px-4 text-sm text-white outline-none transition-all focus:border-brand-500/50 focus:ring-2 focus:ring-brand-500/20"
+                  required
                 >
                   <option value="">Selecione o estado onde nasceu</option>
                   {BRAZIL_STATES.map((state) => (
@@ -541,7 +552,7 @@ export default function MyProfilePage() {
                     <p className="text-sm font-semibold text-yellow-100">Dados oficiais</p>
                     <p className="mt-1 text-sm text-yellow-100/80">
                       Competições oficiais só serão validadas quando o perfil tiver CPF, endereço e
-                      telefone verificados. Esses dados são necessários para pagamentos, prêmios.
+                      telefone verificados. A Chave Pix é obrigatória para pagamentos e prêmios.
                     </p>
                   </div>
                 </div>
@@ -578,6 +589,20 @@ export default function MyProfilePage() {
                   helperText="DDD + numero. Ex: 11999999999."
                 />
               </div>
+
+              <Input
+                label="Chave Pix"
+                type="text"
+                placeholder="CPF, CNPJ, email, telefone ou chave aleatoria"
+                value={pixKey}
+                onChange={(e) => {
+                  setPixKey(e.target.value);
+                  setValidationErrors((current) => ({ ...current, pixKey: undefined }));
+                }}
+                error={validationErrors.pixKey}
+                helperText="Obrigatoria para receber pagamentos e premios."
+                required
+              />
 
               <div className="space-y-5">
                 <p className="text-sm font-semibold text-white">Endereço</p>

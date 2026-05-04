@@ -117,10 +117,12 @@ export function Header() {
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 text-lg font-bold text-white shadow-glow-sm">
-              A
-            </div>
-            <span className="hidden text-lg font-bold text-white sm:block">Assobiador</span>
+            <img
+              src="/logo.png"
+              alt="A casa do assobiador"
+              className="h-9 w-9 rounded-xl object-contain shadow-glow-sm"
+            />
+            <span className="hidden text-lg font-bold text-white sm:block">assobiador.com</span>
           </Link>
 
           {/* Right side */}

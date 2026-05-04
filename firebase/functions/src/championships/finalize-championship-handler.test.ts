@@ -9,8 +9,6 @@ const fieldValue = {
 };
 const logger = { info: vi.fn() };
 
-const CHAMP_MULTIPLIER = 2;
-
 function buildDb({
   champData,
   stagesDocs = [],
@@ -160,9 +158,9 @@ describe('finalizeChampionshipHandler', () => {
     expect(result.winners.find((w) => w.place === 2)?.userId).toBe('user-runner');
   });
 
-  it('awards 2x points to all participants', async () => {
+  it('awards regional podium points to placing participants', async () => {
     const { db, batch } = buildDb({
-      champData: { status: 'active', prizeDistribution: null },
+      champData: { status: 'active', scope: 'regional', prizeDistribution: null },
       stagesDocs: [{ id: 's1', data: { name: 'Final', status: 'finished' } }],
       matchesByStage: {
         s1: [
@@ -186,11 +184,6 @@ describe('finalizeChampionshipHandler', () => {
       logger,
     });
 
-    // Champion (place 1) should get POINTS_TABLE.first * 2
-    const expectedChampionPoints = POINTS_TABLE.first * CHAMP_MULTIPLIER;
-    // Runner-up (place 2) should get POINTS_TABLE.second * 2
-    const expectedRunnerPoints = POINTS_TABLE.second * CHAMP_MULTIPLIER;
-
     const userUpdates = batch.update.mock.calls.filter(
       ([ref]: [{ id?: string }]) => ref.id === 'user-a' || ref.id === 'user-b',
     );
@@ -198,13 +191,13 @@ describe('finalizeChampionshipHandler', () => {
     const champUpdate = userUpdates.find(([ref]: [{ id?: string }]) => ref.id === 'user-a')?.[1];
     const runnerUpdate = userUpdates.find(([ref]: [{ id?: string }]) => ref.id === 'user-b')?.[1];
 
-    expect(champUpdate?.points).toEqual({ _increment: expectedChampionPoints });
-    expect(runnerUpdate?.points).toEqual({ _increment: expectedRunnerPoints });
+    expect(champUpdate?.points).toEqual({ _increment: POINTS_TABLE.regionalFirst });
+    expect(runnerUpdate?.points).toEqual({ _increment: POINTS_TABLE.regionalSecond });
   });
 
-  it('awards participation points (2x) to non-placing participants', async () => {
+  it('does not award placement points to non-placing participants', async () => {
     const { db, batch } = buildDb({
-      champData: { status: 'active', prizeDistribution: null },
+      champData: { status: 'active', scope: 'regional', prizeDistribution: null },
       stagesDocs: [
         { id: 'group', data: { name: 'Fase de Grupos', status: 'finished' } },
         { id: 'final', data: { name: 'Final', status: 'finished' } },
@@ -248,15 +241,15 @@ describe('finalizeChampionshipHandler', () => {
       ([ref]: [{ id?: string }]) => ref.id === 'user-knocked-out',
     )?.[1];
 
-    expect(knockedOutUpdate?.points).toEqual({
-      _increment: POINTS_TABLE.participation * CHAMP_MULTIPLIER,
-    });
+    expect(knockedOutUpdate).not.toHaveProperty('points');
+    expect(knockedOutUpdate).not.toHaveProperty('xp');
   });
 
   it('writes season-scoped points when championship has a season', async () => {
     const { db, batch } = buildDb({
       champData: {
         status: 'active',
+        scope: 'national',
         seasonId: '2026',
         category: 'freestyle',
         prizeDistribution: null,
@@ -289,17 +282,17 @@ describe('finalizeChampionshipHandler', () => {
     )?.[1];
 
     expect(champUpdate).toMatchObject({
-      'seasonPoints.2026.points': { _increment: POINTS_TABLE.first * CHAMP_MULTIPLIER },
-      'seasonPoints.2026.xp': { _increment: POINTS_TABLE.first * CHAMP_MULTIPLIER },
-      'seasonPoints.2026.rank': 'Assobiador',
+      'seasonPoints.2026.points': { _increment: POINTS_TABLE.nationalFirst },
+      'seasonPoints.2026.xp': { _increment: POINTS_TABLE.nationalFirst },
+      'seasonPoints.2026.rank': 'Lenda do Assobio',
       'seasonPoints.2026.updatedAt': serverTimestamp,
       'seasonCategoryPoints.2026.freestyle.points': {
-        _increment: POINTS_TABLE.first * CHAMP_MULTIPLIER,
+        _increment: POINTS_TABLE.nationalFirst,
       },
       'seasonCategoryPoints.2026.freestyle.xp': {
-        _increment: POINTS_TABLE.first * CHAMP_MULTIPLIER,
+        _increment: POINTS_TABLE.nationalFirst,
       },
-      'seasonCategoryPoints.2026.freestyle.rank': 'Assobiador',
+      'seasonCategoryPoints.2026.freestyle.rank': 'Lenda do Assobio',
       'seasonCategoryPoints.2026.freestyle.updatedAt': serverTimestamp,
     });
   });

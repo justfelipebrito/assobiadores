@@ -145,6 +145,26 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    match /qualifierRegistrations/{registrationId} {
+      allow read: if isOwner(resource.data.userId) || isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    match /qualifierParticipants/{participantId} {
+      allow read: if true;
+      allow create, update, delete: if false;
+    }
+
+    match /qualifierMatches/{matchId} {
+      allow read: if true;
+      allow create, update, delete: if false;
+    }
+
+    match /qualifierTracks/{trackId} {
+      allow read: if true;
+      allow create, update, delete: if false;
+    }
+
     // Seasons
     match /seasons/{seasonId} {
       allow read: if true;

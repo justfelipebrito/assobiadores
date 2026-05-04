@@ -1,12 +1,16 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, Calendar, MapPin, Trophy, Users } from 'lucide-react';
+import { ArrowLeft, Calendar, MapPin, ScrollText, Trophy, Users } from 'lucide-react';
 import { useCollection, useDocument } from '@batalha/firebase';
-import { Badge, Card, CardContent, EmptyState, Skeleton } from '@batalha/ui';
+import { Badge, Button, Card, CardContent, EmptyState, Skeleton } from '@batalha/ui';
 import { formatDate, toDate } from '@batalha/utils';
 import { COMPETITION_CATEGORY_LABELS, type Championship, type User } from '@batalha/types';
-import { getChampionshipParticipantIds } from '@/lib/championship-view';
+import {
+  getChampionshipEmptyParticipantsCopy,
+  getChampionshipParticipantCount,
+  getChampionshipParticipantIds,
+} from '@/lib/championship-view';
 
 export default function ChampionshipDetailPage({ params }: { params: { championshipId: string } }) {
   const { data: championship, loading: championshipLoading } = useDocument<Championship>(
@@ -18,6 +22,7 @@ export default function ChampionshipDetailPage({ params }: { params: { champions
   const participantIds = getChampionshipParticipantIds(championship);
   const participantIdSet = new Set(participantIds);
   const participants = users.filter((user) => participantIdSet.has(user.id));
+  const participantCount = championship ? getChampionshipParticipantCount(championship) : 0;
   const start = toDate(championship?.schedule.start);
   const end = toDate(championship?.schedule.end);
   const loading = championshipLoading || usersLoading;
@@ -73,19 +78,29 @@ export default function ChampionshipDetailPage({ params }: { params: { champions
                     {championship.description}
                   </p>
                 </div>
-                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-yellow-500/10 text-yellow-400">
-                  <Trophy className="h-6 w-6" />
+                <div className="flex flex-shrink-0 flex-col items-start gap-3 sm:items-end">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-yellow-500/10 text-yellow-400">
+                    <Trophy className="h-6 w-6" />
+                  </div>
+                  <a href="#regras">
+                    <Button variant="secondary" size="sm">
+                      <ScrollText className="mr-2 h-4 w-4" />
+                      Ver Regras
+                    </Button>
+                  </a>
                 </div>
               </div>
 
-              <div className="mt-6 grid gap-3 sm:grid-cols-3">
-                <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-                  <Users className="mb-2 h-4 w-4 text-brand-400" />
-                  <p className="text-lg font-bold text-white">
-                    {championship.currentParticipants}/{championship.maxParticipants}
-                  </p>
-                  <p className="text-xs text-surface-500">Competidores</p>
-                </div>
+              <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                {participantCount > 0 && (
+                  <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+                    <Users className="mb-2 h-4 w-4 text-brand-400" />
+                    <p className="text-lg font-bold text-white">
+                      {participantCount}/{championship.maxParticipants}
+                    </p>
+                    <p className="text-xs text-surface-500">Competidores</p>
+                  </div>
+                )}
                 <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
                   <Calendar className="mb-2 h-4 w-4 text-brand-400" />
                   <p className="text-sm font-semibold text-white">
@@ -106,13 +121,54 @@ export default function ChampionshipDetailPage({ params }: { params: { champions
             </CardContent>
           </Card>
 
+          <section id="regras" className="mt-8 scroll-mt-24">
+            <Card>
+              <CardContent>
+                <div className="mb-4 flex items-center gap-3">
+                  <ScrollText className="h-5 w-5 text-brand-400" />
+                  <div>
+                    <h2 className="text-lg font-bold text-white">Regras</h2>
+                    <p className="text-sm text-surface-500">
+                      {championship.scope === 'national'
+                        ? 'Classificação nacional pela temporada regional'
+                        : 'Classificação regional pelas Classificatórias'}
+                    </p>
+                  </div>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {(championship.scope === 'national'
+                    ? [
+                        'Os classificados vêm automaticamente dos resultados regionais da mesma categoria.',
+                        'Regionais com 64 participantes classificam o top 10 para o Nacional.',
+                        'Regionais menores classificam proporcionalmente conforme o tamanho da chave.',
+                        'A etapa nacional usa disputas oficiais por categoria.',
+                      ]
+                    : [
+                        'Até 64 participantes serão classificados através das Classificatórias.',
+                        'As Classificatórias usam confrontos 1v1 randômicos por fase.',
+                        'Envios fecham às 13:00 BRT no dia da disputa.',
+                        'Votação pública acontece das 13:00 às 23:59 BRT.',
+                      ]
+                  ).map((rule) => (
+                    <div
+                      key={rule}
+                      className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3"
+                    >
+                      <p className="text-sm text-surface-300">{rule}</p>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </section>
+
           <section className="mt-8">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-lg font-bold text-white">Participantes</h2>
                 <p className="text-sm text-surface-500">Competidores inscritos neste campeonato</p>
               </div>
-              <span className="text-sm text-surface-500">{participants.length}</span>
+              <span className="text-sm text-surface-500">{participantCount}</span>
             </div>
 
             {loading ? (
@@ -147,8 +203,8 @@ export default function ChampionshipDetailPage({ params }: { params: { champions
             ) : (
               <EmptyState
                 icon={<Users className="h-12 w-12" />}
-                title="Nenhum participante inscrito"
-                description="Os participantes aparecerão aqui quando as inscrições forem confirmadas."
+                title="Nenhum participante classificado"
+                description={getChampionshipEmptyParticipantsCopy(championship)}
               />
             )}
           </section>

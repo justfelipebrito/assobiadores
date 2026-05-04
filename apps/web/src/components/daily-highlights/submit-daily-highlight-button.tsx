@@ -18,7 +18,7 @@ export function SubmitDailyHighlightButton({
 
   return (
     <Button size="sm" onClick={onClick} className={className}>
-      Submit yours
+      Enviar
     </Button>
   );
 }

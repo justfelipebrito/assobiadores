@@ -16,12 +16,26 @@ vi.mock('../../../../../server/auth', () => ({
 function createDb(paymentDoc: any) {
   const batch = {
     update: vi.fn(),
+    set: vi.fn(),
     commit: vi.fn(),
   };
   const get = vi.fn(async () => paymentDoc);
   const refs: Record<string, unknown> = {};
   const doc = vi.fn((id: string) => {
-    refs[id] ||= { id, get };
+    refs[id] ||= {
+      id,
+      get:
+        id === 'qualifier-registration-1'
+          ? vi.fn(async () => ({
+              data: () => ({
+                userId: 'user-1',
+                seasonId: 'season-2026',
+                category: 'freestyle',
+                region: 'SP',
+              }),
+            }))
+          : get,
+    };
     return refs[id];
   });
   const collection = vi.fn(() => ({ doc }));
@@ -120,6 +134,45 @@ describe('GET /api/payments/[paymentId]/status', () => {
       },
     });
     expect(db.batchInstance.update).toHaveBeenCalledTimes(3);
+    expect(db.batchInstance.commit).toHaveBeenCalledTimes(1);
+  });
+
+  it('confirms qualifier registrations when qualifier payments are approved', async () => {
+    const paymentRef = { update: vi.fn() };
+    const db = createDb({
+      exists: true,
+      ref: paymentRef,
+      data: () => ({
+        id: 'payment-1',
+        provider: 'mercado_pago_orders',
+        externalId: 'order-1',
+        userId: 'user-1',
+        status: 'pending',
+        qualifierRegistrationId: 'qualifier-registration-1',
+        expiresAt: { toDate: () => new Date('2026-04-29T00:00:00.000Z') },
+      }),
+    });
+    getAdminFirestore.mockReturnValue(db);
+    mpFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        status: 'processed',
+        transactions: { payments: [{ status_detail: 'accredited' }] },
+      }),
+    });
+
+    const res = await getStatus();
+
+    await expect(res.json()).resolves.toEqual({
+      status: 'approved',
+      expiresAt: '2026-04-29T00:00:00.000Z',
+    });
+    expect(res.status).toBe(200);
+    expect(db.batchInstance.update).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'qualifier-registration-1' }),
+      expect.objectContaining({ status: 'confirmed' }),
+    );
     expect(db.batchInstance.commit).toHaveBeenCalledTimes(1);
   });
 

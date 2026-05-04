@@ -5,6 +5,7 @@ import {
   isValidCpf,
   normalizeCpf,
   normalizePhone,
+  normalizePixKey,
   validateOfficialProfileFields,
 } from '../lib/profile-validation';
 import { ApiError } from './api-errors';
@@ -112,6 +113,7 @@ export async function updateUserProfile(db: Firestore, userId: string, body: unk
   const validationErrors = validateOfficialProfileFields({
     cpf: input.cpf,
     phone: input.phone,
+    pixKey: input.pixKey,
     address: input.address,
   });
   if (hasProfileValidationErrors(validationErrors)) {
@@ -142,6 +144,17 @@ export async function updateUserProfile(db: Firestore, userId: string, body: unk
     const publicUpdate: Record<string, unknown> = {
       updatedAt: FieldValue.serverTimestamp(),
     };
+
+    const currentBirthState = userData.birthState as BrazilState | null | undefined;
+    const nextBirthState = 'birthState' in input ? (input.birthState as BrazilState | null) : null;
+    if (!currentBirthState && !nextBirthState) {
+      throw new ApiError(400, 'Naturalidade e obrigatoria para finalizar o perfil');
+    }
+    const currentPixKey = typeof privateData.pixKey === 'string' ? privateData.pixKey.trim() : '';
+    const nextPixKey = typeof input.pixKey === 'string' ? normalizePixKey(input.pixKey) : '';
+    if (!currentPixKey && !nextPixKey) {
+      throw new ApiError(400, 'Chave Pix e obrigatoria para finalizar o perfil');
+    }
 
     if (normalizedUsername && normalizedUsername !== currentUsername) {
       const usernameCooldownUntil = toDate(userData.usernameChangeAvailableAt);
@@ -174,8 +187,6 @@ export async function updateUserProfile(db: Firestore, userId: string, body: unk
     if (typeof input.displayName === 'string') publicUpdate.displayName = input.displayName.trim();
     if (typeof input.bio === 'string') publicUpdate.bio = input.bio.trim();
     if ('birthState' in input) {
-      const currentBirthState = userData.birthState as BrazilState | null | undefined;
-      const nextBirthState = input.birthState as BrazilState | null;
       if (currentBirthState && nextBirthState && nextBirthState !== currentBirthState) {
         throw new ApiError(409, 'Naturalidade nao pode ser alterada depois de definida');
       }
@@ -193,6 +204,7 @@ export async function updateUserProfile(db: Firestore, userId: string, body: unk
       if (!currentCpf) privateUpdate.cpf = cpf;
     }
     if (typeof input.phone === 'string') privateUpdate.phone = normalizePhone(input.phone);
+    if (typeof input.pixKey === 'string') privateUpdate.pixKey = normalizePixKey(input.pixKey);
     if (input.address) {
       const address = input.address as Partial<UserAddress>;
       const currentAddress = privateData.address as Partial<UserAddress> | undefined;

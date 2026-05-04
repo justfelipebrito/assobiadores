@@ -206,14 +206,18 @@ export default function BattlePaymentPage({ params }: { params: { battleId: stri
 
       {payment && !creatingPayment && (
         <PixPayment
-          battleId={params.battleId}
-          battleTitle={battle.title}
+          title={battle.title}
           amount={battle.entryFee}
           paymentId={payment.paymentId}
           pixQrCode={payment.pixQrCode}
           pixCopiaECola={payment.pixCopiaECola}
           expiresAt={payment.expiresAt}
           getAuthToken={() => user.getIdToken()}
+          approvedDescription={`Seu pagamento foi aprovado e voce ja esta em ${battle.title}.`}
+          primaryHref={`/batalhas/${params.battleId}`}
+          primaryLabel="Ver batalha"
+          secondaryHref="/batalhas"
+          secondaryLabel="Explorar batalhas"
         />
       )}
     </div>

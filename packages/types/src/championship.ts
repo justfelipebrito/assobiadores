@@ -116,3 +116,110 @@ export const matchSchema = z.object({
   updatedAt: timestampSchema,
 });
 export type Match = z.infer<typeof matchSchema>;
+
+// ── Qualifier Registration ───────────────────────────────────────────────────
+
+export const qualifierRegistrationStatusSchema = z.enum([
+  'pending_payment',
+  'confirmed',
+  'cancelled',
+]);
+export type QualifierRegistrationStatus = z.infer<typeof qualifierRegistrationStatusSchema>;
+
+export const qualifierBracketStatusSchema = z.enum([
+  'registered',
+  'waiting_draw',
+  'active',
+  'eliminated',
+  'qualified',
+]);
+export type QualifierBracketStatus = z.infer<typeof qualifierBracketStatusSchema>;
+
+export const qualifierRegistrationSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  seasonId: z.string(),
+  category: competitionCategorySchema,
+  region: brazilStateSchema,
+  status: qualifierRegistrationStatusSchema.default('pending_payment'),
+  bracketStatus: qualifierBracketStatusSchema.default('registered'),
+  currentRound: z.number().int().nonnegative().default(0),
+  currentMatchId: z.string().nullable().default(null),
+  matchIds: z.array(z.string()).default([]),
+  qualifiedChampionshipId: z.string().nullable().default(null),
+  entryFeeCents: z.number().int().nonnegative().default(400),
+  platformFeePercent: z.number().nonnegative().default(20),
+  prizePoolPercent: z.number().nonnegative().default(80),
+  paymentId: z.string().nullable().default(null),
+  createdAt: timestampSchema,
+  updatedAt: timestampSchema,
+});
+export type QualifierRegistration = z.infer<typeof qualifierRegistrationSchema>;
+
+// ── Qualifier Match ──────────────────────────────────────────────────────────
+
+export const qualifierMatchStatusSchema = z.enum([
+  'scheduled',
+  'submissions_open',
+  'voting',
+  'finished',
+  'walkover',
+  'cancelled',
+]);
+export type QualifierMatchStatus = z.infer<typeof qualifierMatchStatusSchema>;
+
+export const qualifierMatchSchema = z.object({
+  id: z.string(),
+  seasonId: z.string(),
+  category: competitionCategorySchema,
+  region: brazilStateSchema,
+  roundNumber: z.number().int().positive(),
+  roundLabel: z.string().min(1).max(80),
+  participantIds: z.array(z.string()).min(2).max(2),
+  registrationIds: z.array(z.string()).min(2).max(2),
+  status: qualifierMatchStatusSchema.default('scheduled'),
+  scheduledFor: timestampSchema,
+  submissionDeadline: timestampSchema,
+  votingStart: timestampSchema,
+  votingEnd: timestampSchema,
+  submissionIds: z.record(z.string(), z.string()).default({}),
+  publicVoteCounts: z.record(z.string(), z.number()).default({}),
+  winnerId: z.string().nullable().default(null),
+  walkoverWinnerId: z.string().nullable().default(null),
+  disqualifiedUserIds: z.array(z.string()).default([]),
+  nextMatchId: z.string().nullable().default(null),
+  createdAt: timestampSchema,
+  updatedAt: timestampSchema,
+});
+export type QualifierMatch = z.infer<typeof qualifierMatchSchema>;
+
+// ── Qualifier Track ──────────────────────────────────────────────────────────
+
+export const qualifierTrackStatusSchema = z.enum([
+  'registration_open',
+  'draw_pending',
+  'active',
+  'finished',
+]);
+export type QualifierTrackStatus = z.infer<typeof qualifierTrackStatusSchema>;
+
+export const qualifierTrackSchema = z.object({
+  id: z.string(),
+  slug: z.string().min(1).max(80),
+  seasonId: z.string(),
+  seasonYear: z.number().int().positive(),
+  category: competitionCategorySchema,
+  region: brazilStateSchema,
+  status: qualifierTrackStatusSchema.default('registration_open'),
+  entryFeeCents: z.number().int().nonnegative().default(400),
+  registrationDeadline: timestampSchema,
+  bracketStart: timestampSchema,
+  bracketEnd: timestampSchema,
+  maxQualified: z.number().int().positive().default(64),
+  registeredCount: z.number().int().nonnegative().default(0),
+  confirmedCount: z.number().int().nonnegative().default(0),
+  pendingPaymentCount: z.number().int().nonnegative().default(0),
+  createdAt: timestampSchema,
+  updatedAt: timestampSchema,
+});
+export type QualifierTrack = z.infer<typeof qualifierTrackSchema>;

@@ -5,7 +5,7 @@ export default function AdminDashboard() {
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">
       <h1 className="text-2xl font-bold text-white">Painel Administrativo</h1>
-      <p className="mt-1 text-surface-400">Gerencie a plataforma Batalha de Assobio</p>
+      <p className="mt-1 text-surface-400">Gerencie A casa do assobiador</p>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Link href="/batalhas">
@@ -20,7 +20,9 @@ export default function AdminDashboard() {
           <Card className="transition-shadow hover:shadow-md">
             <CardContent>
               <h3 className="font-semibold text-white">Campeonatos</h3>
-              <p className="mt-1 text-sm text-surface-400">Campeonatos oficiais e classificatorias</p>
+              <p className="mt-1 text-sm text-surface-400">
+                Campeonatos oficiais e classificatorias
+              </p>
             </CardContent>
           </Card>
         </Link>

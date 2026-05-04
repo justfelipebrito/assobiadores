@@ -55,10 +55,12 @@ export function useAuth() {
       setState((prev) => ({ ...prev, error: null }));
       const auth = getClientAuth();
       const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
+      const { user } = await signInWithPopup(auth, provider);
+      return user;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao entrar com Google';
       setState((prev) => ({ ...prev, error: message }));
+      return null;
     }
   }, []);
 
@@ -69,10 +71,12 @@ export function useAuth() {
       const provider = new OAuthProvider('apple.com');
       provider.addScope('email');
       provider.addScope('name');
-      await signInWithPopup(auth, provider);
+      const { user } = await signInWithPopup(auth, provider);
+      return user;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao entrar com Apple';
       setState((prev) => ({ ...prev, error: message }));
+      return null;
     }
   }, []);
 
@@ -80,10 +84,12 @@ export function useAuth() {
     try {
       setState((prev) => ({ ...prev, error: null }));
       const auth = getClientAuth();
-      await signInWithEmailAndPassword(auth, email, password);
+      const { user } = await signInWithEmailAndPassword(auth, email, password);
+      return user;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Email ou senha incorretos';
       setState((prev) => ({ ...prev, error: message }));
+      return null;
     }
   }, []);
 
@@ -93,9 +99,11 @@ export function useAuth() {
       const auth = getClientAuth();
       const { user } = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(user, { displayName });
+      return user;
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erro ao criar conta';
       setState((prev) => ({ ...prev, error: message }));
+      return null;
     }
   }, []);
 

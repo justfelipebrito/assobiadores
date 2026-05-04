@@ -4,8 +4,7 @@ import { useState } from 'react';
 import { X } from 'lucide-react';
 import { useAuth } from '@batalha/firebase';
 import { Button } from '@batalha/ui';
-import type { DailyHighlight } from '@batalha/types';
-import { VideoPreview } from '@/components/video/video-preview';
+import { type DailyHighlight } from '@batalha/types';
 
 interface LikeDailyHighlightModalProps {
   dailyHighlight: DailyHighlight | null;
@@ -56,8 +55,8 @@ export function LikeDailyHighlightModal({ dailyHighlight, onClose }: LikeDailyHi
       <div className="w-full max-w-xl rounded-2xl border border-white/10 bg-surface-950 shadow-elevated">
         <div className="flex items-center justify-between border-b border-white/5 px-5 py-4">
           <div>
-            <h2 className="font-bold text-white">{dailyHighlight.userDisplayName}</h2>
-            <p className="mt-1 text-xs text-surface-500">Confirmar curtida no destaque diario</p>
+            <h2 className="font-bold text-white">Votar</h2>
+            <p className="mt-1 text-xs text-surface-500">Confirmar voto no destaque diário</p>
           </div>
           <button
             onClick={onClose}
@@ -69,7 +68,14 @@ export function LikeDailyHighlightModal({ dailyHighlight, onClose }: LikeDailyHi
         </div>
 
         <div className="space-y-4 p-5">
-          <VideoPreview url={dailyHighlight.videoURL} />
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-4">
+            <p className="text-sm text-surface-300">
+              Você está votando em{' '}
+              <span className="font-semibold text-white">{dailyHighlight.userDisplayName}</span>.
+              Cada pessoa pode votar em apenas um destaque por dia, e essa ação não pode ser
+              desfeita.
+            </p>
+          </div>
           {error && (
             <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-300">
               {error}
@@ -80,7 +86,7 @@ export function LikeDailyHighlightModal({ dailyHighlight, onClose }: LikeDailyHi
               Cancelar
             </Button>
             <Button onClick={confirmLike} loading={submitting}>
-              Confirmar curtida
+              Confirmar voto
             </Button>
           </div>
         </div>

@@ -75,7 +75,9 @@ export default function VotePage({ params }: { params: { battleId: string } }) {
           <CardContent className="py-10 text-center">
             <Vote className="mx-auto h-12 w-12 text-surface-500" />
             <h1 className="mt-4 text-lg font-bold text-white">Votacao fechada</h1>
-            <p className="mt-2 text-sm text-surface-400">Esta batalha nao esta em fase de votacao.</p>
+            <p className="mt-2 text-sm text-surface-400">
+              Esta batalha nao esta em fase de votacao.
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -84,7 +86,10 @@ export default function VotePage({ params }: { params: { battleId: string } }) {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
-      <Link href={`/batalhas/${params.battleId}`} className="mb-6 inline-flex items-center gap-2 text-sm text-surface-400 hover:text-white">
+      <Link
+        href={`/batalhas/${params.battleId}`}
+        className="mb-6 inline-flex items-center gap-2 text-sm text-surface-400 hover:text-white"
+      >
         <ArrowLeft className="h-4 w-4" />
         Voltar para a batalha
       </Link>
@@ -104,31 +109,44 @@ export default function VotePage({ params }: { params: { battleId: string } }) {
       <div className="mt-6 grid gap-5 md:grid-cols-2">
         {submissions.length === 0 ? (
           <div className="md:col-span-2">
-            <EmptyState title="Nenhuma submissao aprovada" description="A votacao aparecera quando houver videos aprovados." />
+            <EmptyState
+              title="Nenhuma submissao aprovada"
+              description="A votacao aparecera quando houver videos aprovados."
+            />
           </div>
         ) : (
-          submissions.map((submission) => (
-            <Card key={submission.id}>
-              <CardContent className="space-y-4">
-                <VideoPreview url={submission.videoURL} />
-                <div>
-                  <h2 className="font-semibold text-white">{submission.title}</h2>
-                  {submission.description && (
-                    <p className="mt-1 text-sm text-surface-400">{submission.description}</p>
+          submissions.map((submission) => {
+            const isOwnSubmission = Boolean(user && submission.userId === user.uid);
+
+            return (
+              <Card key={submission.id}>
+                <CardContent className="space-y-4">
+                  <VideoPreview url={submission.videoURL} />
+                  <div>
+                    <h2 className="font-semibold text-white">{submission.title}</h2>
+                    {submission.description && (
+                      <p className="mt-1 text-sm text-surface-400">{submission.description}</p>
+                    )}
+                  </div>
+                  {isOwnSubmission ? (
+                    <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-center text-sm text-surface-400">
+                      Este e o seu envio. Voce nao pode votar nele.
+                    </div>
+                  ) : (
+                    <Button
+                      className="w-full"
+                      onClick={() => handleVote(submission.id)}
+                      loading={votingId === submission.id}
+                      disabled={voted}
+                    >
+                      <Vote className="mr-2 h-4 w-4" />
+                      Votar neste video
+                    </Button>
                   )}
-                </div>
-                <Button
-                  className="w-full"
-                  onClick={() => handleVote(submission.id)}
-                  loading={votingId === submission.id}
-                  disabled={voted}
-                >
-                  <Vote className="mr-2 h-4 w-4" />
-                  Votar neste video
-                </Button>
-              </CardContent>
-            </Card>
-          ))
+                </CardContent>
+              </Card>
+            );
+          })
         )}
       </div>
     </div>

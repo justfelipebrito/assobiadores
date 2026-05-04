@@ -35,10 +35,12 @@ export function MobileNav({
           {/* Header */}
           <div className="flex items-center justify-between border-b border-white/5 px-4 py-4">
             <div className="flex items-center gap-2.5">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 text-lg font-bold text-white">
-                A
-              </div>
-              <span className="text-lg font-bold text-white">Assobiador</span>
+              <img
+                src="/logo.png"
+                alt="A casa do assobiador"
+                className="h-9 w-9 rounded-xl object-contain"
+              />
+              <span className="text-lg font-bold text-white">assobiador.com</span>
             </div>
             <button
               onClick={onClose}

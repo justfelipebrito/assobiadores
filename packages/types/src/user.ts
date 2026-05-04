@@ -41,6 +41,36 @@ export const brazilStateSchema = z.enum([
 ]);
 export type BrazilState = z.infer<typeof brazilStateSchema>;
 
+export const BRAZIL_STATE_LABELS: Record<BrazilState, string> = {
+  AC: 'Acre',
+  AL: 'Alagoas',
+  AP: 'Amapa',
+  AM: 'Amazonas',
+  BA: 'Bahia',
+  CE: 'Ceara',
+  DF: 'Distrito Federal',
+  ES: 'Espirito Santo',
+  GO: 'Goias',
+  MA: 'Maranhao',
+  MT: 'Mato Grosso',
+  MS: 'Mato Grosso do Sul',
+  MG: 'Minas Gerais',
+  PA: 'Para',
+  PB: 'Paraiba',
+  PR: 'Parana',
+  PE: 'Pernambuco',
+  PI: 'Piaui',
+  RJ: 'Rio de Janeiro',
+  RN: 'Rio Grande do Norte',
+  RS: 'Rio Grande do Sul',
+  RO: 'Rondonia',
+  RR: 'Roraima',
+  SC: 'Santa Catarina',
+  SP: 'Sao Paulo',
+  SE: 'Sergipe',
+  TO: 'Tocantins',
+};
+
 export const officialProfileSchema = z.object({
   eligible: z.boolean().default(false),
   verified: z.boolean().default(false),
@@ -64,6 +94,7 @@ export const userPrivateProfileSchema = z.object({
   id: z.string(),
   cpf: z.string().max(14).default(''),
   phone: z.string().max(30).default(''),
+  pixKey: z.string().max(120).default(''),
   address: userAddressSchema.default({}),
   createdAt: timestampSchema,
   updatedAt: timestampSchema,
@@ -143,6 +174,7 @@ export const updateProfileSchema = z.object({
   birthState: brazilStateSchema.nullable().optional(),
   cpf: z.string().max(14).optional(),
   phone: z.string().max(30).optional(),
+  pixKey: z.string().max(120).optional(),
   address: userAddressSchema.partial().optional(),
 });
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;

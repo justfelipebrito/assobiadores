@@ -8,13 +8,15 @@ export function Footer() {
           {/* Brand */}
           <div className="sm:col-span-2 lg:col-span-1">
             <div className="flex items-center gap-2.5">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 text-lg font-bold text-white">
-                A
-              </div>
+              <img
+                src="/logo.png"
+                alt="A casa do assobiador"
+                className="h-9 w-9 rounded-xl object-contain"
+              />
               <span className="text-lg font-bold text-white">Assobiador</span>
             </div>
             <p className="mt-3 text-sm leading-relaxed text-surface-500">
-              A plataforma de competicao de assobio mais divertida do Brasil.
+              Competições, rankings e destaques de assobio no Brasil.
             </p>
           </div>
 
@@ -25,12 +27,18 @@ export function Footer() {
             </h4>
             <ul className="mt-4 space-y-3">
               <li>
-                <Link href="/batalhas" className="text-sm text-surface-500 transition-colors hover:text-white">
+                <Link
+                  href="/batalhas"
+                  className="text-sm text-surface-500 transition-colors hover:text-white"
+                >
                   Batalhas
                 </Link>
               </li>
               <li>
-                <Link href="/ranking" className="text-sm text-surface-500 transition-colors hover:text-white">
+                <Link
+                  href="/ranking"
+                  className="text-sm text-surface-500 transition-colors hover:text-white"
+                >
                   Ranking
                 </Link>
               </li>
@@ -44,12 +52,18 @@ export function Footer() {
             </h4>
             <ul className="mt-4 space-y-3">
               <li>
-                <Link href="/entrar" className="text-sm text-surface-500 transition-colors hover:text-white">
+                <Link
+                  href="/entrar"
+                  className="text-sm text-surface-500 transition-colors hover:text-white"
+                >
                   Entrar
                 </Link>
               </li>
               <li>
-                <Link href="/cadastro" className="text-sm text-surface-500 transition-colors hover:text-white">
+                <Link
+                  href="/cadastro"
+                  className="text-sm text-surface-500 transition-colors hover:text-white"
+                >
                   Criar conta
                 </Link>
               </li>

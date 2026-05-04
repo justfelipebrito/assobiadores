@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { Championship } from '@batalha/types';
 import {
+  getChampionshipDateCopy,
+  getChampionshipEmptyParticipantsCopy,
+  getChampionshipParticipantCount,
+  getChampionshipStatusCopy,
   getChampionshipParticipantIds,
   getVisibleHomepageChampionships,
   sortChampionshipsForDisplay,
@@ -111,5 +115,112 @@ describe('championship view helpers', () => {
         }),
       ),
     ).toEqual(['user-1', 'user-2']);
+  });
+
+  it('uses real participant ids as the visible participant count floor', () => {
+    expect(
+      getChampionshipParticipantCount(
+        championship({
+          id: 'with-participants',
+          scope: 'regional',
+          category: 'freestyle',
+          currentParticipants: 0,
+          participantIds: ['user-1', 'user-2'],
+        }),
+      ),
+    ).toBe(2);
+  });
+
+  it('uses scope-aware empty participant copy', () => {
+    expect(
+      getChampionshipEmptyParticipantsCopy(
+        championship({ id: 'national', scope: 'national', category: 'freestyle' }),
+      ),
+    ).toBe(
+      'Ainda não há participantes classificados, os top 10 das regionais serão automaticamente classificados.',
+    );
+
+    expect(
+      getChampionshipEmptyParticipantsCopy(
+        championship({ id: 'regional', scope: 'regional', category: 'freestyle' }),
+      ),
+    ).toBe(
+      'Ainda não há participantes classificados, até 64 participantes serão classificados através das Classificatórias.',
+    );
+  });
+
+  it('formats championship date copy by scope', () => {
+    expect(
+      getChampionshipDateCopy(
+        championship({
+          id: 'regional',
+          scope: 'regional',
+          category: 'freestyle',
+          schedule: {
+            registrationStart: new Date('2026-05-04T03:00:00.000Z'),
+            registrationEnd: new Date('2026-06-01T02:59:59.000Z'),
+            start: new Date('2026-07-20T03:00:00.000Z'),
+            end: new Date('2026-09-28T02:59:59.000Z'),
+          },
+        }),
+      ),
+    ).toBe('20/07/2026 - 27/09/2026');
+
+    expect(
+      getChampionshipDateCopy(
+        championship({
+          id: 'national',
+          scope: 'national',
+          category: 'freestyle',
+          schedule: {
+            registrationStart: new Date('2026-05-04T03:00:00.000Z'),
+            registrationEnd: new Date('2026-06-01T02:59:59.000Z'),
+            start: new Date('2026-10-05T03:00:00.000Z'),
+            end: new Date('2026-12-14T02:59:59.000Z'),
+          },
+        }),
+      ),
+    ).toBe('Início em 05/10/2026');
+  });
+
+  it('uses product status copy instead of raw championship status', () => {
+    const item = championship({
+      id: 'regional',
+      scope: 'regional',
+      category: 'freestyle',
+      schedule: {
+        registrationStart: new Date('2026-05-04T03:00:00.000Z'),
+        registrationEnd: new Date('2026-06-01T02:59:59.000Z'),
+        start: new Date('2026-07-20T03:00:00.000Z'),
+        end: new Date('2026-09-28T02:59:59.000Z'),
+      },
+    });
+
+    expect(getChampionshipStatusCopy(item, new Date('2026-05-03T12:00:00.000Z'))).toBe(
+      'Status: Classificatórias abrem em 04/05/2026',
+    );
+    expect(getChampionshipStatusCopy(item, new Date('2026-06-15T12:00:00.000Z'))).toBe(
+      'Status: Classificatórias em andamento',
+    );
+    expect(getChampionshipStatusCopy(item, new Date('2026-08-01T12:00:00.000Z'))).toBe(
+      'Status: Regional em andamento',
+    );
+
+    expect(
+      getChampionshipStatusCopy(
+        championship({
+          id: 'national',
+          scope: 'national',
+          category: 'freestyle',
+          schedule: {
+            registrationStart: new Date('2026-05-04T03:00:00.000Z'),
+            registrationEnd: new Date('2026-06-01T02:59:59.000Z'),
+            start: new Date('2026-10-05T03:00:00.000Z'),
+            end: new Date('2026-12-14T02:59:59.000Z'),
+          },
+        }),
+        new Date('2026-06-15T12:00:00.000Z'),
+      ),
+    ).toBe('Status: Classificados do Regional');
   });
 });

@@ -54,7 +54,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-surface-950 px-4">
         <div className="max-w-md text-center">
-          <p className="text-sm font-semibold uppercase tracking-wider text-red-400">Acesso negado</p>
+          <p className="text-sm font-semibold uppercase tracking-wider text-red-400">
+            Acesso negado
+          </p>
           <h1 className="mt-3 text-2xl font-bold text-white">Conta sem permissao administrativa</h1>
           <p className="mt-2 text-sm text-surface-400">
             Entre com uma conta administradora para acessar o painel.
@@ -74,16 +76,28 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
       <div className="border-b border-white/10 bg-surface-950/95 backdrop-blur">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center justify-between gap-4">
-            <Link href="/" className="min-w-0">
-              <p className="text-xs font-semibold uppercase tracking-wider text-brand-400">Assobiadores</p>
-              <h1 className="truncate text-lg font-bold text-white">Painel Administrativo</h1>
+            <Link href="/" className="flex min-w-0 items-center gap-3">
+              <img
+                src="/logo.png"
+                alt="A casa do assobiador"
+                className="h-10 w-10 rounded-xl object-contain"
+              />
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-wider text-brand-400">
+                  assobiador.com
+                </p>
+                <h1 className="truncate text-lg font-bold text-white">Painel Administrativo</h1>
+              </div>
             </Link>
             <Button className="lg:hidden" size="sm" variant="secondary" onClick={signOut}>
               Sair
             </Button>
           </div>
 
-          <nav className="flex gap-2 overflow-x-auto pb-1 lg:pb-0" aria-label="Navegacao administrativa">
+          <nav
+            className="flex gap-2 overflow-x-auto pb-1 lg:pb-0"
+            aria-label="Navegacao administrativa"
+          >
             {ADMIN_NAV_ITEMS.map((item) => {
               const active = isAdminNavItemActive(pathname, item.href);
               return (

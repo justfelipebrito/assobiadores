@@ -39,18 +39,20 @@ function createDb({
   battleExists = true,
   hasExistingEntry = false,
   pendingPayment,
+  userEmail = 'user@example.com',
 }: {
   battle?: Record<string, unknown>;
   battleExists?: boolean;
   hasExistingEntry?: boolean;
   pendingPayment?: Record<string, unknown> & { id?: string };
+  userEmail?: string;
 }) {
   const battleDoc = {
     exists: battleExists,
     data: () => battle,
   };
   const userDoc = {
-    data: () => ({ email: 'user@example.com' }),
+    data: () => ({ email: userEmail }),
   };
   const entryRef = { id: 'entry-1' };
   const paymentRef = { id: 'payment-1' };
@@ -218,6 +220,19 @@ describe('POST /api/payments/create', () => {
       }),
     );
     expect(batch.commit).toHaveBeenCalledTimes(1);
+  });
+
+  it('replaces local emulator .test emails before calling Mercado Pago', async () => {
+    const { db } = createDb({ battle: paidBattle, userEmail: 'user@example.test' });
+    getAdminFirestore.mockReturnValue(db);
+
+    const res = await post();
+
+    expect(res.status).toBe(200);
+    const [, requestInit] = mpFetch.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(requestInit.body)).payer.email).toMatch(
+      /^payer-[a-z0-9]+@testuser\.com$/,
+    );
   });
 
   it('returns 401 when auth verification fails', async () => {
