@@ -6,7 +6,6 @@ import {
   battleFormatSchema,
   battleStatusSchema,
   battleTypeSchema,
-  votingTypeSchema,
 } from '@batalha/types';
 
 export const ADMIN_BATTLE_RULE_LIMIT = 10;
@@ -31,12 +30,6 @@ export const ADMIN_BATTLE_STATUS_OPTIONS = [
   { value: 'finished', label: 'Finalizada' },
 ] as const;
 
-export const ADMIN_BATTLE_VOTING_OPTIONS = [
-  { value: 'public', label: 'Publico' },
-  { value: 'judge', label: 'Juri' },
-  { value: 'hybrid', label: 'Hibrido' },
-] as const;
-
 export interface AdminBattleFormValues {
   title: string;
   description: string;
@@ -47,7 +40,6 @@ export interface AdminBattleFormValues {
   entryFee: string;
   prizePool: string;
   maxParticipants: string;
-  votingType: string;
   registrationStart: string;
   registrationEnd: string;
   submissionDeadline: string;
@@ -64,9 +56,7 @@ export interface AdminBattlePayload {
   category: z.infer<typeof battleCategorySchema>;
   status: z.infer<typeof battleStatusSchema>;
   entryFee: number;
-  prizePool: number;
-  prizeDistribution: null;
-  votingType: z.infer<typeof votingTypeSchema>;
+  prizePool?: number;
   maxParticipants: number;
   registrationStart: Date;
   registrationEnd: Date;
@@ -91,7 +81,6 @@ const adminBattleFormSchema = z.object({
   format: battleFormatSchema,
   category: battleCategorySchema,
   status: battleStatusSchema,
-  votingType: votingTypeSchema,
   entryFee: z.coerce.number().int().nonnegative(),
   prizePool: z.coerce.number().int().nonnegative(),
   maxParticipants: z.coerce.number().int().min(2),
@@ -137,7 +126,6 @@ export function createDefaultAdminBattleFormValues(now = new Date()): AdminBattl
     entryFee: '0',
     prizePool: '0',
     maxParticipants: '32',
-    votingType: 'public',
     registrationStart: toDatetimeLocalInput(now),
     registrationEnd: toDatetimeLocalInput(addHours(now, 24 * 7)),
     submissionDeadline: toDatetimeLocalInput(addHours(now, 24 * 10)),
@@ -158,7 +146,6 @@ export function battleToAdminFormValues(battle: Battle): AdminBattleFormValues {
     entryFee: String(battle.entryFee ?? 0),
     prizePool: String(battle.prizePool ?? 0),
     maxParticipants: String(battle.maxParticipants ?? 2),
-    votingType: battle.votingType ?? 'public',
     registrationStart: toDatetimeLocalInput(battle.registrationStart),
     registrationEnd: toDatetimeLocalInput(battle.registrationEnd),
     submissionDeadline: toDatetimeLocalInput(battle.submissionDeadline),
@@ -231,10 +218,12 @@ export function validateAdminBattleForm(
       category: parsed.data.category,
       status: parsed.data.status,
       entryFee: parsed.data.entryFee,
-      prizePool: parsed.data.prizePool,
-      prizeDistribution: null,
-      votingType: parsed.data.votingType,
       maxParticipants: parsed.data.format === 'duel' ? 2 : parsed.data.maxParticipants,
+      ...(parsed.data.entryFee === 0
+        ? {
+            prizePool: parsed.data.prizePool,
+          }
+        : {}),
       registrationStart,
       registrationEnd,
       submissionDeadline,

@@ -23,6 +23,19 @@ User-created battles must support:
 
 Free/non-subscribed creators are limited to 50 entries for group battles. Subscription/plan logic can raise this limit later.
 
+Battle detail pages are the primary battle surface. A user opening `/batalhas/{battleId}` should immediately see the participants, whether each participant has submitted audio, and any playable submitted audio. Public/open battles can show an inline `Participar` action while registration is open. Paid battles show `Pagar entrada` and use the same Pix confirmation modal pattern as qualifiers. Invite-only battles should show the participant/media state without a public join action.
+
+`1v1` battles are exactly two participants, always use open community voting, and tied `1v1` results award no season/category points.
+
+Battle votes use a fixed split:
+
+- community vote: 70%;
+- creator judge vote: 30%.
+
+Confirmed participants cannot vote in their own battle. The trusted vote API records the creator vote as the judge signal and all other eligible non-participant votes as community votes. Finalization ranks submissions by weighted score, not raw vote count.
+
+Paid battle prize pools are flexible and based on confirmed paid entries. On each approved entry payment, the platform keeps 20% and 80% goes into the battle prize pool. Prize distribution is 50% to 1st place, 30% to 2nd place, and 20% to 3rd place.
+
 ## Invitations
 
 Users must be able to add competitors by searching usernames and selecting exact matches.
@@ -99,10 +112,23 @@ Open Qualifiers are official entry pathways into Regional competitions:
 - platform fee: 20% of each qualifier entry;
 - prize allocation: 80% of each qualifier entry goes into the prize pool for that Regional category;
 - match format: random `1v1` pairings for each phase;
+- bracket generation allows byes when the entrant count is odd or when byes are needed to reduce the field cleanly toward 64 Regional qualifiers;
 - advancement: winners advance to the next qualifier phase until Regional slots are filled;
 - non-submission: if one contestant misses the submission deadline, the opponent wins by W.O.; if both miss it, both are disqualified.
 
 Qualifier voting is fully public: `100%` public vote.
+
+Qualifier participants cannot vote in their own qualifier track. Logged-in non-participants can vote publicly. If a public vote result is tied, the first judge vote recorded for that match is the tiebreaker.
+
+Qualifier scheduling should avoid overwhelming one-day parallel rounds. The initial daily match limit is track-size based:
+
+| Confirmed participants | Daily match limit per state/category track |
+| ---------------------: | -----------------------------------------: |
+|                  1-100 |                                          5 |
+|                101-500 |                                         12 |
+|                   501+ |                                         24 |
+
+The system plans each round sequentially. For example, with one match day window per day, 100 entrants need 36 matches over 8 days, 500 entrants need 436 matches over 38 days, and 1000 entrants need 936 matches over 41 days to reach up to 64 Regional qualifiers.
 
 When Open Qualifiers are available, logged-in users who are not registered should see a persistent qualifier notice with a CTA to `/classificatorias`. The notice should remain visible until the user has a `pending_payment` or `confirmed` qualifier registration for the active season.
 
@@ -112,20 +138,31 @@ The qualifier layer is separate from standalone Battles and from Championship st
 
 Current collections:
 
-- `qualifierTracks/{trackId}`: public discovery/read model for one season, state, and category. It stores the shareable `slug` (for example, `sp-freestyle-2026`), status, fee, registration/bracket dates, Regional qualification slots (`maxQualified`), and aggregate registration counts (`registeredCount`, `confirmedCount`, `pendingPaymentCount`) so listing/detail pages can show social proof without scanning private registrations. `maxQualified` is not a registration cap; Classificatórias are open to as many paid entrants as the platform can support.
+- `qualifierTracks/{trackId}`: public discovery/read model for one season, state, and category. It stores the shareable `slug` (for example, `sp-freestyle-2026`), status, fee, registration/bracket dates, Regional qualification slots (`maxQualified`), daily scheduling metadata (`dailyMatchLimit`, `plannedMatchDays`, `plannedMatchCount`, `currentRound`), and aggregate registration counts (`registeredCount`, `confirmedCount`, `pendingPaymentCount`) so listing/detail pages can show social proof without scanning private registrations. `maxQualified` is not a registration cap; Classificatórias are open to as many paid entrants as the platform can support.
 - `qualifierRegistrations/{registrationId}`: private-to-user registration/payment state for one user, season, state, and category. It stores `status` (`pending_payment`, `confirmed`, `cancelled`), `bracketStatus` (`registered`, `waiting_draw`, `active`, `eliminated`, `qualified`), current round/match references, payment metadata, and the eventual Regional championship ID when qualified.
 - `qualifierParticipants/{registrationId}`: public read/server-owned participant projection written when a qualifier payment is confirmed. It stores only public display data needed by public track pages: user ID, display name, state/category/season, current category rank/points snapshot, and confirmation timestamps. It must not expose payment IDs or private registration metadata.
-- `qualifierMatches/{matchId}`: public read model for random `1v1` qualifier pairings. It stores season, state, category, round, participants, registration IDs, official deadlines, submission IDs, public vote counts, winner/W.O./disqualification state, and next-match linkage.
+- `qualifierMatches/{matchId}`: public read model for random `1v1` qualifier pairings. It stores season, state, category, round, match day index, sequence within the day, participants, registration IDs, official deadlines, submission IDs, public vote counts, winner/W.O./disqualification state, and next-match linkage.
+- `qualifierSubmissions/{submissionId}`: public read/server-owned audio submission for one qualifier match participant. It stores match/registration/user references, season/state/category/round, audio media metadata, and submission status. Creation must go through the trusted match submission API, which validates participant ownership, `submissions_open` status, the match submission deadline, audio limits, and duplicate submissions before attaching the submission ID to `qualifierMatches/{matchId}.submissionIds`.
+- `qualifierVotes/{voteId}`: private-to-voter/server-owned vote record for one qualifier match. It stores the match, submission, voted user, voter, voter type, and weight. The vote API blocks qualifier participants from voting in any match of their qualifier, enforces one vote per logged-in user per match, and updates public aggregate counts on `qualifierSubmissions` and `qualifierMatches`.
 
-Security rule: qualifier registrations are readable only by their owner or admins. Qualifier tracks, participants, and matches are public-readable because they are official discovery/fixture/result data, but all writes are server/admin-owned.
+Security rule: qualifier registrations are readable only by their owner or admins. Qualifier tracks, participants, matches, and submissions are public-readable because they are official discovery/fixture/result data, but all writes are server/admin-owned. Qualifier votes are readable only by the voter or admins and are never client-writable.
 
 Participant UX:
 
 - Homepage shows a left-column `Classificatórias` section, matching Campeonatos/Batalhas placement so the ranking rail stays visible. Logged-in users see the three category tracks for their immutable `Naturalidade`; logged-out users see São Paulo and Rio de Janeiro as default public previews. Homepage cards should not show entrant counts or `64` as “vagas”; that context belongs on `/classificatorias`.
 - `/classificatorias` is the full entry/payment page. It keeps `Suas Classificatórias` first, lists available tracks by category/state, shows full-width rules, and shows the full-width `Inscrição` payment section.
 - `/classificatorias/{state-category-year}` is the public/shareable track page for discovery, social proof, rules, confirmed participant list ordered by confirmation date, and future public fixture/results browsing.
-- `/classificatorias/{registrationId}` remains the private participant journey page for one paid registration, including status, deadlines, and generated matches.
-- Match submission/voting pages are still pending. When implemented, they should use `qualifierMatches` deadlines as the source of truth and write through trusted server routes.
+- `/classificatorias/{registrationId}` remains the private participant journey page for one paid registration, including status, deadlines, generated matches, and the match audio submission action while the participant's match is in `submissions_open`.
+- Public qualifier track pages show voting controls during `voting` matches. Logged-in non-participants can play submitted audio and vote once per match; participants see the match but cannot vote.
+- Qualifier match finalization is trusted/admin-owned. It handles W.O. when one or both participants miss submission, determines winners by public vote count, uses the first judge vote as the tiebreaker when judge votes exist, awards qualifier phase-advance points, and updates winner/loser registration state.
+- Qualifier round advancement is trusted/admin-owned. Once every match in the current round is `finished` or `walkover`, the advancement service gathers all `waiting_draw` live registrations, creates the next round if more than 64 entrants remain, carries byes forward, or marks everyone `qualified` once the Regional cut is reached and awards the qualifier-to-Regional points.
+
+Admin UX:
+
+- The admin panel can trigger official qualifier bracket generation per state/category through a trusted admin API.
+- Generation uses only `confirmed` registrations for that season/state/category.
+- If `confirmedCount <= maxQualified`, all confirmed entrants are marked qualified without creating matches.
+- If matches already exist for the track, generation is rejected. Regeneration should be a separate explicit admin override because it can invalidate public fixtures and participant journey state.
 
 ## Championships
 
@@ -218,10 +255,23 @@ Regional prize distribution from the distributable prize pool:
 Daily highlights:
 
 - store user-submitted audio entries in a separate daily highlights collection;
+- accept only audio recorded on the platform, up to 2 minutes; external video URLs are not valid submissions;
 - award 1 season/category point for submission;
 - award low-weight season/category placement points for the daily top 3;
 - support public likes/votes through a confirmation flow;
+- use the Brazil day key (`America/Sao_Paulo`) as the daily boundary;
+- close voting at 22:00 BRT through trusted scheduled code, then finalize the day and award top-3 placement points: 1st = 15, 2nd = 10, 3rd = 5;
 - can later feed profile-level retention features such as streaks.
+
+## Battle Media
+
+Standalone battles use the same media rule as daily highlights:
+
+- users record audio directly on the platform;
+- each submission is limited to 2 minutes;
+- trusted APIs upload the audio to Firebase Storage and write `mediaType: audio`, `mediaURL`, Storage path, content type, duration, and size metadata;
+- battle voting/results render the stored audio player, not an external video embed;
+- admins moderate by reports/removal, not by approving external video links.
 
 ## Architecture Implications
 

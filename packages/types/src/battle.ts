@@ -14,8 +14,11 @@ export type BattleStatus = z.infer<typeof battleStatusSchema>;
 export const battleCategorySchema = competitionCategorySchema;
 export type BattleCategory = z.infer<typeof battleCategorySchema>;
 
-export const votingTypeSchema = z.enum(['public', 'judge', 'hybrid']);
+export const votingTypeSchema = z.enum(['public', 'participants', 'judges', 'judge', 'hybrid']);
 export type VotingType = z.infer<typeof votingTypeSchema>;
+
+export const battleVisibilitySchema = z.enum(['public', 'invite_only']);
+export type BattleVisibility = z.infer<typeof battleVisibilitySchema>;
 
 export const prizeDistributionSchema = z.object({
   first: z.number().int().nonnegative(),
@@ -44,6 +47,7 @@ export const battleSchema = z.object({
   prizePool: z.number().int().nonnegative().default(0),
   prizeDistribution: prizeDistributionSchema.nullable().default(null),
   votingType: votingTypeSchema.default('public'),
+  visibility: battleVisibilitySchema.default('public'),
   maxParticipants: z.number().int().nonnegative().default(0),
   currentParticipants: z.number().int().nonnegative().default(0),
   registrationStart: timestampSchema,
@@ -69,6 +73,7 @@ export const createBattleSchema = z.object({
   prizePool: z.number().int().nonnegative().default(0),
   prizeDistribution: prizeDistributionSchema.nullable().default(null),
   votingType: votingTypeSchema.default('public'),
+  visibility: battleVisibilitySchema.default('public'),
   maxParticipants: z.number().int().nonnegative().default(0),
   registrationStart: timestampSchema,
   registrationEnd: timestampSchema,
@@ -89,8 +94,9 @@ export const createCommunityBattleSchema = z.object({
   format: battleFormatSchema,
   category: battleCategorySchema,
   votingType: votingTypeSchema.default('public'),
+  visibility: battleVisibilitySchema.default('public'),
   maxParticipants: z.number().int().min(2).default(FREE_TIER_GROUP_CAP),
-  registrationEnd: z.string().datetime(), // ISO string from form
+  registrationEnd: z.string().datetime().optional(),
   submissionDeadline: z.string().datetime(),
   votingStart: z.string().datetime(),
   votingEnd: z.string().datetime(),
@@ -120,6 +126,7 @@ export const battleEntrySchema = z.object({
   id: z.string(),
   battleId: z.string(),
   userId: z.string(),
+  userDisplayName: z.string().optional(),
   paymentId: z.string().nullable().default(null),
   status: battleEntryStatusSchema.default('pending_payment'),
   createdAt: timestampSchema,

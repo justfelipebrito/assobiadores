@@ -1,3 +1,9 @@
-export function shouldShowSubmitDailyHighlightButton(isAuthenticated: boolean) {
-  return isAuthenticated;
+export function shouldShowSubmitDailyHighlightButton({
+  isAuthenticated,
+  hasSubmittedToday,
+}: {
+  isAuthenticated: boolean;
+  hasSubmittedToday: boolean;
+}) {
+  return isAuthenticated && !hasSubmittedToday;
 }

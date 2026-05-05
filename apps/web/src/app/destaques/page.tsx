@@ -2,28 +2,73 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Flame } from 'lucide-react';
-import { limit, orderBy, useAuth, useCollection } from '@batalha/firebase';
-import { Button, Skeleton } from '@batalha/ui';
+import { ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Flame } from 'lucide-react';
+import { limit, orderBy, useAuth, useCollection, where } from '@batalha/firebase';
+import { Badge, Button, Skeleton } from '@batalha/ui';
 import { BRAZIL_STATE_LABELS, type DailyHighlight } from '@batalha/types';
 import { LikeDailyHighlightModal } from '@/components/daily-highlights/like-daily-highlight-modal';
 import { SubmitDailyHighlightButton } from '@/components/daily-highlights/submit-daily-highlight-button';
 import { SubmitDailyHighlightModal } from '@/components/daily-highlights/submit-daily-highlight-modal';
 import { MediaPreview } from '@/components/media/media-preview';
-import { getVisibleDailyHighlights } from '@/lib/daily-highlight-view';
+import {
+  DAILY_HIGHLIGHTS_MIN_DAY_KEY,
+  formatBrazilDayKey,
+  getBrazilDayKey,
+  getDailyHighlightsForDay,
+  shiftBrazilDayKey,
+} from '@/lib/daily-highlight-view';
+import {
+  getDailyHighlightLikeForVisibleDay,
+  getDailyHighlightVoteState,
+  type DailyHighlightLikeView,
+} from '@/lib/daily-highlight-vote-view';
 
 export default function DailyHighlightsPage() {
   const { user } = useAuth();
   const [selectedHighlight, setSelectedHighlight] = useState<DailyHighlight | null>(null);
   const [submitOpen, setSubmitOpen] = useState(false);
-  const { data: dailyHighlights, loading } = useCollection<DailyHighlight>('dailyHighlights', [
-    orderBy('createdAt', 'desc'),
-    limit(100),
-  ]);
+  const todayKey = useMemo(() => getBrazilDayKey(), []);
+  const [selectedDayKey, setSelectedDayKey] = useState(todayKey);
+  const isTodaySelected = selectedDayKey === todayKey;
+  const dailyHighlightQuery = useMemo(
+    () =>
+      isTodaySelected
+        ? [where('dayKey', '==', selectedDayKey), orderBy('createdAt', 'desc'), limit(500)]
+        : [where('dayKey', '==', selectedDayKey), orderBy('placement', 'asc'), limit(3)],
+    [isTodaySelected, selectedDayKey],
+  );
+  const { data: dailyHighlights, loading } = useCollection<DailyHighlight>(
+    'dailyHighlights',
+    dailyHighlightQuery,
+  );
+  const { data: dailyHighlightLikes } = useCollection<DailyHighlightLikeView>(
+    user ? 'dailyHighlightLikes' : undefined,
+    user ? [where('userId', '==', user.uid), limit(30)] : [],
+  );
+  const { data: todayUserHighlights } = useCollection<DailyHighlight>(
+    user ? 'dailyHighlights' : undefined,
+    user ? [where('dayKey', '==', todayKey), where('userId', '==', user.uid), limit(1)] : [],
+  );
+  const hasSubmittedToday = todayUserHighlights.length > 0;
 
   const visibleHighlights = useMemo(() => {
-    return getVisibleDailyHighlights({ highlights: dailyHighlights });
-  }, [dailyHighlights]);
+    return getDailyHighlightsForDay({
+      highlights: dailyHighlights,
+      dayKey: selectedDayKey,
+      todayKey,
+    });
+  }, [dailyHighlights, selectedDayKey, todayKey]);
+  const visibleDayKey = visibleHighlights[0]?.dayKey ?? null;
+  const canGoToPreviousDay = selectedDayKey > DAILY_HIGHLIGHTS_MIN_DAY_KEY;
+  const canGoToNextDay = selectedDayKey < todayKey;
+  const currentDailyVote = useMemo(
+    () =>
+      getDailyHighlightLikeForVisibleDay({
+        likes: dailyHighlightLikes,
+        visibleDayKey: isTodaySelected ? visibleDayKey : null,
+      }),
+    [dailyHighlightLikes, isTodaySelected, visibleDayKey],
+  );
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
@@ -41,69 +86,156 @@ export default function DailyHighlightsPage() {
             <Flame className="h-6 w-6" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-white">Destaques Diários</h1>
+            <h1 className="text-2xl font-bold text-white">
+              Destaques Diários - {formatBrazilDayKey(selectedDayKey)}
+            </h1>
             <p className="mt-1 text-sm text-surface-500">
-              Vote em um destaque por dia ou envie o seu para ganhar 1 ponto.
+              {isTodaySelected
+                ? 'Vote em um destaque por dia ou envie o seu para ganhar 1 ponto.'
+                : 'Top 3 finalizados do dia selecionado.'}
             </p>
           </div>
         </div>
-        <SubmitDailyHighlightButton
-          isAuthenticated={Boolean(user)}
-          onClick={() => setSubmitOpen(true)}
-        />
+        <div className="flex flex-col gap-2 sm:items-end">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={!canGoToPreviousDay}
+              onClick={() => {
+                if (canGoToPreviousDay) {
+                  const previousDayKey = shiftBrazilDayKey(selectedDayKey, -1);
+                  setSelectedDayKey(
+                    previousDayKey < DAILY_HIGHLIGHTS_MIN_DAY_KEY
+                      ? DAILY_HIGHLIGHTS_MIN_DAY_KEY
+                      : previousDayKey,
+                  );
+                }
+              }}
+              aria-label="Ver dia anterior"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <div className="min-w-32 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-center text-sm font-semibold text-white">
+              {formatBrazilDayKey(selectedDayKey)}
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={!canGoToNextDay}
+              onClick={() => {
+                if (canGoToNextDay) {
+                  const nextDayKey = shiftBrazilDayKey(selectedDayKey, 1);
+                  setSelectedDayKey(nextDayKey > todayKey ? todayKey : nextDayKey);
+                }
+              }}
+              aria-label="Ver proximo dia"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="flex gap-2">
+            {!isTodaySelected && (
+              <Button variant="ghost" size="sm" onClick={() => setSelectedDayKey(todayKey)}>
+                Ir para Hoje
+              </Button>
+            )}
+            {isTodaySelected && (
+              <SubmitDailyHighlightButton
+                isAuthenticated={Boolean(user)}
+                hasSubmittedToday={hasSubmittedToday}
+                onClick={() => setSubmitOpen(true)}
+              />
+            )}
+          </div>
+        </div>
       </div>
+
+      {isTodaySelected && currentDailyVote && (
+        <div className="mt-6 flex items-start gap-3 rounded-2xl border border-brand-500/20 bg-brand-500/10 px-4 py-3 text-sm text-brand-100">
+          <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-brand-400" />
+          <p>
+            Seu voto de hoje foi registrado. A entrada escolhida aparece marcada como{' '}
+            <span className="font-semibold text-white">Seu voto</span>.
+          </p>
+        </div>
+      )}
 
       <div className="mt-6 space-y-3">
         {loading ? (
           Array.from({ length: 6 }).map((_, index) => <Skeleton key={index} className="h-36" />)
         ) : visibleHighlights.length > 0 ? (
-          visibleHighlights.map((highlight, index) => (
-            <div
-              key={highlight.id}
-              className="grid grid-cols-[4rem_minmax(0,1fr)] gap-3 rounded-2xl border border-white/10 bg-surface-900/70 p-3 sm:grid-cols-[5rem_minmax(0,1fr)_7rem] sm:items-center"
-            >
-              <div className="flex h-full min-h-32 items-center justify-center rounded-xl border border-white/10 bg-surface-950/60 px-2 text-center">
-                <span className="w-full text-center text-sm font-bold tabular-nums text-surface-300 sm:text-base">
-                  #{index + 1}
-                </span>
-              </div>
+          visibleHighlights.map((highlight, index) => {
+            const voteState = getDailyHighlightVoteState({
+              highlightId: highlight.id,
+              like: currentDailyVote,
+            });
 
-              <div className="min-w-0">
-                <div className="h-32">
-                  <MediaPreview
-                    mediaType={highlight.mediaType}
-                    mediaURL={highlight.mediaURL}
-                    videoURL={highlight.videoURL}
-                    username={highlight.userDisplayName}
-                    naturalidade={
-                      highlight.userBirthState
-                        ? BRAZIL_STATE_LABELS[highlight.userBirthState]
-                        : null
-                    }
-                    category={highlight.category}
-                    durationSeconds={highlight.mediaDurationSeconds}
-                    voteCount={highlight.voteCount}
-                    size="compact"
-                  />
+            return (
+              <div
+                key={highlight.id}
+                className={`grid grid-cols-[4rem_minmax(0,1fr)] gap-3 rounded-2xl border p-3 sm:grid-cols-[5rem_minmax(0,1fr)_7rem] sm:items-center ${
+                  voteState.isSelectedVote
+                    ? 'border-brand-500/40 bg-brand-500/10'
+                    : 'border-white/10 bg-surface-900/70'
+                }`}
+              >
+                <div className="flex h-full min-h-32 items-center justify-center rounded-xl border border-white/10 bg-surface-950/60 px-2 text-center">
+                  <span className="w-full text-center text-sm font-bold tabular-nums text-surface-300 sm:text-base">
+                    #{index + 1}
+                  </span>
+                </div>
+
+                <div className="min-w-0">
+                  <div className="h-32">
+                    <MediaPreview
+                      mediaType={highlight.mediaType}
+                      mediaURL={highlight.mediaURL}
+                      videoURL={highlight.videoURL}
+                      username={highlight.userDisplayName}
+                      naturalidade={
+                        highlight.userBirthState
+                          ? BRAZIL_STATE_LABELS[highlight.userBirthState]
+                          : null
+                      }
+                      category={highlight.category}
+                      durationSeconds={highlight.mediaDurationSeconds}
+                      voteCount={highlight.voteCount}
+                      size="compact"
+                    />
+                  </div>
+                </div>
+
+                <div className="col-span-2 flex justify-end sm:col-span-1 sm:justify-center">
+                  {!isTodaySelected ? (
+                    <Badge variant="default" className="w-full justify-center py-2 sm:w-24">
+                      Top {index + 1}
+                    </Badge>
+                  ) : voteState.isSelectedVote ? (
+                    <Badge variant="success" className="w-full justify-center py-2 sm:w-24">
+                      Seu voto
+                    </Badge>
+                  ) : (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setSelectedHighlight(highlight)}
+                      disabled={!voteState.canVote}
+                      className="w-full sm:w-24"
+                    >
+                      {voteState.buttonLabel}
+                    </Button>
+                  )}
                 </div>
               </div>
-
-              <div className="col-span-2 flex justify-end sm:col-span-1 sm:justify-center">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => setSelectedHighlight(highlight)}
-                  className="w-full sm:w-24"
-                >
-                  Votar
-                </Button>
-              </div>
-            </div>
-          ))
+            );
+          })
         ) : (
           <div className="glass-card text-center">
             <p className="text-sm text-surface-500">
-              Ainda nao ha destaques hoje. Envie o primeiro e ganhe 1 ponto.
+              {isTodaySelected
+                ? 'Ainda não há destaques hoje. Envie o primeiro e ganhe 1 ponto.'
+                : 'Não há vencedores finalizados para este dia.'}
             </p>
           </div>
         )}

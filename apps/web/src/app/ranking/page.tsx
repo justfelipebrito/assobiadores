@@ -1,8 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Trophy, Crown, Medal, Award, Globe, MapPin, ChevronDown, Clock } from 'lucide-react';
+import { Trophy, Crown, Medal, Award, Globe, MapPin, ChevronDown } from 'lucide-react';
 import { useCollection, orderBy, limit, where } from '@batalha/firebase';
 import { Badge, Skeleton, EmptyState } from '@batalha/ui';
 import { formatNumber, getRankTier } from '@batalha/utils';
@@ -14,6 +14,12 @@ import {
   type Season,
   type CompetitionCategory,
 } from '@batalha/types';
+import {
+  getRankingUsers,
+  getUserRankingPoints,
+  getUserRankingRank,
+  paginateRankingUsers,
+} from '@/lib/ranking-view';
 
 const PLACE_STYLES = [
   {
@@ -68,6 +74,7 @@ const BRAZIL_STATES: { value: BrazilState; label: string }[] = [
 
 type Scope = 'nacional' | 'regional';
 type RankingMode = 'allTime' | 'season';
+const RANKING_PAGE_SIZE = 50;
 
 function FilterLabel({ children }: { children: React.ReactNode }) {
   return <p className="mb-2 text-xs font-semibold uppercase text-surface-500">{children}</p>;
@@ -77,16 +84,6 @@ function SelectChevron() {
   return (
     <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-surface-400" />
   );
-}
-
-function getUserRankingPoints(user: User, seasonId: string | null, category: CompetitionCategory) {
-  return seasonId ? (user.seasonCategoryPoints?.[seasonId]?.[category]?.points ?? 0) : user.points;
-}
-
-function getUserRankingRank(user: User, seasonId: string | null, category: CompetitionCategory) {
-  return seasonId
-    ? (user.seasonCategoryPoints?.[seasonId]?.[category]?.rank ?? 'Iniciante')
-    : user.rank;
 }
 
 function RankingRow({
@@ -157,6 +154,7 @@ export default function RankingPage() {
   const [selectedState, setSelectedState] = useState<BrazilState | ''>('SP');
   const [rankingMode, setRankingMode] = useState<RankingMode>('season');
   const [selectedCategory, setSelectedCategory] = useState<CompetitionCategory>('freestyle');
+  const [page, setPage] = useState(1);
 
   const { data: activeSeasons } = useCollection<Season>('seasons', [
     where('status', '==', 'active'),
@@ -166,37 +164,42 @@ export default function RankingPage() {
   const activeSeason = activeSeasons[0] ?? null;
   const seasonId = rankingMode === 'season' && activeSeason ? activeSeason.id : null;
 
-  const { data: rankingUsers, loading } = useCollection<User>('users', [
-    orderBy('points', 'desc'),
-    limit(500),
-  ]);
+  const { data: rankingUsers, loading } = useCollection<User>('users', [orderBy('points', 'desc')]);
 
   const users = useMemo(() => {
-    return rankingUsers
-      .filter((user) =>
-        scope === 'regional' && selectedState ? user.state === selectedState : true,
-      )
-      .sort((a, b) => {
-        const diff =
-          getUserRankingPoints(b, seasonId, selectedCategory) -
-          getUserRankingPoints(a, seasonId, selectedCategory);
-        if (diff !== 0) return diff;
-        return a.displayName.localeCompare(b.displayName);
-      })
-      .slice(0, 50);
+    return getRankingUsers({
+      users: rankingUsers,
+      scope,
+      selectedState,
+      seasonId,
+      category: selectedCategory,
+    });
   }, [rankingUsers, scope, seasonId, selectedCategory, selectedState]);
+  const paginatedUsers = useMemo(
+    () =>
+      paginateRankingUsers({
+        users,
+        page,
+        pageSize: RANKING_PAGE_SIZE,
+      }),
+    [page, users],
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [scope, selectedState, rankingMode, selectedCategory]);
 
   const selectedStateLabel = BRAZIL_STATES.find((s) => s.value === selectedState)?.label;
   const selectedCategoryLabel = COMPETITION_CATEGORY_LABELS[selectedCategory];
   const rankingDescription =
     scope === 'nacional'
       ? seasonId
-        ? `Ranking Oficial - Top 50 de ${selectedCategoryLabel} na ${activeSeason?.name}`
-        : 'Ranking Oficial - Top 50 do Brasil'
+        ? `Ranking Oficial de ${selectedCategoryLabel} na ${activeSeason?.name}`
+        : 'Ranking Oficial do Brasil'
       : selectedStateLabel
         ? seasonId
-          ? `Ranking Regional - Top 50 de ${selectedStateLabel} em ${selectedCategoryLabel} na ${activeSeason?.name}`
-          : `Ranking Regional - Top 50 de ${selectedStateLabel}`
+          ? `Ranking Regional de ${selectedStateLabel} em ${selectedCategoryLabel} na ${activeSeason?.name}`
+          : `Ranking Regional de ${selectedStateLabel}`
         : 'Escolha um estado para ver o Ranking Regional';
 
   return (
@@ -213,13 +216,11 @@ export default function RankingPage() {
       <div className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
         <div className="flex flex-col gap-2 border-b border-white/5 pb-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm font-medium text-white">{rankingDescription}</p>
-          <Link
-            href="/ranking/temporadas"
-            className="inline-flex items-center gap-1 text-xs font-medium text-surface-500 transition-colors hover:text-surface-300"
-          >
-            <Clock className="h-3.5 w-3.5" />
-            Ver temporadas anteriores
-          </Link>
+          {users.length > 0 && (
+            <p className="text-xs font-medium text-surface-500">
+              {formatNumber(users.length)} assobiadores encontrados
+            </p>
+          )}
         </div>
 
         <div className="mt-4 grid gap-4">
@@ -348,17 +349,45 @@ export default function RankingPage() {
             }
           />
         ) : (
-          users.map((user, index) => (
+          paginatedUsers.items.map((user, index) => (
             <RankingRow
               key={user.id}
               user={user}
-              index={index}
+              index={(paginatedUsers.page - 1) * paginatedUsers.pageSize + index}
               seasonId={seasonId}
               category={selectedCategory}
             />
           ))
         )}
       </div>
+
+      {!loading && users.length > RANKING_PAGE_SIZE && (
+        <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-surface-400">
+            Pagina {paginatedUsers.page} de {paginatedUsers.totalPages}
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setPage((currentPage) => Math.max(1, currentPage - 1))}
+              disabled={paginatedUsers.page <= 1}
+              className="h-10 rounded-xl border border-white/10 px-4 text-sm font-semibold text-white transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Anterior
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                setPage((currentPage) => Math.min(paginatedUsers.totalPages, currentPage + 1))
+              }
+              disabled={paginatedUsers.page >= paginatedUsers.totalPages}
+              className="h-10 rounded-xl border border-white/10 px-4 text-sm font-semibold text-white transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Proxima
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

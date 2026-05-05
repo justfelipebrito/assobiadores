@@ -38,8 +38,23 @@ export async function createVote(
     }
 
     if (submission.userId === voterId) {
-      throw new ApiError(400, 'Voce nao pode votar no proprio video');
+      throw new ApiError(400, 'Voce nao pode votar no proprio assobio');
     }
+
+    const participantEntries = await transaction.get(
+      db
+        .collection('battleEntries')
+        .where('battleId', '==', battleId)
+        .where('userId', '==', voterId)
+        .where('status', '==', 'confirmed')
+        .limit(1),
+    );
+
+    if (!participantEntries.empty) {
+      throw new ApiError(403, 'Participantes nao podem votar na propria batalha');
+    }
+
+    const voterType = battle.createdBy === voterId ? 'judge' : 'public';
 
     const existingVotes = await transaction.get(
       db
@@ -59,12 +74,15 @@ export async function createVote(
       battleId,
       submissionId,
       voterId,
-      voterType: 'public',
+      voterType,
       weight: 1,
       createdAt: FieldValue.serverTimestamp(),
     });
     transaction.update(submissionRef, {
       voteCount: FieldValue.increment(1),
+      ...(voterType === 'judge'
+        ? { judgeVoteCount: FieldValue.increment(1) }
+        : { publicVoteCount: FieldValue.increment(1) }),
       updatedAt: FieldValue.serverTimestamp(),
     });
 

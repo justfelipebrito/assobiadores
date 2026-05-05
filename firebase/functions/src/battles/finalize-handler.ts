@@ -108,6 +108,13 @@ export function shouldAwardOfficialBattlePoints(battle: Record<string, unknown>)
   return hasBattleCategoryForSeasonScoring(battle);
 }
 
+function hasDuelWinnerTie(battle: Record<string, unknown>, submissions: Array<Record<string, any>>) {
+  if (battle.format !== 'duel' || submissions.length < 2) return false;
+  const firstVotes = typeof submissions[0]?.voteCount === 'number' ? submissions[0].voteCount : 0;
+  const secondVotes = typeof submissions[1]?.voteCount === 'number' ? submissions[1].voteCount : 0;
+  return firstVotes === secondVotes;
+}
+
 function getBattleSeasonId(battle: Record<string, unknown>) {
   if (typeof battle.seasonId === 'string' && battle.seasonId.trim()) {
     return battle.seasonId;
@@ -190,7 +197,8 @@ export async function finalizeBattleHandler({
     entries: entryData,
     submissions: submissionData,
   });
-  const awardsOfficialPoints = scoringEligibility.eligible;
+  const duelWinnerTie = hasDuelWinnerTie(battle, submissionData);
+  const awardsOfficialPoints = scoringEligibility.eligible && !duelWinnerTie;
   const seasonId = getBattleSeasonId(battle);
   const category = typeof battle.category === 'string' ? battle.category : null;
   const winPoints = getBattleWinPoints(battle.format);
@@ -269,7 +277,7 @@ export async function finalizeBattleHandler({
     seasonScoringApplied: awardsOfficialPoints,
     seasonScoringEligibility: {
       eligible: scoringEligibility.eligible,
-      reason: scoringEligibility.reason,
+      reason: duelWinnerTie ? 'duel-tie' : scoringEligibility.reason,
     },
     updatedAt: fieldValue.serverTimestamp(),
   });

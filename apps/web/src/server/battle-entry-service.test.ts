@@ -12,6 +12,7 @@ function createFirestoreMock({
   hasExistingEntry?: boolean;
 }) {
   const battleRef = { id: 'battle-1' };
+  const userRef = { id: 'user-1' };
   const entryRef = { id: 'entry-1' };
   const entryQuery = {
     where: vi.fn(() => entryQuery),
@@ -24,6 +25,12 @@ function createFirestoreMock({
         return {
           exists: battleExists,
           data: () => battle,
+        };
+      }
+      if (target === userRef) {
+        return {
+          exists: true,
+          data: () => ({ displayName: 'User Local', username: 'userlocal' }),
         };
       }
 
@@ -47,6 +54,12 @@ function createFirestoreMock({
         return {
           doc: vi.fn(() => entryRef),
           where: entryQuery.where,
+        };
+      }
+
+      if (name === 'users') {
+        return {
+          doc: vi.fn(() => userRef),
         };
       }
 
@@ -83,6 +96,7 @@ describe('createFreeBattleEntry', () => {
         id: 'entry-1',
         battleId: 'battle-1',
         userId: 'user-1',
+        userDisplayName: 'User Local',
         paymentId: null,
         status: 'confirmed',
       }),
@@ -151,6 +165,50 @@ describe('createFreeBattleEntry', () => {
         userId: 'user-1',
       }),
     ).rejects.toMatchObject({ status: 400, message: 'Batalha paga, requer pagamento' });
+
+    expect(tx.set).not.toHaveBeenCalled();
+    expect(tx.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects creators trying to participate in their own battle', async () => {
+    const { db, tx } = createFirestoreMock({
+      battle: {
+        ...openFreeBattle,
+        createdBy: 'user-1',
+      },
+    });
+
+    await expect(
+      createFreeBattleEntry(db as never, {
+        battleId: 'battle-1',
+        userId: 'user-1',
+      }),
+    ).rejects.toMatchObject({
+      status: 403,
+      message: 'Criadores nao podem participar da propria batalha',
+    });
+
+    expect(tx.set).not.toHaveBeenCalled();
+    expect(tx.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects invite-only battles in the public free entry path', async () => {
+    const { db, tx } = createFirestoreMock({
+      battle: {
+        ...openFreeBattle,
+        visibility: 'invite_only',
+      },
+    });
+
+    await expect(
+      createFreeBattleEntry(db as never, {
+        battleId: 'battle-1',
+        userId: 'user-1',
+      }),
+    ).rejects.toMatchObject({
+      status: 403,
+      message: 'Esta batalha aceita apenas participantes convidados',
+    });
 
     expect(tx.set).not.toHaveBeenCalled();
     expect(tx.update).not.toHaveBeenCalled();

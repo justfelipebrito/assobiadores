@@ -40,6 +40,15 @@ export async function POST(req: NextRequest) {
     }
 
     const battle = battleDoc.data()!;
+    if (battle.createdBy === userId) {
+      throw new ApiError(403, 'Criadores nao podem participar da propria batalha');
+    }
+    if (battle.visibility === 'invite_only') {
+      return NextResponse.json(
+        { error: 'Esta batalha aceita apenas participantes convidados' },
+        { status: 403 },
+      );
+    }
 
     const existingConfirmedEntry = await db
       .collection('battleEntries')
@@ -109,7 +118,14 @@ export async function POST(req: NextRequest) {
 
     // Get user email
     const userDoc = await db.collection('users').doc(userId).get();
-    const userEmail = userDoc.data()?.email || decodedToken.email || '';
+    const user = userDoc.data() ?? {};
+    const userEmail = user.email || decodedToken.email || '';
+    const userDisplayName =
+      typeof user.displayName === 'string' && user.displayName.trim()
+        ? user.displayName.trim()
+        : typeof user.username === 'string' && user.username.trim()
+          ? user.username.trim()
+          : undefined;
 
     // Create battle entry
     const entryRef = db.collection('battleEntries').doc();
@@ -151,6 +167,7 @@ export async function POST(req: NextRequest) {
       id: entryRef.id,
       battleId,
       userId,
+      ...(userDisplayName ? { userDisplayName } : {}),
       paymentId: paymentRef.id,
       status: 'pending_payment',
       createdAt: FieldValue.serverTimestamp(),

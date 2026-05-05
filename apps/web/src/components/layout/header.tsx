@@ -22,7 +22,7 @@ function getBattleAction(battle: Battle) {
     return { href: `/batalhas/${battle.id}/votar`, label: 'Votar' };
   }
   if (battle.status === 'active') {
-    return { href: `/batalhas/${battle.id}/enviar`, label: 'Enviar' };
+    return { href: `/batalhas/${battle.id}`, label: 'Enviar' };
   }
   if (battle.status === 'registration') {
     return { href: `/batalhas/${battle.id}`, label: 'Participar' };

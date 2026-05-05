@@ -24,6 +24,13 @@ export async function createFreeBattleEntry(
     }
 
     const battle = battleDoc.data()!;
+    if (battle.createdBy === userId) {
+      throw new ApiError(403, 'Criadores nao podem participar da propria batalha');
+    }
+    if (battle.visibility === 'invite_only') {
+      throw new ApiError(403, 'Esta batalha aceita apenas participantes convidados');
+    }
+
     const existingEntries = await transaction.get(
       db
         .collection('battleEntries')
@@ -53,11 +60,21 @@ export async function createFreeBattleEntry(
       throw new ApiError(status, eligibility.message ?? 'Nao foi possivel participar');
     }
 
+    const userDoc = await transaction.get(db.collection('users').doc(userId));
+    const user = userDoc.exists ? userDoc.data() : null;
+    const userDisplayName =
+      typeof user?.displayName === 'string' && user.displayName.trim()
+        ? user.displayName.trim()
+        : typeof user?.username === 'string' && user.username.trim()
+          ? user.username.trim()
+          : undefined;
+
     const entryRef = db.collection('battleEntries').doc();
     transaction.set(entryRef, {
       id: entryRef.id,
       battleId,
       userId,
+      ...(userDisplayName ? { userDisplayName } : {}),
       paymentId: null,
       status: 'confirmed',
       createdAt: FieldValue.serverTimestamp(),

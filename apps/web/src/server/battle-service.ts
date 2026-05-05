@@ -9,12 +9,23 @@ export interface CreateCommunityBattleParams {
 }
 
 export const GROUP_BATTLE_MIN_PARTICIPANTS_FOR_SCORING = 5;
+export const BATTLE_CREATE_FUTURE_BUFFER_MS = 60_000;
 
 export async function createCommunityBattle(
   db: Firestore,
   { userId, userPlan, body }: CreateCommunityBattleParams,
 ) {
-  const parsed = createCommunityBattleSchema.safeParse(body);
+  const normalizedBody =
+    body && typeof body === 'object' && !Array.isArray(body)
+      ? {
+          ...body,
+          registrationEnd:
+            'registrationEnd' in body
+              ? (body as { registrationEnd?: unknown }).registrationEnd
+              : (body as { submissionDeadline?: unknown }).submissionDeadline,
+        }
+      : body;
+  const parsed = createCommunityBattleSchema.safeParse(normalizedBody);
   if (!parsed.success) {
     const first = parsed.error.errors[0];
     throw new ApiError(400, first?.message ?? 'Dados invalidos');
@@ -44,15 +55,14 @@ export async function createCommunityBattle(
   const maxParticipants = input.format === 'duel' ? 2 : input.maxParticipants;
 
   // Validate date ordering
-  const regEnd = new Date(input.registrationEnd);
   const subDeadline = new Date(input.submissionDeadline);
   const voteStart = new Date(input.votingStart);
   const voteEnd = new Date(input.votingEnd);
   const now = new Date();
 
-  if (regEnd <= now) throw new ApiError(400, 'Data de encerramento das inscricoes deve ser futura');
-  if (subDeadline <= regEnd)
-    throw new ApiError(400, 'Prazo de submissao deve ser apos o encerramento das inscricoes');
+  if (subDeadline.getTime() + BATTLE_CREATE_FUTURE_BUFFER_MS <= now.getTime()) {
+    throw new ApiError(400, 'Prazo de envio deve ser futuro');
+  }
   if (voteStart <= subDeadline)
     throw new ApiError(400, 'Inicio da votacao deve ser apos o prazo de submissao');
   if (voteEnd <= voteStart)
@@ -70,16 +80,17 @@ export async function createCommunityBattle(
     entryFee: 0,
     prizePool: 0,
     prizeDistribution: null,
-    votingType: input.votingType,
+    votingType: 'public',
+    visibility: input.visibility,
     maxParticipants,
     currentParticipants: 0,
     registrationStart: FieldValue.serverTimestamp(),
-    registrationEnd: Timestamp.fromDate(regEnd),
+    registrationEnd: Timestamp.fromDate(subDeadline),
     submissionDeadline: Timestamp.fromDate(subDeadline),
     votingStart: Timestamp.fromDate(voteStart),
     votingEnd: Timestamp.fromDate(voteEnd),
     rules: input.rules,
-    judges: [],
+    judges: [userId],
     winners: [],
     createdBy: userId,
     createdAt: FieldValue.serverTimestamp(),

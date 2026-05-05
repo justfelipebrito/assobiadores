@@ -1,0 +1,50 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getAdminFirestore } from '@batalha/firebase/src/admin';
+import { brazilStateSchema, competitionCategorySchema } from '@batalha/types';
+import { ApiError, getErrorResponse } from '../../../../../server/api-errors';
+import { requireDecodedToken } from '../../../../../server/auth';
+import { readJsonObject } from '../../../../../server/request';
+import { advanceQualifierRound } from '../../../../../server/qualifier-advancement-service';
+
+const corsHeaders = {
+  'access-control-allow-origin': '*',
+  'access-control-allow-methods': 'POST,OPTIONS',
+  'access-control-allow-headers': 'content-type,authorization',
+};
+
+export function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: corsHeaders });
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const decodedToken = await requireDecodedToken(req);
+    const body = await readJsonObject(req);
+    const regionResult = brazilStateSchema.safeParse(body.region);
+    if (!regionResult.success) throw new ApiError(400, 'Estado e obrigatorio');
+    const categoryResult = competitionCategorySchema.safeParse(body.category);
+    if (!categoryResult.success) throw new ApiError(400, 'Categoria invalida');
+    const roundNumber =
+      typeof body.roundNumber === 'number' && Number.isFinite(body.roundNumber)
+        ? Math.floor(body.roundNumber)
+        : undefined;
+
+    const result = await advanceQualifierRound(getAdminFirestore(), {
+      adminUserId: decodedToken.uid,
+      region: regionResult.data,
+      category: categoryResult.data,
+      roundNumber,
+    });
+
+    return NextResponse.json(result, { headers: corsHeaders });
+  } catch (error) {
+    if (!(error instanceof ApiError)) {
+      console.error('Qualifier round advancement error:', error);
+    }
+    const response = getErrorResponse(error, 'Erro ao avancar rodada.');
+    return NextResponse.json(
+      { error: response.error },
+      { status: response.status, headers: corsHeaders },
+    );
+  }
+}

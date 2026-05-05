@@ -5,12 +5,8 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 import {
   useCollection,
   orderBy,
-  where,
   getClientFirestore,
-  doc,
   updateDoc,
-  arrayUnion,
-  arrayRemove,
   addDoc,
   collection,
   serverTimestamp,
@@ -30,7 +26,6 @@ import { toast } from 'sonner';
 import {
   COMPETITION_CATEGORY_LABELS,
   type Championship,
-  type Battle,
   type Stage,
   type Match,
 } from '@batalha/types';
@@ -82,92 +77,6 @@ function SelectField({
           </option>
         ))}
       </select>
-    </div>
-  );
-}
-
-function QualifierManager({ championship }: { championship: Championship }) {
-  const [expanded, setExpanded] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  const { data: finishedBattles, loading } = useCollection<Battle>('battles', [
-    where('status', '==', 'finished'),
-    orderBy('updatedAt', 'desc'),
-  ]);
-
-  const linked = new Set(championship.qualifierBattleIds ?? []);
-
-  const toggleQualifier = async (battleId: string) => {
-    setSaving(true);
-    try {
-      const db = getClientFirestore();
-      const champRef = doc(db, 'championships', championship.id);
-      const isLinked = linked.has(battleId);
-      await updateDoc(champRef, {
-        qualifierBattleIds: isLinked ? arrayRemove(battleId) : arrayUnion(battleId),
-      });
-      toast.success(isLinked ? 'Classificatoria removida' : 'Classificatoria vinculada');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erro ao atualizar');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="mt-3">
-      <button
-        onClick={() => setExpanded((v) => !v)}
-        className="text-sm text-brand-400 hover:text-brand-300 transition-colors"
-      >
-        {expanded ? 'Fechar' : `Gerenciar classificatorias (${linked.size} vinculadas)`}
-      </button>
-
-      {expanded && (
-        <div className="mt-4 rounded-2xl border border-white/10 overflow-hidden">
-          <div className="bg-white/[0.03] px-4 py-2 text-xs font-semibold uppercase tracking-wider text-surface-500">
-            Batalhas encerradas — selecione as classificatorias
-          </div>
-          {loading ? (
-            <div className="p-4 space-y-2">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <Skeleton key={i} className="h-10" />
-              ))}
-            </div>
-          ) : finishedBattles.length === 0 ? (
-            <p className="px-4 py-6 text-sm text-surface-500 text-center">
-              Nenhuma batalha encerrada disponivel.
-            </p>
-          ) : (
-            <div className="divide-y divide-white/5">
-              {finishedBattles.map((battle) => {
-                const isLinked = linked.has(battle.id);
-                const endDate = toDate(battle.votingEnd ?? battle.registrationEnd);
-                return (
-                  <div key={battle.id} className="flex items-center justify-between px-4 py-3">
-                    <div className="flex-1 min-w-0">
-                      <p className="truncate text-sm font-medium text-white">{battle.title}</p>
-                      <p className="text-xs text-surface-500 capitalize">
-                        {battle.category}
-                        {endDate && ` · ${formatDate(endDate)}`}
-                        {` · ${battle.currentParticipants} participantes`}
-                      </p>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant={isLinked ? 'danger' : 'secondary'}
-                      loading={saving}
-                      onClick={() => toggleQualifier(battle.id)}
-                    >
-                      {isLinked ? 'Remover' : 'Vincular'}
-                    </Button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
@@ -608,7 +517,7 @@ export default function AdminChampionshipsPage() {
       <div>
         <h1 className="text-2xl font-bold text-white">Campeonatos</h1>
         <p className="mt-1 text-surface-400">
-          Gerencie campeonatos oficiais e vincule classificatorias
+          Gerencie campeonatos oficiais, fases e partidas.
         </p>
       </div>
 
@@ -656,16 +565,12 @@ export default function AdminChampionshipsPage() {
                       <p className="mt-1 text-sm text-surface-500">
                         {champ.currentParticipants}
                         {champ.maxParticipants > 0 && `/${champ.maxParticipants}`} participantes
-                        {` · ${champ.qualifierBattleIds?.length ?? 0} classificatoria(s)`}
                       </p>
                     </div>
                   </div>
 
                   {champ.status !== 'finished' && (
-                    <>
-                      <QualifierManager championship={champ} />
-                      <StageManager championship={champ} />
-                    </>
+                    <StageManager championship={champ} />
                   )}
                 </CardContent>
               </Card>

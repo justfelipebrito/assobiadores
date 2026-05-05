@@ -113,6 +113,11 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /submissionReports/{reportId} {
+      allow read: if isAdmin() || isOwner(resource.data.reporterId);
+      allow create, update, delete: if false;
+    }
+
     // Payments - never client-writable
     match /payments/{paymentId} {
       allow read: if isOwner(resource.data.userId) || isAdmin();
@@ -157,6 +162,16 @@ service cloud.firestore {
 
     match /qualifierMatches/{matchId} {
       allow read: if true;
+      allow create, update, delete: if false;
+    }
+
+    match /qualifierSubmissions/{submissionId} {
+      allow read: if true;
+      allow create, update, delete: if false;
+    }
+
+    match /qualifierVotes/{voteId} {
+      allow read: if isOwner(resource.data.voterId) || isAdmin();
       allow create, update, delete: if false;
     }
 

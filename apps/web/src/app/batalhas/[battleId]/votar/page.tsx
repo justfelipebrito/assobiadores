@@ -2,12 +2,12 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, CheckCircle2, Vote } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Flag, Vote } from 'lucide-react';
 import { useAuth, useCollection, useDocument, where, orderBy } from '@batalha/firebase';
 import { Button, Card, CardContent, EmptyState, Skeleton } from '@batalha/ui';
 import { toast } from 'sonner';
 import type { Battle, Submission } from '@batalha/types';
-import { VideoPreview } from '../../../../components/video/video-preview';
+import { MediaPreview } from '../../../../components/media/media-preview';
 
 export default function VotePage({ params }: { params: { battleId: string } }) {
   const { user, loading: authLoading } = useAuth();
@@ -21,6 +21,7 @@ export default function VotePage({ params }: { params: { battleId: string } }) {
     ],
   );
   const [votingId, setVotingId] = useState<string | null>(null);
+  const [reportingId, setReportingId] = useState<string | null>(null);
   const [voted, setVoted] = useState(false);
 
   const loading = authLoading || battleLoading || submissionsLoading;
@@ -52,6 +53,40 @@ export default function VotePage({ params }: { params: { battleId: string } }) {
       toast.error(error instanceof Error ? error.message : 'Erro ao votar');
     } finally {
       setVotingId(null);
+    }
+  };
+
+  const handleReport = async (submissionId: string) => {
+    if (!user) {
+      toast.error('Faca login para denunciar.');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      'Denunciar este envio para a moderacao? Use isso apenas para conteudos fora das regras da plataforma.',
+    );
+    if (!confirmed) return;
+
+    setReportingId(submissionId);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/submissions/${submissionId}/report`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ reason: 'platform_rules' }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Erro ao denunciar envio');
+      }
+      toast.success('Denuncia enviada para a moderacao.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao denunciar envio');
+    } finally {
+      setReportingId(null);
     }
   };
 
@@ -111,7 +146,7 @@ export default function VotePage({ params }: { params: { battleId: string } }) {
           <div className="md:col-span-2">
             <EmptyState
               title="Nenhuma submissao aprovada"
-              description="A votacao aparecera quando houver videos aprovados."
+              description="A votacao aparecera quando houver assobios enviados."
             />
           </div>
         ) : (
@@ -121,7 +156,15 @@ export default function VotePage({ params }: { params: { battleId: string } }) {
             return (
               <Card key={submission.id}>
                 <CardContent className="space-y-4">
-                  <VideoPreview url={submission.videoURL} />
+                  <MediaPreview
+                    mediaType={submission.mediaType}
+                    mediaURL={submission.mediaURL}
+                    videoURL={submission.videoURL}
+                    username={submission.userDisplayName ?? submission.userId}
+                    category={submission.category}
+                    durationSeconds={submission.mediaDurationSeconds}
+                    voteCount={submission.voteCount}
+                  />
                   <div>
                     <h2 className="font-semibold text-white">{submission.title}</h2>
                     {submission.description && (
@@ -133,15 +176,31 @@ export default function VotePage({ params }: { params: { battleId: string } }) {
                       Este e o seu envio. Voce nao pode votar nele.
                     </div>
                   ) : (
-                    <Button
-                      className="w-full"
-                      onClick={() => handleVote(submission.id)}
-                      loading={votingId === submission.id}
-                      disabled={voted}
-                    >
-                      <Vote className="mr-2 h-4 w-4" />
-                      Votar neste video
-                    </Button>
+                    <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+                      <Button
+                        className="w-full"
+                        onClick={() => handleVote(submission.id)}
+                        loading={votingId === submission.id}
+                        disabled={voted}
+                      >
+                        <Vote className="mr-2 h-4 w-4" />
+                        Votar
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="icon"
+                        aria-label="Denunciar envio"
+                        title="Denunciar envio"
+                        onClick={() => handleReport(submission.id)}
+                        disabled={reportingId === submission.id}
+                      >
+                        {reportingId === submission.id ? (
+                          <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                        ) : (
+                          <Flag className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
                   )}
                 </CardContent>
               </Card>

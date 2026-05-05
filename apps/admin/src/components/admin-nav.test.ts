@@ -11,5 +11,9 @@ describe('admin navigation', () => {
     expect(isAdminNavItemActive('/batalhas', '/batalhas')).toBe(true);
     expect(isAdminNavItemActive('/batalhas/battle-1', '/batalhas')).toBe(true);
     expect(isAdminNavItemActive('/campeonatos', '/batalhas')).toBe(false);
+    expect(isAdminNavItemActive('/classificatorias/sp-freestyle-2026', '/classificatorias')).toBe(
+      true,
+    );
+    expect(isAdminNavItemActive('/campeonatos', '/classificatorias')).toBe(false);
   });
 });

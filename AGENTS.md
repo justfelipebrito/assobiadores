@@ -43,6 +43,11 @@ Assobiadores.com is intended to become the official ranking and competition plat
 - Public users on assobiadores.com must also be able to create their own community battles.
 - User-created battles can be `1v1` or group battles.
 - Group battles created by users are limited to 50 entries unless the creator has a subscription/plan that raises the limit.
+- Battle detail pages should be the primary interaction surface: participants and submitted audio are visible on the battle page, public users can join/pay from that page when the battle is open, and voting should happen inline without forcing a separate entries page.
+- Public/open battles can show a `Participar` action. Invite-only/private battles should show participants and playable audio but should not show a public join action.
+- Paid battle entries use Pix confirmation like qualifiers. On approval, the platform keeps 20% and the remaining 80% is added to the flexible battle prize pool: 50% first place, 30% second place, 20% third place.
+- Battle voting is `70%` community vote and `30%` creator judge vote. Confirmed participants cannot vote in their own battle. Enforce these rules in trusted vote/finalization APIs; UI visibility is only guidance.
+- `1v1` battles are exactly two participants, always use open community voting, and tied `1v1` results award no season/category points.
 - Users must be able to invite competitors by searching and adding exact usernames in an "add to battle" flow.
 - Usernames are mandatory and must be unique. Use trusted server checks/reservations before saving username changes.
 - Public profile fields live in `users/{uid}`. Sensitive identity/contact/payout fields such as CPF, phone, Chave Pix, and address live in private `userPrivate/{uid}` documents and must not be exposed through public reads.
@@ -68,6 +73,7 @@ Assobiadores.com is intended to become the official ranking and competition plat
 - Regional competitions should support flexible brackets per state/category: minimum 16, preferred/full 64, accepted sizes 16/32/64. Regional-to-National qualification is top 10 for 64, top 6 for 32, and top 4 for 16.
 - Competitions need exactly three category tracks: Freestyle, Melodia, and Pássaros. Rankings and championship shells should be scoped by category.
 - `Destaques Diários` is a separate daily highlights feature, not a Battle/Championship reuse. Submitting a daily highlight and finishing in the daily top 3 award low-weight season/category points through trusted server code.
+- Battles and `Destaques Diários` must use on-platform recorded audio only: maximum 2 minutes, uploaded through trusted APIs to Firebase Storage, with media metadata stored on the entity. Do not add YouTube/external URL submission paths for these product flows.
 - Official battles/championships need richer schedule and bracket modeling than a simple battle:
   - event dates and times surfaced in headers and detail pages;
   - competitor information in the header/details;

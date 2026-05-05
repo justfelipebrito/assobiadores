@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { DAILY_HIGHLIGHT_MAX_AUDIO_BYTES } from '@batalha/types';
-import { uploadDailyHighlightAudio } from './daily-highlight-audio-service';
+import {
+  uploadDailyHighlightAudio,
+  uploadQualifierSubmissionAudio,
+} from './daily-highlight-audio-service';
 
 function createBucket() {
   const file = {
@@ -65,5 +68,31 @@ describe('daily highlight audio upload service', () => {
         category: 'freestyle',
       }),
     ).rejects.toMatchObject({ status: 400 });
+  });
+
+  it('stores qualifier match audio under the match path', async () => {
+    const { bucket, file } = createBucket();
+
+    const result = await uploadQualifierSubmissionAudio({
+      bucket,
+      userId: 'user-1',
+      matchId: 'match-1',
+      buffer: Buffer.from('audio'),
+      contentType: 'audio/webm',
+    });
+
+    expect(bucket.file).toHaveBeenCalledWith(
+      expect.stringMatching(/^qualifier-submissions\/match-1\/user-1-/),
+    );
+    expect(file.save).toHaveBeenCalledWith(
+      Buffer.from('audio'),
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          contentType: 'audio/webm',
+          cacheControl: 'public, max-age=31536000, immutable',
+        }),
+      }),
+    );
+    expect(result.audioPath).toMatch(/^qualifier-submissions\/match-1\/user-1-/);
   });
 });

@@ -11,9 +11,17 @@ import {
   useAuth,
   useCollection,
 } from '@batalha/firebase';
-import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getClientFirestore } from '@batalha/firebase';
-import { Badge, Button, Card, CardContent, EmptyState, Input, Skeleton, Textarea } from '@batalha/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  EmptyState,
+  Input,
+  Skeleton,
+  Textarea,
+} from '@batalha/ui';
 import { formatCurrency, formatRelativeTime, toDate } from '@batalha/utils';
 import { toast } from 'sonner';
 import type { Battle } from '@batalha/types';
@@ -22,7 +30,6 @@ import {
   ADMIN_BATTLE_FORMAT_OPTIONS,
   ADMIN_BATTLE_STATUS_OPTIONS,
   ADMIN_BATTLE_TYPE_OPTIONS,
-  ADMIN_BATTLE_VOTING_OPTIONS,
   battleToAdminFormValues,
   createDefaultAdminBattleFormValues,
   type AdminBattleFormValues,
@@ -106,15 +113,23 @@ function BattleForm({ battle, onCancel, onSaved }: BattleFormProps) {
       if (battle) {
         await updateDoc(doc(db, 'battles', battle.id), {
           ...result.payload,
-          currentParticipants: Math.min(battle.currentParticipants ?? 0, result.payload.maxParticipants),
+          currentParticipants: Math.min(
+            battle.currentParticipants ?? 0,
+            result.payload.maxParticipants,
+          ),
           updatedAt: now,
         });
         toast.success('Batalha atualizada.');
       } else {
         const battleRef = await addDoc(collection(db, 'battles'), {
           ...result.payload,
+          prizePool: result.payload.prizePool ?? 0,
+          prizeDistribution:
+            result.payload.entryFee > 0 ? { first: 0, second: 0, third: 0 } : null,
           currentParticipants: 0,
           winners: [],
+          votingType: 'public',
+          judges: user?.uid ? [user.uid] : [],
           createdBy: user?.uid ?? 'admin',
           createdAt: now,
           updatedAt: now,
@@ -182,12 +197,6 @@ function BattleForm({ battle, onCancel, onSaved }: BattleFormProps) {
               onChange={(value) => setValue('status', value)}
               options={ADMIN_BATTLE_STATUS_OPTIONS}
             />
-            <SelectField
-              label="Votacao"
-              value={values.votingType}
-              onChange={(value) => setValue('votingType', value)}
-              options={ADMIN_BATTLE_VOTING_OPTIONS}
-            />
             <Input
               label="Maximo de participantes"
               type="number"
@@ -208,8 +217,19 @@ function BattleForm({ battle, onCancel, onSaved }: BattleFormProps) {
               type="number"
               min={0}
               value={values.prizePool}
+              disabled={Number(values.entryFee) > 0}
               onChange={(event) => setValue('prizePool', event.target.value)}
+              helperText={
+                Number(values.entryFee) > 0
+                  ? 'Premio de batalha paga e calculado pelos pagamentos confirmados.'
+                  : 'Use apenas para batalhas gratuitas com premio manual.'
+              }
             />
+          </div>
+
+          <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-surface-300">
+            Votacao: comunidade vale 70%; criador vale 30%. Participantes nao votam na propria
+            batalha.
           </div>
 
           <Textarea
@@ -278,48 +298,19 @@ function BattleForm({ battle, onCancel, onSaved }: BattleFormProps) {
   );
 }
 
-function FinalizeBattleButton({ battle }: { battle: Battle }) {
-  const [loading, setLoading] = useState(false);
-
-  const handleFinalize = async () => {
-    if (!confirm(`Finalizar "${battle.title}"? Esta acao nao pode ser desfeita.`)) return;
-
-    setLoading(true);
-    try {
-      const db = getClientFirestore();
-      const functions = getFunctions(db.app, 'southamerica-east1');
-      const finalizeBattle = httpsCallable(functions, 'finalizeBattle');
-      const result = await finalizeBattle({ battleId: battle.id });
-      const data = result.data as { success: boolean; winners: Array<{ userId: string; place: number }> };
-      toast.success(`Batalha finalizada! ${data.winners.length} vencedor(es) definido(s).`);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Erro ao finalizar batalha';
-      toast.error(message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <Button size="sm" onClick={handleFinalize} loading={loading}>
-      Finalizar
-    </Button>
-  );
-}
-
 export default function AdminBattlesPage() {
   const [editingBattle, setEditingBattle] = useState<Battle | null>(null);
   const [formVisible, setFormVisible] = useState(false);
-  const { data: battles, loading } = useCollection<Battle>('battles', [orderBy('createdAt', 'desc')]);
-
-  const votingBattles = battles.filter((battle) => battle.status === 'voting');
+  const { data: battles, loading } = useCollection<Battle>('battles', [
+    orderBy('createdAt', 'desc'),
+  ]);
 
   const openCreateForm = () => {
     setEditingBattle(null);
     setFormVisible(true);
   };
 
-  const openEditForm = (battle: Battle) => {
+  const openBattle = (battle: Battle) => {
     setEditingBattle(battle);
     setFormVisible(true);
   };
@@ -334,7 +325,9 @@ export default function AdminBattlesPage() {
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white">Batalhas</h1>
-          <p className="mt-1 text-surface-400">Gerencie e finalize batalhas</p>
+          <p className="mt-1 text-surface-400">
+            Acompanhe batalhas criadas na plataforma. Finalizacao fica com o criador.
+          </p>
         </div>
         <Button onClick={openCreateForm}>Nova batalha</Button>
       </div>
@@ -346,36 +339,6 @@ export default function AdminBattlesPage() {
           onCancel={closeForm}
           onSaved={closeForm}
         />
-      )}
-
-      {!loading && votingBattles.length > 0 && (
-        <div className="mt-8">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-yellow-400">
-            Aguardando finalizacao ({votingBattles.length})
-          </h2>
-          <div className="space-y-3">
-            {votingBattles.map((battle) => (
-              <Card key={battle.id}>
-                <CardContent>
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <Badge variant="purple">Em votacao</Badge>
-                        {battle.type === 'official' && <Badge variant="gold">Oficial</Badge>}
-                      </div>
-                      <p className="mt-2 truncate font-semibold text-white">{battle.title}</p>
-                      <p className="mt-1 text-sm text-surface-400">
-                        {battle.currentParticipants} participantes
-                        {battle.prizePool > 0 && ` · Premio: ${formatCurrency(battle.prizePool)}`}
-                      </p>
-                    </div>
-                    <FinalizeBattleButton battle={battle} />
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
       )}
 
       <div className="mt-8">
@@ -390,7 +353,10 @@ export default function AdminBattlesPage() {
             ))}
           </div>
         ) : battles.length === 0 ? (
-          <EmptyState title="Nenhuma batalha ainda" description="As batalhas criadas aparecerao aqui." />
+          <EmptyState
+            title="Nenhuma batalha ainda"
+            description="As batalhas criadas aparecerao aqui."
+          />
         ) : (
           <div className="overflow-hidden rounded-2xl border border-white/10">
             <table className="w-full text-sm">
@@ -419,11 +385,24 @@ export default function AdminBattlesPage() {
                   const regEnd = toDate(battle.registrationEnd);
 
                   return (
-                    <tr key={battle.id} className="transition-colors hover:bg-white/[0.02]">
+                    <tr
+                      key={battle.id}
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => openBattle(battle)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          openBattle(battle);
+                        }
+                      }}
+                      className="cursor-pointer transition-colors hover:bg-white/[0.04] focus:bg-white/[0.04] focus:outline-none"
+                    >
                       <td className="px-4 py-3">
                         <p className="font-medium text-white">{battle.title}</p>
                         <p className="text-xs capitalize text-surface-500">
-                          {battle.category} · {battle.type === 'official' ? 'oficial' : 'comunidade'}
+                          {battle.category} ·{' '}
+                          {battle.type === 'official' ? 'oficial' : 'comunidade'}
                         </p>
                       </td>
                       <td className="px-4 py-3">
@@ -431,7 +410,9 @@ export default function AdminBattlesPage() {
                           {status.label}
                         </Badge>
                         {regEnd && battle.status === 'registration' && (
-                          <p className="mt-1 text-xs text-surface-500">{formatRelativeTime(regEnd)}</p>
+                          <p className="mt-1 text-xs text-surface-500">
+                            {formatRelativeTime(regEnd)}
+                          </p>
                         )}
                       </td>
                       <td className="px-4 py-3 text-right text-surface-300">
@@ -442,18 +423,24 @@ export default function AdminBattlesPage() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         {battle.entryFee > 0 ? (
-                          <span className="font-medium text-brand-400">{formatCurrency(battle.entryFee)}</span>
+                          <span className="font-medium text-brand-400">
+                            {formatCurrency(battle.entryFee)}
+                          </span>
                         ) : (
                           <span className="text-surface-500">Gratis</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button size="sm" variant="secondary" onClick={() => openEditForm(battle)}>
-                            Editar
-                          </Button>
-                          {battle.status === 'voting' && <FinalizeBattleButton battle={battle} />}
-                        </div>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openBattle(battle);
+                          }}
+                        >
+                          Abrir
+                        </Button>
                       </td>
                     </tr>
                   );

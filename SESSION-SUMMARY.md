@@ -45,6 +45,7 @@
 - `/entrar` — Login with Google + Apple + Email/Password
 - `/cadastro` — Register with Google + Apple + Email/Password
 - User profile bootstrap now runs through trusted web API route `/api/auth/bootstrap` after verified sign-in/sign-up. It creates/backfills `users/{uid}`, `usernames/{username}`, and `userPrivate/{uid}` without relying on the legacy `v1` Auth trigger.
+- Shared web API auth now maps revoked, expired, or malformed Firebase ID tokens to a controlled `401` (`Sessao expirada. Entre novamente.`) instead of leaking as generic route-level `500`s. This specifically protects local QA after emulator reseeds/restarts, where the browser can keep a stale Auth token.
 
 **Profile pages:**
 
@@ -70,14 +71,14 @@
 **Done:**
 
 - `/batalhas` — Battle listing with **status/category/type filters** (chip-based UI, client-side filtering, clear button, result count)
-- `/batalhas/[battleId]` — Battle detail with gradient header, timeline, rules, contextual CTAs (register/vote/submit based on status); InvitePanel shown to battle creator during registration
+- `/batalhas/[battleId]` — Battle detail with gradient header, timeline, rules, participant list, submitted audio playback, inline participation/payment, inline voting, and InvitePanel for the creator during registration
 - `/batalhas/[battleId]/participar` — Battle entry flow for free battles using trusted API route instead of direct client Firestore writes
 - `/api/battle-entries/free` — Server-owned free battle entry creation with Firebase ID token verification, transaction-based duplicate/capacity checks, confirmed entry creation, and participant increment
 - Battle status auto-transitions — Cloud Function already in place
 - **Community battle creation:**
-  - `packages/types/src/battle.ts` — `battleFormatSchema` ('duel'|'group'), `createCommunityBattleSchema`, `battleInviteSchema`, `FREE_TIER_GROUP_CAP = 50`
-  - `apps/web/src/server/battle-service.ts` — `createCommunityBattle()`: validates format/dates, enforces free-tier group cap (403 for non-pro users exceeding 50), requires group battles to allow at least 5 participants for scoring integrity, writes battle with `type:'community'`, `status:'registration'`, `entryFee:0`
-  - `apps/web/src/server/battle-service.test.ts` — 11 tests: group/duel creation, duel forced to 2 participants, group minimum participant enforcement, free-tier cap enforcement (403), pro user bypass, field validation, date ordering
+  - `packages/types/src/battle.ts` — `battleFormatSchema` ('duel'|'group'), `battleVisibilitySchema` ('public'|'invite_only'), voting scopes (`public`|'participants'|'judges' plus legacy aliases), `createCommunityBattleSchema`, `battleInviteSchema`, `FREE_TIER_GROUP_CAP = 50`
+  - `apps/web/src/server/battle-service.ts` — `createCommunityBattle()`: validates format/dates, enforces free-tier group cap (403 for non-pro users exceeding 50), requires group battles to allow at least 5 participants for scoring integrity, forces duels to 2 participants/public voting, writes battle with `type:'community'`, `status:'registration'`, `entryFee:0`
+  - `apps/web/src/server/battle-service.test.ts` — 11 tests: group/duel creation, duel forced to 2 participants/public voting, creator as judge seed, group minimum participant enforcement, free-tier cap enforcement (403), pro user bypass, field validation, date ordering
   - `apps/web/src/app/api/battles/create` — POST route with auth token, user plan fetch, delegates to service
   - `/criar-batalha` — Full form page: format selector (group/duel), title/description, category chips, participant slider (2-50), 4 datetime fields, rules editor (add/remove, max 10); auth guard; on success redirects to battle detail
   - Header — "Criar batalha" button added for logged-in users (desktop)
@@ -170,7 +171,7 @@
 - Championship cards/details hide the `0/64 competidores` block while there are no real participants; date information takes that visual space until classified participants exist.
 - Unified 2026 season scoring direction is documented in `docs/COMPETITION-MODEL.md`: daily submission 1, daily top 3 = 15/10/5, 1v1 battle win 10, group battle win 20, qualifier entry 50, qualifier phase advance 200, qualify for Regional 500, Regional phase advance 1,000, Regional podium 10,000/6,000/4,000, qualify for National 3,000, National phase advance 5,000, and National podium 40,000/25,000/15,000.
 - Unified scoring tests are now in place for the shared point table, daily highlight submission ledger writes, community/official battle win ledger writes, and Regional/National championship podium writes.
-- Remaining implementation gap: qualifier entry/advancement scoring, Regional/National phase-advance scoring, and daily top-3 placement scoring still need concrete server flows/jobs before they can be integration-tested beyond the pure scoring contract.
+- Remaining implementation gap: qualifier entry payment scoring, Regional/National phase-advance scoring, and daily top-3 placement scoring still need concrete server flows/jobs before they can be integration-tested beyond the pure scoring contract. Qualifier phase-advance and qualifier-to-Regional points now have trusted server flows.
 - Official battles/championships require richer event/bracket modeling:
   - event dates and times surfaced in headers and details;
   - competitors surfaced in headers and details;
@@ -193,7 +194,7 @@
 - Orders API payment-ID webhook matching — done
 - Qualifier registration fee payment UX/API — done: `/classificatorias` now lets logged-in users choose category only, derives the Regional from immutable `users/{uid}.birthState` (`Naturalidade`) server-side, opens the R$ 4,00 Pix in a modal, blocks duplicate Pix generation after the category registration is confirmed, and confirms `qualifierRegistrations` through the shared payment status/webhook path
 - `/classificatorias` now also shows a post-registration `Suas Classificatórias` status section for confirmed registrations, with registered category/state, qualifier battle window (`01/06/2026 - 12/07/2026`), submission deadline (`14:59 BRT`), and voting window (`15:00 - 21:59 BRT`).
-- Qualifier UX/data layer — in progress: `qualifierTracks` is modeled as public read/server-owned discovery data with shareable slugs like `sp-freestyle-2026`, open registration counts, and the number of Regional qualification slots; `qualifierRegistrations` carry bracket journey fields; `qualifierMatches` is modeled as public read/server-owned official fixture data; `/classificatorias/{state-category-year}` shows the public qualifier track; and `/classificatorias/{registrationId}` shows the participant's private category/state journey, deadlines, current status, and generated matches.
+- Qualifier UX/data layer — in progress: `qualifierTracks` is modeled as public read/server-owned discovery data with shareable slugs like `sp-freestyle-2026`, open registration counts, and the number of Regional qualification slots; `qualifierRegistrations` carry bracket journey fields; `qualifierMatches` is modeled as public read/server-owned official fixture data; `/classificatorias/{state-category-year}` shows the public qualifier track; and `/classificatorias/{registrationId}` shows the participant's private category/state journey, deadlines, current status, generated matches, and submission action.
 - Homepage now has a left-column `Classificatórias` discovery section before Campeonatos so the Rankings rail remains visible: logged-in users see all three category tracks for their `Naturalidade`, logged-out users see SP/RJ defaults, cards avoid registration counts/slot counts, and every card links to the public shareable track while `Ver todas` opens `/classificatorias`.
 - Public qualifier track pages no longer show price, no longer treat `64` as a counter/stat card, and no longer show a `Ver todas` CTA in `Como funciona`. The Regional qualification count now appears as explanatory rules copy, and confirmed participants render after `Como funciona` from the server-owned public `qualifierParticipants` projection ordered by confirmation date, first to last, without `#1/#2` list markers but still showing each user's category rank and points.
 - Qualifier payment confirmation now writes `qualifierParticipants/{registrationId}` alongside `qualifierRegistrations`/`qualifierTracks`, avoiding public reads of private payment registration docs while still enabling participant lists on public track pages.
@@ -210,17 +211,18 @@
 
 ### Phase 5: Submissions + Voting
 
-- `/batalhas/[battleId]/enviar` — done: video URL submission form with embed preview
+- `/batalhas/[battleId]/enviar` — done: on-platform audio recording/submission up to 2 minutes, stored with audio media metadata
 - `/api/submissions/create` — done: trusted server route for submission creation
 - Submission service tests — done: active battle, confirmed entry, duplicate submission, URL/title validation
-- `/api/submissions/[submissionId]/moderate` — backend route done for admin approve/reject
-- Admin moderation UI — done: pending submissions queue, approve/reject actions, recently reviewed list
+- `/api/submissions/[submissionId]/moderate` — done: admin-only removal route for reported or rule-breaking submissions; approve/reject is no longer part of battle submission flow
+- `/api/submissions/[submissionId]/report` — done: logged-user route for community reports into server-owned `submissionReports`
+- Admin moderation UI — done: open reports + active submission review/removal, with no raw video URL display and no approval queue
 - `/batalhas/[battleId]/votar` — done: voting interface with embedded videos
 - `/api/votes/create` — done: trusted server route for voting; writes vote and increments `voteCount` transactionally
 - Vote service tests — done: voting phase, approved submission, duplicate vote, self-vote prevention
 - `/batalhas/[battleId]/resultado` — done: ranked approved submissions by vote count
-- Route-level tests — done for submission create, submission moderation, and vote create API wrappers
-- Emulator manual QA fixtures/checklist — done: seed data now covers active submission, pending moderation, approved/rejected reviewed submissions, voting, and results flows
+- Route-level tests — done for submission create, submission report/removal moderation, and vote create API wrappers
+- Emulator manual QA fixtures/checklist — done: seed data now covers active submissions, open reports, removed submissions, voting, and results flows
 - Remaining: human browser pass through `docs/MANUAL-QA.md`
 
 ### Architecture Decision: Battle vs Championship Split
@@ -422,12 +424,12 @@ Latest hardening/refactor:
   - `/destaques` daily entry list with modal-confirmed likes;
   - Firestore rules block client writes to `dailyHighlights` and `dailyHighlightLikes`;
   - user `casualPoints` server-owned field was added for the earlier daily-highlight model; rename or migrate this concept into the unified season/category points ledger.
-- Daily highlight voting now allows only one vote per user per `dayKey` from 00:00 to 23:59. Vote docs use deterministic IDs (`{dayKey}_{userId}`), so voting a second video on the same day is blocked transactionally.
-- Daily highlight day entries are created lazily from user submissions using `dayKey`; no daily scheduler is required just to open a new day. A scheduled cleanup/archival function may be added later for moderation or retention.
+- Daily highlight voting now allows only one vote per user per Brazil `dayKey` (`America/Sao_Paulo`) until 22:00 BRT. Vote docs use deterministic IDs (`{dayKey}_{userId}`), so voting a second entry on the same day is blocked transactionally.
+- Daily highlight day entries are created lazily from user submissions using `dayKey`; the daily closing scheduler now finalizes that day's active entries at 22:05 BRT, marks placements, and awards top-3 points.
 - Added on-platform audio recording for `Destaques Diários`: users record up to 2 minutes in-browser, choose Freestyle/Melodia/Pássaros, upload compressed audio through a trusted API to Firebase Storage, and the new audio media is rendered with a same-footprint audio player showing play/pause, waveform bars, progress/duration, category, and username.
 - Improved daily highlight recording UX with live recording feedback: timer, progress bar, and animated waveform-style bars before stopping the recording.
 - Updated daily highlight local seed data to use today's audio entries with dedicated seed user IDs, keeping homepage and `/destaques` populated without consuming the seeded login users' one-submission-per-day slot.
-- Daily highlights now support media metadata (`mediaType`, `mediaURL`, Storage path/content type/size/duration) while keeping legacy `videoURL` compatibility for seeded/existing YouTube entries.
+- Daily highlights now support media metadata (`mediaType`, `mediaURL`, Storage path/content type/size/duration) and the product flow is audio-only; legacy external video URL submission has been disabled.
 - Updated homepage `Destaques Diários` to read `dailyHighlights` instead of battle submissions.
 - Updated homepage ranking copy/data to use active-season points when an active season exists and show the season label in the right rail.
 - Added homepage `Campeonatos` section before standalone `Batalhas`, with seeded local National/SP championship fixtures.
@@ -546,6 +548,134 @@ Latest hardening/refactor:
   - header/mobile header now show the official logo with `assobiador.com`;
   - footer keeps the shorter `Assobiador` brand label;
   - former `Batalha(s) de Assobio` branding copy was rebranded to `A casa do assobiador`.
+- Admin login now supports email/password in addition to Google. In emulator mode the form pre-fills the seeded admin credentials `admin@example.test / password123`; production leaves the fields blank. The login page redirects immediately to `/` after successful email or Google sign-in instead of requiring a manual reload.
+- Admin QA cleanup pass:
+  - `Usuarios` now reads real `users` documents instead of showing a placeholder empty state;
+  - `Pagamentos` now reads real `payments` documents, including qualifier registration payments;
+  - admin battle finalization no longer calls deployed callable functions directly from `localhost:3001`; it uses the web admin API `POST /api/admin/battles/finalize`, avoiding the local CORS failure;
+  - Classificatórias now have their own admin page at `/classificatorias` with track stats and generate/advance-round operations. The admin `Campeonatos` page no longer shows qualifier controls and no longer links finished `Battle` docs as championship classifiers;
+  - emulator seed now clears/reseeds `payments` with aligned qualifier payment examples.
+- Admin moderation was realigned with current product rules:
+  - battle submissions no longer require approve/reject moderation; new battle submissions are immediately active for voting (`approved`) and moderation only removes content that violates platform rules;
+  - battle submissions now use the same audio-only media rule as `Destaques Diários`: recorded in-browser, max 2 minutes, uploaded to Firebase Storage through trusted APIs, no YouTube/external URL submission path;
+  - added `submissionReports` for community reports, with server-owned writes through `POST /api/submissions/{submissionId}/report`;
+  - admin moderation now shows open reports plus all active submissions, uses a single `Remover` action through `POST /api/submissions/{submissionId}/moderate`, and no longer displays raw video URLs in the UI;
+  - public battle voting cards now include a report action for logged users;
+  - Firestore rules protect `submissionReports` so only admins and the reporting user can read reports, with all writes server-owned;
+  - emulator seed now includes active, reported, and removed submission fixtures instead of the old approval queue fixtures.
+- Added qualifier bracket planning foundation:
+  - `qualifierTracks`/`qualifierMatches` now support daily match scheduling metadata (`dailyMatchLimit`, planned match/day counts, current round, match day index, sequence in day);
+  - bracket planner calculates byes, round sizes, total match days, and BRT submission/voting windows with daily caps of 5/12/24 matches for small/medium/large qualifier tracks;
+  - trusted admin API `/api/admin/qualifiers/generate` now generates first-round qualifier matches from confirmed registrations, assigns byes, immediately qualifies tracks with 64 or fewer confirmed participants, and rejects duplicate generation;
+  - admin `/classificatorias` includes `Gerar chave` and `Avançar rodada` controls for state/category qualifier bracket operation;
+  - public qualifier track pages now include a first pass of the bracket view with round chevrons and vertical match cards;
+  - emulator seed now includes sample SP Freestyle qualifier matches for browser QA;
+  - `docs/COMPETITION-MODEL.md` documents byes, participant voting restriction, judge tiebreaker, and daily match caps.
+- Added qualifier match submission foundation:
+  - `qualifierSubmissions` is now modeled as public-readable/server-owned official audio media for qualifier matches;
+  - `POST /api/qualifiers/matches/{matchId}/submit` verifies auth, participant ownership, confirmed registration, match `submissions_open` status, submission deadline, duplicate submission state, and 2-minute audio limits before writing the submission and attaching it to `qualifierMatches.submissionIds`;
+  - `/classificatorias/{registrationId}` now shows an `Enviar assobio` action for the logged participant when their match submission window is open and switches to `Envio recebido` after submission;
+  - emulator seed now creates confirmed qualifier registrations and keeps sample SP Freestyle matches open for browser QA;
+  - tests added for qualifier submission service/API cleanup and Firestore rules for `qualifierSubmissions`.
+- Added qualifier voting/finalization foundation:
+  - `qualifierVotes` is now private-to-voter/server-owned and blocked from direct client writes;
+  - `POST /api/qualifiers/matches/{matchId}/vote` enforces logged-in voting, match `voting` status, voting window, one vote per user per match, valid submitted audio, and participant exclusion from qualifier voting;
+  - public qualifier track pages show submitted audio and vote controls inline on each participant row for `voting` matches, keep the match result summary centered in the end column, and show participants a no-vote notice;
+  - `POST /api/admin/qualifiers/finalize-match` finalizes trusted qualifier matches, handles W.O. when one or both participants miss submission, writes winner/disqualification state, updates registration bracket status, and awards 200 phase-advance points to the winner;
+  - emulator seed now includes a sample SP Freestyle voting match with audio submissions for browser QA.
+- Added qualifier round advancement:
+  - trusted admin API `POST /api/admin/qualifiers/advance-round` advances the current completed state/category round after every match is `finished` or `walkover`;
+  - if more than 64 entrants remain, it creates the next round, carries byes forward, and updates registration `currentMatchId`/`matchIds`;
+  - when 64 or fewer entrants remain, it marks them `qualified`, finishes the track, and awards 500 qualifier-to-Regional points;
+  - admin `/campeonatos` now has `Avançar rodada` beside `Gerar chave`.
+- Expanded emulator QA seed:
+  - added 12 extra QA users (`qa1@example.test` through `qa12@example.test`, all with `password123`) with different states and season/category points;
+  - seeded richer standalone battle fixtures: free open, paid open, active submission, voting with 8 participants/submissions, community group open, and finished results;
+  - seeded battle entries, audio submissions, votes, removed submission, and open/reviewed moderation reports using audio-only media metadata;
+  - seeded 10 `Destaques Diários` entries for the current UTC day with likes/vote counts so homepage and `/destaques` have enough ranked data;
+  - seeded qualifier tracks across SP/RJ/MG/BA/RS, paid qualifier registrations with confirmed and pending-payment states, public participants, sample qualifier matches/submissions/vote, and payment records for every qualifier registration plus paid battle examples;
+  - seed now clears the affected QA collections before rewriting them so stale fixture data does not linger.
+- Added repeatable V1 day-one QA seed:
+  - run with `pnpm seed:qa:v1`;
+  - clears contest/ranking/payment emulator collections and recreates a fresh launch-like dataset;
+  - preserves the main QA credentials `user@example.test / password123`, voter credentials `voter@example.test / password123`, and admin credentials `admin@example.test / password123`;
+  - creates 200 ranked QA users, 50 audio-only `Destaques Diários` entries for today, one SP Freestyle Classificatória with 100 confirmed contestants, five qualifier matches with contestant/voter test states, and four battle fixtures: free public entry with 10 participants, paid open entry with 20 paid participants, paid active battle with 50 paid participants including the main account, and a 1v1 voting battle created by the main account without the main account as participant;
+  - verified emulator counts after seeding: 203 users, 4 battles, 82 battle entries, 50 daily highlights, 100 confirmed SP Freestyle qualifier registrations, 170 payments, 5 qualifier matches, and 4 qualifier submissions.
+- Refined standalone battle UX/rules:
+  - `/batalhas` filter controls now use aligned dropdown selects for status/category/type instead of chip groups;
+  - `/batalhas/{battleId}` is now the primary interaction surface with participants, submission state, playable audio, inline free/paid participation, and inline voting on participant cards with a confirmation modal to prevent misclicks;
+  - `/batalhas/{battleId}` now presents `Cronograma` and `Regras` as the first two-column context row, moves `Participantes` to a full-width section with full-width participant rows, renames the registration schedule item to `Prazo Inscrições`, moves the long voting rule out of the header, hides empty rule placeholder copy, and shows the logged user's approved paid-entry timestamp when available;
+  - battle audio submission now opens as an inline modal from `/batalhas/{battleId}` instead of navigating to `/batalhas/{battleId}/enviar`; the header battle ticker now routes active battles to the detail page for the same modal-first flow; battle submission category is inherited from the battle and the redundant `Seu envio` participant badge was removed;
+  - creator-owned finalization is now available through `POST /api/battles/{battleId}/finalize`; the admin API remains an override path, but the admin UI no longer shows edit/finalize controls for normal battle operation;
+  - admin battle rows are clickable/keyboard-accessible again and include an `Abrir` action to inspect or edit a battle when admin intervention is needed;
+  - admin battle edit form is aligned with public battle rules: removed obsolete voting-mode selector, paid-battle prize total is read-only/derived from confirmed payments, and admin saves no longer overwrite paid battle prize pool/distribution;
+  - paid battle confirmations now update flexible prize pools: 20% platform fee, 80% prize pool, with 50/30/20 distribution for 1st/2nd/3rd;
+  - emulator paid battle seed now reflects confirmed paid entries only and derives prize/platform amounts from entry payments;
+  - battle votes now follow the product rule of 70% community and 30% creator judge weighting. Confirmed participants are blocked from voting in their own battle by the trusted vote API, and finalization ranks by weighted score instead of raw vote count;
+  - battle creation now supports open vs invite-only entry, while `1v1` forces exactly two participants and tied `1v1` results award no season/category points;
+  - trusted vote creation now enforces participant-only and judge-only voting modes server-side, still blocks duplicate votes and self-votes, and no longer uses video wording;
+  - trusted battle finalization now treats tied `1v1` results as no-points outcomes;
+  - emulator battle entries now denormalize display names for cleaner participant QA.
+- Fixed local QA audio playback:
+  - seeded battle, qualifier, and `Destaques Diários` media now point to a real same-origin WAV fixture at `/sample-audio/assobio.wav` instead of a non-existent Firebase Storage emulator object;
+  - the sample audio asset exists in both `apps/web/public/sample-audio/assobio.wav` and `apps/admin/public/sample-audio/assobio.wav` so relative seeded media URLs work in public and admin QA sessions;
+  - the fixture was regenerated as an audible 4.8s mono whistle-like WAV after the first replacement proved playable but silent/too quiet;
+  - `AudioHighlightPlayer` now catches unsupported-source/play failures so a bad media document cannot throw an uncaught promise rejection in the browser;
+  - `pnpm seed:qa:v1` was rerun and emulator documents were verified with `mediaURL: /sample-audio/assobio.wav` and `mediaContentType: audio/wav` for daily highlights, battles, and qualifier submissions.
+- Fixed homepage platform counters:
+  - `Plataforma > Numeros gerais` no longer uses capped client query lengths (`highlightUsers` was limited to 100);
+  - added public `GET /api/platform/stats`, backed by Firestore aggregate counts for `users` and `battles`;
+  - homepage now reads those aggregate counters, which reports 203 users and 4 battles for the current V1 QA seed;
+  - added tests for the platform stats service and API route.
+- Refined ranking page behavior:
+  - removed the unsupported `Top 50` business copy and removed the final `.slice(0, 50)` cap that made filters misleading;
+  - removed the `limit(500)` user query cap from `/ranking`;
+  - added pagination after the full filtered/sorted ranking result, showing 50 rows per page as presentation only while preserving the full result count;
+  - removed the `Ver temporadas anteriores` link for now because this is the first season;
+  - added tested ranking view helpers for filtering/sorting and post-filter pagination.
+- Improved `Destaques Diários` voting feedback:
+  - confirmed daily highlight voting already stores one server-owned `dailyHighlightLikes/{dayKey}_{userId}` document with `dayKey`, `dailyHighlightId`, and `userId`, and increments `dailyHighlights.voteCount` in the same trusted transaction;
+  - `/destaques` now reads the logged user's like document for the current day and marks the selected entry as `Seu voto`;
+  - after the user has voted, other entries keep the `Votar` label but are disabled, while only the selected entry shows `Seu voto`;
+  - fixed the vote feedback lookup to use the `dayKey` of the currently visible highlights, not just the browser's current UTC date, so seeded/local QA entries that display as today still show the selected vote correctly;
+  - added tested view helpers for daily highlight vote state.
+- Fixed `Destaques Diários` daily consistency and closure:
+  - homepage and `/destaques` now fetch enough `dailyHighlights` docs and use the same shared Brazil-day selector, so the homepage top 3 and `Ver mais` top 3 are the same;
+  - the selector no longer falls back to previous-day entries and uses `America/Sao_Paulo` day keys instead of browser-local midnight;
+  - daily highlight submit/vote backend day keys now use Brazil time;
+  - voting is blocked by the trusted like service after 22:00 BRT;
+  - added scheduled Cloud Function `finalizeDailyHighlights` at 22:05 BRT to close active entries, mark top-3 placements, and award 15/10/5 season/category points through server-owned writes;
+  - V1/local seeds now create daily highlights for the current Brazil day; reseeded emulator data verified 50 daily entries for `2026-05-05` with top 3 `daily-v1-01`, `daily-v1-02`, and `daily-v1-03`.
+- Fixed local daily-highlight submit 500 after emulator reseeds: the root cause was Firebase Admin rejecting the browser's stale/revoked ID token; the submit modal now forces an ID-token refresh before upload, and the shared auth helper returns a clear `401` if the session still needs a new login. Focused tests cover missing bearer tokens, valid verification, revoked/expired/invalid tokens, unexpected Admin errors, and emulator host setup.
+- Added date-aware `Destaques Diários` UX:
+  - homepage and `/destaques` titles now include the Brazil day date, for example `Destaques Diários - 05/05/2026`;
+  - `/destaques` now has day navigation with chevrons plus `Ir para Hoje`;
+  - today still shows the full voting list and submit action, while previous days show only finalized top-3 winners;
+  - added Firestore indexes for `dailyHighlights` day-specific queries by `createdAt` and `placement`;
+  - added tested daily-highlight view helpers for day-key formatting, date shifting, and previous-day winner filtering.
+- Daily-highlight `Enviar` CTA now hides for logged-in users who already submitted an entry for the current Brazil day. Homepage and `/destaques` both use a direct `{dayKey, userId}` lookup instead of inferring from visible highlights, with a Firestore composite index and updated visibility tests.
+- Local emulator QA data: replaced the mistaken `2025-05-04` finalized top-3 `Destaques Diários` records with `2026-05-04` entries (`Ana Paulista`, `Bruno Carioca`, `Carla Mineira`) so previous-day winner navigation can be tested.
+- `/destaques` archive navigation is capped at `01/05/2026`; the previous-day chevron disables at that floor and cannot navigate earlier.
+- Battle detail UX/rules update:
+  - removed `Prazo Inscrições` from the battle detail schedule; the schedule now focuses on `Envios até`, `Votação inicia`, and `Votação encerra`;
+  - confirmed participants can submit right after joining/payment/invite while the battle is in `registration` or `active`, as long as the submission deadline has not passed;
+  - trusted submission service now enforces the same status/deadline rule server-side;
+  - paid battle rules now show a dedicated `Prêmio` card: `80% do valor total do pagamento da taxa de entrada.`;
+  - added tested battle detail view helpers for schedule/rule copy and submit CTA visibility.
+- Battle listing now shows paid battle prize pools inline in the metadata row after participants/date, as `Prêmio: R$ ...`, while free/no-prize battles omit the prize label.
+- Battle vote/result feedback:
+  - battle detail now reads the logged user's `votes` doc for the current battle, marks the selected contestant as `Seu voto`, and disables the remaining vote buttons while keeping the `Votar` label;
+  - finished battles now highlight winners directly in the participant list (`Vencedor`, `2º lugar`, `3º lugar`) and show awarded points/prize from `battle.winners`;
+  - battle finalization now chooses winners only from confirmed participant submissions, ensuring the displayed winner and awarded points stay aligned;
+  - added tested battle vote/result view helpers and finalization coverage for ignoring non-participant submissions.
+- `/batalhas` now includes a logged-in top scope switch (`Todas` / `Minhas batalhas` / `Minhas participações`) in the same list section instead of a separate inner section. `Minhas batalhas` means battles created by the logged user; `Minhas participações` means battles where the user has a confirmed `battleEntries` record, backed by the `{userId, status}` Firestore index.
+- `/batalhas` filter dropdowns were simplified after the top scope switch: neutral dropdown state now shows the field label instead of another `Todas` option, and `Inscrições abertas` was removed from status filters because contestants can submit immediately after joining/payment/invite.
+- `/criar-batalha` cronograma now follows the same battle flow: removed `Inscrições encerram`, collects only `Envios até`, `Votação começa`, and `Votação encerra`. The trusted create service no longer requires a separate `registrationEnd`; it derives the legacy stored field from `submissionDeadline` for compatibility and validates only submission deadline -> voting start -> voting end ordering.
+- Fixed the `/api/battles/create` 400 after removing the create-form registration deadline: `createCommunityBattle` now normalizes requests that omit `registrationEnd` before schema parsing, then stores `registrationEnd = submissionDeadline` only as a legacy compatibility field.
+- Battle creation/entry edge fixes:
+  - community battle creation now allows a small 60-second future-date tolerance for `Envios até`, avoiding false `Prazo de envio deve ser futuro` errors caused by `datetime-local` minute precision and server/client timing drift;
+  - battle creators no longer see the public `Participar`/`Pagar entrada` CTA on their own battle;
+  - free and paid battle entry paths now reject creator self-participation server-side.
 
 Security/test work to do before expanding features:
 
@@ -569,7 +699,7 @@ Feature test matrix to add before further feature expansion:
 
 - Auth/profile: auth redirects, profile read, allowed profile updates, forbidden role/points/rank/stat edits.
 - Battles listing/detail: query rendering, filters, empty/loading states, status-specific CTAs, paid/free labels.
-- Component/UI tests for submission form, voting page, moderation queue, public battle creation form, and admin battle management page.
+- Component/UI tests for submission form, voting page reports, moderation reports/removal, public battle creation form, and admin battle management page.
 - Cloud Functions battles: status transitions by time, finalize admin-only, voting-only precondition, points/rank/winner/prize updates, no double-finalization.
 - Ranking scope tests: broader UI/component coverage for ranking mode switching and larger championship season scenarios.
 

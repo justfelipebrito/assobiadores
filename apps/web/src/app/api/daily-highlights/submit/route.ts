@@ -3,11 +3,7 @@ import { getAdminFirestore, getAdminStorageBucket } from '@batalha/firebase/src/
 import { competitionCategorySchema } from '@batalha/types';
 import { ApiError, getErrorResponse } from '../../../../server/api-errors';
 import { requireDecodedToken } from '../../../../server/auth';
-import { readJsonObject } from '../../../../server/request';
-import {
-  createDailyHighlight,
-  createDailyHighlightFromAudio,
-} from '../../../../server/daily-highlight-service';
+import { createDailyHighlightFromAudio } from '../../../../server/daily-highlight-service';
 import { uploadDailyHighlightAudio } from '../../../../server/daily-highlight-audio-service';
 
 export async function POST(req: NextRequest) {
@@ -61,14 +57,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(result);
     }
 
-    const body = await readJsonObject(req);
-
-    const result = await createDailyHighlight(getAdminFirestore(), {
-      userId: decodedToken.uid,
-      videoURL: typeof body.videoURL === 'string' ? body.videoURL : '',
-    });
-
-    return NextResponse.json(result);
+    throw new ApiError(400, 'Destaques Diarios aceitam apenas audio gravado na plataforma');
   } catch (error) {
     if (!(error instanceof ApiError)) {
       console.error('Daily highlight submit error:', error);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowRight,
@@ -20,7 +20,7 @@ import {
   TrendingUp,
   Users,
 } from 'lucide-react';
-import { limit, orderBy, useAuth, useCollection, useDocument } from '@batalha/firebase';
+import { limit, orderBy, useAuth, useCollection, useDocument, where } from '@batalha/firebase';
 import { Avatar, Badge, Button, Card, CardContent, Skeleton } from '@batalha/ui';
 import { formatCurrency, formatNumber, formatRelativeTime, toDate } from '@batalha/utils';
 import {
@@ -38,7 +38,11 @@ import {
 } from '@batalha/types';
 import { SubmitDailyHighlightButton } from '@/components/daily-highlights/submit-daily-highlight-button';
 import { SubmitDailyHighlightModal } from '@/components/daily-highlights/submit-daily-highlight-modal';
-import { getVisibleDailyHighlights } from '@/lib/daily-highlight-view';
+import {
+  formatBrazilDayKey,
+  getBrazilDayKey,
+  getVisibleDailyHighlights,
+} from '@/lib/daily-highlight-view';
 import {
   getChampionshipDateCopy,
   getChampionshipParticipantCount,
@@ -73,6 +77,11 @@ const BRAZIL_STATES = Object.entries(BRAZIL_STATE_LABELS).map(([value, label]) =
   value: value as BrazilState,
   label,
 }));
+
+type PlatformStats = {
+  users: number;
+  battles: number;
+};
 
 function RankingList({
   users,
@@ -153,6 +162,12 @@ export default function HomePage() {
   const [selectedRankingCategory, setSelectedRankingCategory] =
     useState<CompetitionCategory>('freestyle');
   const [submitDailyOpen, setSubmitDailyOpen] = useState(false);
+  const [platformStats, setPlatformStats] = useState<PlatformStats | null>(null);
+  const todayDailyHighlightKey = useMemo(() => getBrazilDayKey(), []);
+  const dailyHighlightDayLabel = useMemo(
+    () => formatBrazilDayKey(todayDailyHighlightKey),
+    [todayDailyHighlightKey],
+  );
   const { user, loading: authLoading } = useAuth();
   const { data: profile } = useDocument<User>('users', user?.uid);
   const { data: activeSeasons } = useCollection<Season>('seasons', [
@@ -179,7 +194,13 @@ export default function HomePage() {
   const { data: highlightUsers } = useCollection<User>('users', [limit(100)]);
 
   const { data: highlightedSubmissions, loading: highlightsLoading } =
-    useCollection<DailyHighlight>('dailyHighlights', [orderBy('createdAt', 'desc'), limit(24)]);
+    useCollection<DailyHighlight>('dailyHighlights', [orderBy('createdAt', 'desc'), limit(100)]);
+  const { data: todayUserHighlights } = useCollection<DailyHighlight>(
+    user ? 'dailyHighlights' : undefined,
+    user
+      ? [where('dayKey', '==', todayDailyHighlightKey), where('userId', '==', user.uid), limit(1)]
+      : [],
+  );
   const { data: qualifierTracks, loading: qualifierTracksLoading } = useCollection<QualifierTrack>(
     'qualifierTracks',
     [limit(200)],
@@ -215,6 +236,7 @@ export default function HomePage() {
     [highlightUsers],
   );
   const highlightsMoreHref = '/destaques';
+  const hasSubmittedDailyHighlightToday = todayUserHighlights.length > 0;
 
   const hasActiveBattles = activeBattles.length > 0;
   const qualifierStates = useMemo<BrazilState[]>(
@@ -257,6 +279,30 @@ export default function HomePage() {
     return state ? BRAZIL_STATE_LABELS[state] : null;
   };
 
+  useEffect(() => {
+    let active = true;
+
+    fetch('/api/platform/stats')
+      .then(async (response) => {
+        if (!response.ok) return null;
+        return (await response.json()) as PlatformStats;
+      })
+      .then((stats) => {
+        if (active && stats) {
+          setPlatformStats(stats);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setPlatformStats(null);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   return (
     <>
       <section className="border-b border-white/5 bg-surface-950">
@@ -267,7 +313,9 @@ export default function HomePage() {
                 <Flame className="h-5 w-5" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-white">Destaques Diários</h1>
+                <h1 className="text-2xl font-bold text-white">
+                  Destaques Diários - {dailyHighlightDayLabel}
+                </h1>
                 <p className="text-sm text-surface-500">
                   Escolhidos e premiados pelos votos da comunidade, envie o seu e concorra!
                 </p>
@@ -276,6 +324,7 @@ export default function HomePage() {
             <div className="flex flex-shrink-0 items-center gap-2">
               <SubmitDailyHighlightButton
                 isAuthenticated={Boolean(user)}
+                hasSubmittedToday={hasSubmittedDailyHighlightToday}
                 onClick={() => setSubmitDailyOpen(true)}
               />
               <Link href={highlightsMoreHref}>
@@ -715,12 +764,12 @@ export default function HomePage() {
               {[
                 {
                   label: 'Assobiadores',
-                  value: formatNumber(highlightUsers.length),
+                  value: platformStats ? formatNumber(platformStats.users) : '...',
                   icon: <Users className="h-4 w-4" />,
                 },
                 {
                   label: 'Batalhas',
-                  value: battlesLoading ? '...' : formatNumber(battles.length),
+                  value: platformStats ? formatNumber(platformStats.battles) : '...',
                   icon: <Swords className="h-4 w-4" />,
                 },
               ].map((stat) => (

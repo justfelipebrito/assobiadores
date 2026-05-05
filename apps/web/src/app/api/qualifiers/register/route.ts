@@ -10,6 +10,7 @@ import { ApiError, getErrorResponse } from '../../../../server/api-errors';
 import { requireDecodedToken } from '../../../../server/auth';
 import { createMercadoPagoPixOrder } from '../../../../server/mercado-pago-orders';
 import { readJsonObject } from '../../../../server/request';
+import { getQualifierDailyMatchLimit } from '../../../../lib/qualifier-bracket';
 import {
   getQualifierTrackId,
   getQualifierTrackSlug,
@@ -187,6 +188,10 @@ export async function POST(req: NextRequest) {
         bracketStart: QUALIFIER_BRACKET_START,
         bracketEnd: QUALIFIER_BRACKET_END,
         maxQualified: 64,
+        dailyMatchLimit: getQualifierDailyMatchLimit(0),
+        plannedMatchDays: 0,
+        plannedMatchCount: 0,
+        currentRound: 0,
         registeredCount: FieldValue.increment(1),
         pendingPaymentCount: FieldValue.increment(1),
         createdAt: FieldValue.serverTimestamp(),

@@ -29,7 +29,24 @@ describe('admin battle form helpers', () => {
         entryFee: 0,
         prizePool: 0,
         maxParticipants: 32,
+        judges: [],
         rules: ['Uma regra', 'Outra regra'],
+      }),
+    );
+  });
+
+  it('does not let paid battle admin edits overwrite derived prize totals', () => {
+    const result = validateAdminBattleForm({
+      ...validValues,
+      title: 'Batalha paga',
+      entryFee: '500',
+      prizePool: '99999',
+    });
+
+    expect(result.error).toBeNull();
+    expect(result.payload).toEqual(
+      expect.not.objectContaining({
+        prizePool: expect.anything(),
       }),
     );
   });
@@ -68,7 +85,7 @@ describe('admin battle form helpers', () => {
       entryFee: 10,
       prizePool: 100,
       maxParticipants: 2,
-      votingType: 'judge',
+      votingType: 'public',
       registrationStart: { seconds: 1767268800 },
       registrationEnd: { seconds: 1767355200 },
       submissionDeadline: { seconds: 1767441600 },

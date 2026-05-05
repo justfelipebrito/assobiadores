@@ -65,27 +65,27 @@ The seed script creates deterministic Phase 5 fixtures:
 
 - `battle-active-submit` - active battle with confirmed entries for `user-local` and `voter-local`.
 - `battle-voting-open` - voting battle with approved/rejected submissions and existing vote counts.
-- `submission-pending-review` - pending moderation item visible in the admin queue.
+- `submission-active-reported` - active audio submission with an open moderation report.
 
 ### Submission Flow
 
 1. Log in to the web app as `user@example.test`.
 2. Open `/batalhas/battle-active-submit/enviar`.
-3. Submit a valid video URL, for example `https://www.youtube.com/watch?v=ysz5S6PUM-U`.
-4. Expect a success message and a new `submissions` document with `status: submitted`.
+3. Record an on-platform audio entry up to 2 minutes.
+4. Expect a success message and a new `submissions` document with `status: approved`, `mediaType: audio`, and Storage media metadata.
 5. Submit again for the same battle.
 6. Expect a duplicate-submission error instead of a second document.
-7. Try an invalid video URL.
+7. Try submitting without recording audio.
 8. Expect a validation error and no new document.
 
 ### Admin Moderation Flow
 
 1. Log in to the admin app as `admin@example.test`.
 2. Open `http://localhost:3001/moderacao`.
-3. Confirm `submission-pending-review` appears in the pending queue.
-4. Approve or reject the pending submission.
-5. Verify in Emulator UI that the submission `status` changed and `updatedAt` was refreshed.
-6. Confirm the item moved into "Revisadas recentemente".
+3. Confirm `submission-active-reported` appears in open reports.
+4. Remove the reported submission.
+5. Verify in Emulator UI that the submission `status` changed to `removed` and `removedBy`/`updatedAt` were refreshed.
+6. Confirm the removed item no longer appears as an active moderation item.
 
 ### Voting Flow
 

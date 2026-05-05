@@ -5,16 +5,18 @@ import { shouldShowSubmitDailyHighlightButton } from './submit-daily-highlight-b
 
 interface SubmitDailyHighlightButtonProps {
   isAuthenticated: boolean;
+  hasSubmittedToday?: boolean;
   onClick: () => void;
   className?: string;
 }
 
 export function SubmitDailyHighlightButton({
   isAuthenticated,
+  hasSubmittedToday = false,
   onClick,
   className,
 }: SubmitDailyHighlightButtonProps) {
-  if (!shouldShowSubmitDailyHighlightButton(isAuthenticated)) return null;
+  if (!shouldShowSubmitDailyHighlightButton({ isAuthenticated, hasSubmittedToday })) return null;
 
   return (
     <Button size="sm" onClick={onClick} className={className}>

@@ -5,7 +5,7 @@ import { ArrowLeft, Medal, Trophy } from 'lucide-react';
 import { useCollection, useDocument, where, orderBy } from '@batalha/firebase';
 import { Card, CardContent, EmptyState, Skeleton, Badge } from '@batalha/ui';
 import type { Battle, Submission } from '@batalha/types';
-import { VideoPreview } from '../../../../components/video/video-preview';
+import { MediaPreview } from '../../../../components/media/media-preview';
 
 const PLACE_BADGES = ['Ouro', 'Prata', 'Bronze'];
 
@@ -48,18 +48,27 @@ export default function ResultPage({ params }: { params: { battleId: string } })
           Resultado
         </div>
         <h1 className="mt-2 text-2xl font-bold text-white">{battle.title}</h1>
-        <p className="mt-1 text-surface-400">Ranking das submissoes aprovadas por votos.</p>
+        <p className="mt-1 text-surface-400">Ranking dos assobios por votos.</p>
       </div>
 
       <div className="mt-6 space-y-4">
         {submissions.length === 0 ? (
-          <EmptyState title="Sem resultados ainda" description="Os resultados aparecerao quando houver submissoes aprovadas." />
+          <EmptyState title="Sem resultados ainda" description="Os resultados aparecerao quando houver assobios enviados." />
         ) : (
           submissions.map((submission, index) => (
             <Card key={submission.id}>
               <CardContent>
                 <div className="grid gap-4 md:grid-cols-[220px_1fr]">
-                  <VideoPreview url={submission.videoURL} />
+                  <MediaPreview
+                    mediaType={submission.mediaType}
+                    mediaURL={submission.mediaURL}
+                    videoURL={submission.videoURL}
+                    username={submission.userDisplayName ?? submission.userId}
+                    category={submission.category}
+                    durationSeconds={submission.mediaDurationSeconds}
+                    voteCount={submission.voteCount}
+                    size="compact"
+                  />
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge variant={index < 3 ? 'gold' : 'default'}>

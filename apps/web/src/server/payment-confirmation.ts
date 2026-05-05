@@ -1,6 +1,14 @@
 import { FieldValue, type DocumentSnapshot, type Firestore } from 'firebase-admin/firestore';
 import { ApiError } from './api-errors';
 
+function getBattlePrizeShares(amount: number) {
+  const prizePool = Math.floor(amount * 0.8);
+  const first = Math.floor(prizePool * 0.5);
+  const second = Math.floor(prizePool * 0.3);
+  const third = prizePool - first - second;
+  return { prizePool, first, second, third };
+}
+
 export async function confirmPaymentTargets(db: Firestore, paymentDoc: DocumentSnapshot) {
   const payment = paymentDoc.data();
   if (!payment) {
@@ -84,8 +92,14 @@ export async function confirmPaymentTargets(db: Firestore, paymentDoc: DocumentS
   }
 
   if (payment.battleId) {
+    const prizeShares = getBattlePrizeShares(Number(payment.amount ?? 0));
     batch.update(db.collection('battles').doc(payment.battleId), {
       currentParticipants: FieldValue.increment(1),
+      prizePool: FieldValue.increment(prizeShares.prizePool),
+      'prizeDistribution.first': FieldValue.increment(prizeShares.first),
+      'prizeDistribution.second': FieldValue.increment(prizeShares.second),
+      'prizeDistribution.third': FieldValue.increment(prizeShares.third),
+      platformFeeTotal: FieldValue.increment(Number(payment.amount ?? 0) - prizeShares.prizePool),
     });
   }
 

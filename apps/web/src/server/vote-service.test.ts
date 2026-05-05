@@ -20,11 +20,20 @@ function createDb({
   },
   submissionExists = true,
   hasExistingVote = false,
+  hasParticipantEntry = false,
+}: {
+  battle?: Record<string, unknown>;
+  battleExists?: boolean;
+  submission?: Record<string, unknown>;
+  submissionExists?: boolean;
+  hasExistingVote?: boolean;
+  hasParticipantEntry?: boolean;
 } = {}) {
   const battleRef = { id: 'battle-1' };
   const submissionRef = { id: 'submission-1' };
   const voteRef = { id: 'vote-1' };
   const votesQuery = createQuery(!hasExistingVote);
+  const participantEntriesQuery = createQuery(!hasParticipantEntry);
   const tx = {
     get: vi.fn(async (target: unknown) => {
       if (target === battleRef) {
@@ -32,6 +41,9 @@ function createDb({
       }
       if (target === submissionRef) {
         return { exists: submissionExists, data: () => submission };
+      }
+      if (target === participantEntriesQuery) {
+        return { empty: !hasParticipantEntry };
       }
       return { empty: !hasExistingVote };
     }),
@@ -46,6 +58,11 @@ function createDb({
         return {
           doc: vi.fn(() => voteRef),
           where: votesQuery.where,
+        };
+      }
+      if (name === 'battleEntries') {
+        return {
+          where: participantEntriesQuery.where,
         };
       }
       throw new Error(`Unexpected collection ${name}`);
@@ -124,5 +141,47 @@ describe('createVote', () => {
         voterId: 'user-1',
       }),
     ).rejects.toMatchObject({ status: 409 });
+  });
+
+  it('blocks confirmed participants from voting in their own battle', async () => {
+    await expect(
+      createVote(
+        createDb({
+          battle: { status: 'voting', createdBy: 'creator-1' },
+          hasParticipantEntry: true,
+        }).db as never,
+        {
+          battleId: 'battle-1',
+          submissionId: 'submission-1',
+          voterId: 'user-1',
+        },
+      ),
+    ).rejects.toMatchObject({
+      status: 403,
+      message: 'Participantes nao podem votar na propria batalha',
+    });
+  });
+
+  it('records the battle creator vote as the judge signal', async () => {
+    const { db, tx, voteRef, submissionRef } = createDb({
+      battle: { status: 'voting', createdBy: 'creator-1' },
+    });
+
+    await expect(
+      createVote(db as never, {
+        battleId: 'battle-1',
+        submissionId: 'submission-1',
+        voterId: 'creator-1',
+      }),
+    ).resolves.toEqual({ voteId: 'vote-1' });
+
+    expect(tx.set).toHaveBeenCalledWith(
+      voteRef,
+      expect.objectContaining({ voterType: 'judge', voterId: 'creator-1' }),
+    );
+    expect(tx.update).toHaveBeenCalledWith(
+      submissionRef,
+      expect.objectContaining({ judgeVoteCount: expect.anything() }),
+    );
   });
 });

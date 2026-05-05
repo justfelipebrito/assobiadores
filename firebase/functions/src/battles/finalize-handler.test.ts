@@ -195,6 +195,46 @@ describe('finalizeBattleHandler', () => {
     ).not.toHaveProperty('points');
   });
 
+  it('finalizes tied 1v1 battles without awarding season points', async () => {
+    const { db, updates, battleRef } = createDb({
+      battle: {
+        type: 'community',
+        format: 'duel',
+        category: 'freestyle',
+        seasonId: '2026',
+        status: 'voting',
+        prizeDistribution: { first: 1000, second: 500, third: 0 },
+      },
+      submissions: [
+        { userId: 'winner-1', voteCount: 3 },
+        { userId: 'winner-2', voteCount: 3 },
+      ],
+      entries: [{ userId: 'winner-1' }, { userId: 'winner-2' }],
+    });
+
+    const result = await finalizeBattleHandler({
+      db: db as never,
+      battleId: 'battle-1',
+      fieldValue,
+      logger: { info: vi.fn() },
+      HttpsError: TestHttpsError,
+    });
+
+    expect(result.officialScoringApplied).toBe(false);
+    expect(result.winners[0]).toEqual({ userId: 'winner-1', place: 1, points: 0, prize: 1000 });
+    expect(updates).toHaveLength(1);
+    expect(updates[0]).toEqual({
+      ref: expect.objectContaining(battleRef),
+      data: expect.objectContaining({
+        seasonScoringApplied: false,
+        seasonScoringEligibility: {
+          eligible: true,
+          reason: 'duel-tie',
+        },
+      }),
+    });
+  });
+
   it('awards unified season/category points for community group battle wins', async () => {
     const { db, updates } = createDb({
       battle: {

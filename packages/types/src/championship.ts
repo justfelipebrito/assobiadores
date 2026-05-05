@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { timestampSchema } from './common';
 import { competitionCategorySchema } from './competition-category';
 import { brazilStateSchema } from './user';
+import { voterTypeSchema } from './vote';
 
 // ── Season ────────────────────────────────────────────────────────────────────
 
@@ -175,6 +176,8 @@ export const qualifierMatchSchema = z.object({
   region: brazilStateSchema,
   roundNumber: z.number().int().positive(),
   roundLabel: z.string().min(1).max(80),
+  matchDayIndex: z.number().int().positive().default(1),
+  sequenceInDay: z.number().int().positive().default(1),
   participantIds: z.array(z.string()).min(2).max(2),
   registrationIds: z.array(z.string()).min(2).max(2),
   status: qualifierMatchStatusSchema.default('scheduled'),
@@ -192,6 +195,46 @@ export const qualifierMatchSchema = z.object({
   updatedAt: timestampSchema,
 });
 export type QualifierMatch = z.infer<typeof qualifierMatchSchema>;
+
+// ── Qualifier Submission ─────────────────────────────────────────────────────
+
+export const qualifierSubmissionStatusSchema = z.enum(['submitted', 'disqualified']);
+export type QualifierSubmissionStatus = z.infer<typeof qualifierSubmissionStatusSchema>;
+
+export const qualifierSubmissionSchema = z.object({
+  id: z.string(),
+  matchId: z.string(),
+  registrationId: z.string(),
+  seasonId: z.string(),
+  category: competitionCategorySchema,
+  region: brazilStateSchema,
+  roundNumber: z.number().int().positive(),
+  userId: z.string(),
+  userDisplayName: z.string().min(1).max(120),
+  mediaType: z.literal('audio'),
+  mediaURL: z.string().url(),
+  mediaPath: z.string().min(1),
+  mediaContentType: z.string().min(1),
+  mediaDurationSeconds: z.number().int().positive(),
+  mediaSizeBytes: z.number().int().positive(),
+  status: qualifierSubmissionStatusSchema.default('submitted'),
+  publicVoteCount: z.number().int().nonnegative().default(0),
+  createdAt: timestampSchema,
+  updatedAt: timestampSchema,
+});
+export type QualifierSubmission = z.infer<typeof qualifierSubmissionSchema>;
+
+export const qualifierVoteSchema = z.object({
+  id: z.string(),
+  matchId: z.string(),
+  submissionId: z.string(),
+  votedUserId: z.string(),
+  voterId: z.string(),
+  voterType: voterTypeSchema.default('public'),
+  weight: z.number().int().positive().default(1),
+  createdAt: timestampSchema,
+});
+export type QualifierVote = z.infer<typeof qualifierVoteSchema>;
 
 // ── Qualifier Track ──────────────────────────────────────────────────────────
 
@@ -216,6 +259,10 @@ export const qualifierTrackSchema = z.object({
   bracketStart: timestampSchema,
   bracketEnd: timestampSchema,
   maxQualified: z.number().int().positive().default(64),
+  dailyMatchLimit: z.number().int().positive().default(5),
+  plannedMatchDays: z.number().int().nonnegative().default(0),
+  plannedMatchCount: z.number().int().nonnegative().default(0),
+  currentRound: z.number().int().nonnegative().default(0),
   registeredCount: z.number().int().nonnegative().default(0),
   confirmedCount: z.number().int().nonnegative().default(0),
   pendingPaymentCount: z.number().int().nonnegative().default(0),

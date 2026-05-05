@@ -423,6 +423,30 @@ describe('server-owned collections rules', () => {
       registrationIds: ['qualifier-registration-1', 'qualifier-registration-2'],
       status: 'scheduled',
     });
+    await seed('qualifierSubmissions/qualifier-submission-1', {
+      matchId: 'qualifier-match-1',
+      registrationId: 'qualifier-registration-1',
+      userId: 'user-1',
+      mediaType: 'audio',
+      mediaURL: 'https://storage.example/audio.webm',
+      status: 'submitted',
+    });
+    await seed('qualifierVotes/qualifier-vote-1', {
+      matchId: 'qualifier-match-1',
+      submissionId: 'qualifier-submission-1',
+      votedUserId: 'user-1',
+      voterId: 'user-2',
+      voterType: 'public',
+      weight: 1,
+    });
+    await seed('submissionReports/report-1', {
+      submissionId: 'submission-1',
+      battleId: 'battle-1',
+      reporterId: 'user-2',
+      reportedUserId: 'user-1',
+      reason: 'platform_rules',
+      status: 'open',
+    });
     await seed('qualifierTracks/qualifier-sp-2026-freestyle', {
       seasonId: 'season-2026',
       seasonYear: 2026,
@@ -451,8 +475,23 @@ describe('server-owned collections rules', () => {
     await assertSucceeds(getDoc(doc(unauthDb(), 'dailyHighlights/daily-1')));
     await assertSucceeds(getDoc(doc(unauthDb(), 'dailyHighlightLikes/like-1')));
     await assertSucceeds(getDoc(doc(unauthDb(), 'qualifierMatches/qualifier-match-1')));
+    await assertSucceeds(getDoc(doc(unauthDb(), 'qualifierSubmissions/qualifier-submission-1')));
     await assertSucceeds(getDoc(doc(unauthDb(), 'qualifierTracks/qualifier-sp-2026-freestyle')));
     await assertSucceeds(getDoc(doc(unauthDb(), 'qualifierParticipants/qualifier-registration-1')));
+  });
+
+  it('allows only the voter or admin to read qualifier votes', async () => {
+    await assertSucceeds(getDoc(doc(authedDb('user-2'), 'qualifierVotes/qualifier-vote-1')));
+    await assertSucceeds(getDoc(doc(authedDb('admin-1'), 'qualifierVotes/qualifier-vote-1')));
+    await assertFails(getDoc(doc(authedDb('user-1'), 'qualifierVotes/qualifier-vote-1')));
+    await assertFails(getDoc(doc(unauthDb(), 'qualifierVotes/qualifier-vote-1')));
+  });
+
+  it('allows only the reporter or admin to read submission reports', async () => {
+    await assertSucceeds(getDoc(doc(authedDb('user-2'), 'submissionReports/report-1')));
+    await assertSucceeds(getDoc(doc(authedDb('admin-1'), 'submissionReports/report-1')));
+    await assertFails(getDoc(doc(authedDb('user-1'), 'submissionReports/report-1')));
+    await assertFails(getDoc(doc(unauthDb(), 'submissionReports/report-1')));
   });
 
   it('allows users to read only their own qualifier registrations', async () => {
@@ -510,6 +549,13 @@ describe('server-owned collections rules', () => {
         submissionId: 'submission-1',
       }),
     );
+    await assertFails(
+      setDoc(doc(authedDb('user-2'), 'submissionReports/report-2'), {
+        submissionId: 'submission-1',
+        reporterId: 'user-2',
+        reason: 'platform_rules',
+      }),
+    );
   });
 
   it('prevents direct client writes to daily highlights and likes', async () => {
@@ -564,6 +610,39 @@ describe('server-owned collections rules', () => {
       }),
     );
     await assertFails(deleteDoc(doc(authedDb('user-1'), 'qualifierMatches/qualifier-match-1')));
+  });
+
+  it('prevents direct client writes to qualifier submissions', async () => {
+    await assertFails(
+      setDoc(doc(authedDb('user-1'), 'qualifierSubmissions/qualifier-submission-2'), {
+        matchId: 'qualifier-match-1',
+        userId: 'user-1',
+        mediaType: 'audio',
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(authedDb('user-1'), 'qualifierSubmissions/qualifier-submission-1'), {
+        status: 'disqualified',
+      }),
+    );
+    await assertFails(
+      deleteDoc(doc(authedDb('user-1'), 'qualifierSubmissions/qualifier-submission-1')),
+    );
+  });
+
+  it('prevents direct client writes to qualifier votes', async () => {
+    await assertFails(
+      setDoc(doc(authedDb('user-2'), 'qualifierVotes/qualifier-vote-2'), {
+        matchId: 'qualifier-match-1',
+        voterId: 'user-2',
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(authedDb('user-2'), 'qualifierVotes/qualifier-vote-1'), {
+        weight: 99,
+      }),
+    );
+    await assertFails(deleteDoc(doc(authedDb('user-2'), 'qualifierVotes/qualifier-vote-1')));
   });
 
   it('prevents direct client writes to qualifier tracks', async () => {

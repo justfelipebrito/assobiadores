@@ -1,6 +1,7 @@
 export const ADMIN_NAV_ITEMS = [
   { href: '/', label: 'Inicio' },
   { href: '/batalhas', label: 'Batalhas' },
+  { href: '/classificatorias', label: 'Classificatórias' },
   { href: '/campeonatos', label: 'Campeonatos' },
   { href: '/moderacao', label: 'Moderacao' },
   { href: '/usuarios', label: 'Usuarios' },

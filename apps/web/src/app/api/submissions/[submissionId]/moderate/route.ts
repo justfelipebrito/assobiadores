@@ -3,7 +3,7 @@ import { getAdminFirestore } from '@batalha/firebase/src/admin';
 import { ApiError, getErrorResponse } from '../../../../../server/api-errors';
 import { requireDecodedToken } from '../../../../../server/auth';
 import { readJsonObject } from '../../../../../server/request';
-import { moderateSubmission } from '../../../../../server/submission-service';
+import { removeSubmission } from '../../../../../server/submission-service';
 
 export async function POST(
   req: NextRequest,
@@ -12,16 +12,15 @@ export async function POST(
   try {
     const decodedToken = await requireDecodedToken(req);
     const body = await readJsonObject(req);
-    const status = body.status;
+    const action = body.action ?? body.status;
 
-    if (status !== 'approved' && status !== 'rejected') {
-      throw new ApiError(400, 'status invalido');
+    if (action !== 'remove' && action !== 'removed') {
+      throw new ApiError(400, 'acao invalida');
     }
 
-    const result = await moderateSubmission(getAdminFirestore(), {
+    const result = await removeSubmission(getAdminFirestore(), {
       submissionId: params.submissionId,
       moderatorId: decodedToken.uid,
-      status,
       moderationNote: typeof body.moderationNote === 'string' ? body.moderationNote : null,
     });
 

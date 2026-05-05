@@ -1,10 +1,12 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import {
   ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
   CalendarDays,
   CheckCircle2,
   Clock,
@@ -13,6 +15,7 @@ import {
   Mic,
   Trophy,
   Users,
+  Vote,
 } from 'lucide-react';
 import { limit, useAuth, useCollection, useDocument, where } from '@batalha/firebase';
 import {
@@ -20,10 +23,14 @@ import {
   COMPETITION_CATEGORY_LABELS,
   type QualifierMatch,
   type QualifierRegistration,
+  type QualifierSubmission,
   type QualifierTrack,
 } from '@batalha/types';
-import { Button, Card, CardContent } from '@batalha/ui';
+import { Badge, Button, Card, CardContent } from '@batalha/ui';
 import { formatNumber } from '@batalha/utils';
+import { toast } from 'sonner';
+import { AudioHighlightPlayer } from '@/components/media/audio-highlight-player';
+import { SubmitQualifierMatchModal } from '@/components/qualifiers/submit-qualifier-match-modal';
 import {
   getQualifierEmptyMatchesCopy,
   getQualifierMatchStatusCopy,
@@ -96,6 +103,10 @@ export default function QualifierRegistrationPage() {
   const params = useParams<{ registrationId: string }>();
   const registrationId = params.registrationId;
   const publicTrackSlug = parseQualifierTrackSlug(registrationId);
+  const [selectedRound, setSelectedRound] = useState(1);
+  const [submissionMatch, setSubmissionMatch] = useState<QualifierMatch | null>(null);
+  const [votingSubmissionId, setVotingSubmissionId] = useState<string | null>(null);
+  const [votedMatchIds, setVotedMatchIds] = useState<Set<string>>(new Set());
   const publicTrackId = publicTrackSlug
     ? getQualifierTrackId(publicTrackSlug.region, publicTrackSlug.category)
     : undefined;
@@ -115,7 +126,7 @@ export default function QualifierRegistrationPage() {
           where('seasonId', '==', QUALIFIER_SEASON_ID),
           where('region', '==', publicTrackSlug.region),
           where('category', '==', publicTrackSlug.category),
-          limit(20),
+          limit(1000),
         ]
       : [where('registrationIds', 'array-contains', registrationId), limit(20)],
   );
@@ -127,12 +138,27 @@ export default function QualifierRegistrationPage() {
             where('seasonId', '==', QUALIFIER_SEASON_ID),
             where('region', '==', publicTrackSlug.region),
             where('category', '==', publicTrackSlug.category),
-            limit(100),
+            limit(1000),
           ]
         : [],
     );
+  const { data: qualifierSubmissions } = useCollection<QualifierSubmission>(
+    publicTrackSlug ? 'qualifierSubmissions' : undefined,
+    publicTrackSlug
+      ? [
+          where('seasonId', '==', QUALIFIER_SEASON_ID),
+          where('region', '==', publicTrackSlug.region),
+          where('category', '==', publicTrackSlug.category),
+          limit(1000),
+        ]
+      : [],
+  );
 
   const sortedMatches = useMemo(() => sortQualifierMatches(matches), [matches]);
+  const participantByUserId = useMemo(
+    () => new Map(trackParticipants.map((participant) => [participant.userId, participant])),
+    [trackParticipants],
+  );
   const confirmedParticipants = useMemo(() => {
     return [...trackParticipants].sort((a, b) => {
       const aConfirmedAt = getTime(a.confirmedAt);
@@ -141,8 +167,63 @@ export default function QualifierRegistrationPage() {
       return a.displayName.localeCompare(b.displayName);
     });
   }, [trackParticipants]);
+  const publicRoundNumbers = useMemo(() => {
+    return Array.from(new Set(sortedMatches.map((match) => match.roundNumber))).sort(
+      (a, b) => a - b,
+    );
+  }, [sortedMatches]);
+  const displayRound = publicRoundNumbers.includes(selectedRound)
+    ? selectedRound
+    : (publicRoundNumbers[0] ?? 1);
+  const publicRoundMatches = sortedMatches.filter((match) => match.roundNumber === displayRound);
+  const submissionByMatchAndUserId = useMemo(() => {
+    const grouped = new Map<string, Map<string, QualifierSubmission>>();
+    qualifierSubmissions.forEach((submission) => {
+      if (submission.roundNumber !== displayRound) return;
+      const current = grouped.get(submission.matchId) ?? new Map<string, QualifierSubmission>();
+      current.set(submission.userId, submission);
+      grouped.set(submission.matchId, current);
+    });
+    return grouped;
+  }, [displayRound, qualifierSubmissions]);
+  const canGoToPreviousRound = publicRoundNumbers.some((round) => round < displayRound);
+  const canGoToNextRound = publicRoundNumbers.some((round) => round > displayRound);
   const stateCopy = registration ? getQualifierRegistrationStateCopy(registration) : null;
   const isOwner = Boolean(user && registration && registration.userId === user.uid);
+
+  async function voteOnQualifierSubmission(match: QualifierMatch, submissionId: string) {
+    if (!user) {
+      toast.error('Entre para votar.');
+      return;
+    }
+    if (match.participantIds.includes(user.uid)) {
+      toast.error('Participantes nao podem votar em Classificatorias.');
+      return;
+    }
+
+    setVotingSubmissionId(submissionId);
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch(`/api/qualifiers/matches/${match.id}/vote`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ submissionId }),
+      });
+      const body = await response.json();
+      if (!response.ok) {
+        throw new Error(body.error || 'Erro ao registrar voto.');
+      }
+      setVotedMatchIds((current) => new Set(current).add(match.id));
+      toast.success('Voto registrado.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao registrar voto.');
+    } finally {
+      setVotingSubmissionId(null);
+    }
+  }
 
   if (publicTrackSlug) {
     if (publicTrackLoading) {
@@ -207,6 +288,177 @@ export default function QualifierRegistrationPage() {
               </div>
             ))}
           </div>
+        </section>
+
+        <section className="mt-6 rounded-2xl border border-white/10 bg-surface-900/70 p-5">
+          <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="font-semibold text-white">Chave da Classificatória</h2>
+              <p className="mt-1 text-sm text-surface-500">
+                Confrontos por rodada, com limite diário de partidas para manter o evento
+                acompanhável.
+              </p>
+            </div>
+            {publicRoundNumbers.length > 0 && (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={!canGoToPreviousRound}
+                  onClick={() => {
+                    const previous = [...publicRoundNumbers]
+                      .reverse()
+                      .find((round) => round < displayRound);
+                    if (previous) setSelectedRound(previous);
+                  }}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <div className="min-w-28 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-center text-sm font-semibold text-white">
+                  Rodada {displayRound}
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={!canGoToNextRound}
+                  onClick={() => {
+                    const next = publicRoundNumbers.find((round) => round > displayRound);
+                    if (next) setSelectedRound(next);
+                  }}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {matchesLoading ? (
+            <div className="flex min-h-28 items-center justify-center">
+              <Loader2 className="h-5 w-5 animate-spin text-brand-400" />
+            </div>
+          ) : publicRoundMatches.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.02] px-4 py-8 text-center">
+              <p className="text-sm text-surface-400">
+                A chave aparece aqui quando a Classificatória sair da fase de inscrição.
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-3">
+              {publicRoundMatches.map((match) => {
+                const first = participantByUserId.get(match.participantIds[0] ?? '');
+                const second = participantByUserId.get(match.participantIds[1] ?? '');
+                const hasVoted = votedMatchIds.has(match.id);
+                const userIsParticipant = Boolean(user && match.participantIds.includes(user.uid));
+
+                return (
+                  <div
+                    key={match.id}
+                    className="rounded-xl border border-white/10 bg-surface-950/30 p-4"
+                  >
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="default">Dia {match.matchDayIndex ?? 1}</Badge>
+                        <Badge variant="gold">{getQualifierMatchStatusCopy(match.status)}</Badge>
+                      </div>
+                      <p className="text-xs text-surface-500">
+                        Envio até {formatDateTime(match.submissionDeadline)}
+                      </p>
+                    </div>
+
+                    <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_8rem] md:items-center">
+                      <div className="space-y-2">
+                        {[first, second].map((participant, index) => {
+                          const fallback = match.participantIds[index] ?? 'A definir';
+                          const participantUserId = participant?.userId ?? fallback;
+                          const submission = submissionByMatchAndUserId
+                            .get(match.id)
+                            ?.get(participantUserId);
+                          const isWinner = Boolean(
+                            match.winnerId && match.winnerId === participant?.userId,
+                          );
+
+                          return (
+                            <div
+                              key={fallback}
+                              className="grid gap-3 rounded-lg border border-white/10 bg-white/[0.03] p-3 lg:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] lg:items-center"
+                            >
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <p className="truncate text-sm font-semibold text-white">
+                                    {participant?.displayName ?? fallback}
+                                  </p>
+                                  {isWinner && (
+                                    <span className="rounded-full border border-brand-500/20 bg-brand-500/10 px-2 py-0.5 text-xs font-semibold text-brand-300">
+                                      vencedor
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="mt-1 truncate text-xs text-surface-500">
+                                  {participant?.rank ?? 'Participante'}
+                                </p>
+                                {submission && (
+                                  <p className="mt-2 text-xs font-medium text-surface-500">
+                                    {submission.publicVoteCount ?? 0}{' '}
+                                    {(submission.publicVoteCount ?? 0) === 1 ? 'voto' : 'votos'}
+                                  </p>
+                                )}
+                              </div>
+
+                              {submission ? (
+                                <div className="min-w-0 space-y-2">
+                                  <AudioHighlightPlayer
+                                    src={submission.mediaURL}
+                                    username={submission.userDisplayName}
+                                    category={submission.category}
+                                    durationSeconds={submission.mediaDurationSeconds}
+                                    size="compact"
+                                    showHeader={false}
+                                  />
+                                  {match.status === 'voting' && (
+                                    <Button
+                                      variant="secondary"
+                                      size="sm"
+                                      className="w-full"
+                                      disabled={hasVoted || userIsParticipant}
+                                      loading={votingSubmissionId === submission.id}
+                                      onClick={() => voteOnQualifierSubmission(match, submission.id)}
+                                    >
+                                      <Vote className="mr-2 h-4 w-4" />
+                                      {hasVoted ? 'Voto registrado' : 'Votar'}
+                                    </Button>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="rounded-xl border border-dashed border-white/10 bg-surface-950/40 px-4 py-5 text-sm text-surface-500">
+                                  Envio ainda não recebido.
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <div className="self-center rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-center text-sm">
+                        <p className="text-xs text-surface-500">Resultado</p>
+                        <p className="mt-1 font-semibold text-white">
+                          {match.winnerId
+                            ? (participantByUserId.get(match.winnerId)?.displayName ??
+                              match.winnerId)
+                            : 'Aguardando'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {match.status === 'voting' && userIsParticipant && (
+                      <p className="mt-3 rounded-xl border border-yellow-500/20 bg-yellow-500/10 px-3 py-2 text-xs font-semibold text-yellow-300">
+                        Participantes não votam em Classificatórias.
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </section>
 
         <section className="mt-6 rounded-2xl border border-white/10 bg-surface-900/70 p-5">
@@ -311,6 +563,17 @@ export default function QualifierRegistrationPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
+      <SubmitQualifierMatchModal
+        open={Boolean(submissionMatch)}
+        matchId={submissionMatch?.id ?? null}
+        category={registration.category}
+        deadlineLabel={
+          submissionMatch ? formatDateTime(submissionMatch.submissionDeadline) : 'A definir'
+        }
+        onClose={() => setSubmissionMatch(null)}
+        onSubmitted={() => setSubmissionMatch(null)}
+      />
+
       <Link
         href="/classificatorias"
         className="mb-6 inline-flex items-center gap-2 text-sm text-surface-400 transition-colors hover:text-white"
@@ -402,47 +665,72 @@ export default function QualifierRegistrationPage() {
           </div>
         ) : (
           <div className="grid gap-3">
-            {sortedMatches.map((match) => (
-              <div
-                key={match.id}
-                className="rounded-xl border border-white/10 bg-surface-950/30 px-4 py-4"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-surface-500">
-                      {match.roundLabel}
-                    </p>
-                    <h3 className="mt-1 font-semibold text-white">
-                      {getQualifierMatchStatusCopy(match.status)}
-                    </h3>
-                  </div>
-                  <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-xs font-semibold text-surface-300">
-                    Rodada {match.roundNumber}
-                  </span>
-                </div>
+            {sortedMatches.map((match) => {
+              const alreadySubmitted = Boolean(user && match.submissionIds?.[user.uid]);
+              const canSubmit =
+                Boolean(user) &&
+                match.status === 'submissions_open' &&
+                match.participantIds.includes(user!.uid) &&
+                !alreadySubmitted;
 
-                <div className="mt-4 grid gap-3 text-sm md:grid-cols-3">
-                  <div>
-                    <p className="text-surface-500">Data</p>
-                    <p className="mt-1 font-medium text-surface-200">
-                      {formatDateTime(match.scheduledFor)}
-                    </p>
+              return (
+                <div
+                  key={match.id}
+                  className="rounded-xl border border-white/10 bg-surface-950/30 px-4 py-4"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-surface-500">
+                        {match.roundLabel}
+                      </p>
+                      <h3 className="mt-1 font-semibold text-white">
+                        {getQualifierMatchStatusCopy(match.status)}
+                      </h3>
+                    </div>
+                    <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-xs font-semibold text-surface-300">
+                      Rodada {match.roundNumber}
+                    </span>
                   </div>
-                  <div>
-                    <p className="text-surface-500">Envio até</p>
-                    <p className="mt-1 font-medium text-surface-200">
-                      {formatDateTime(match.submissionDeadline)}
-                    </p>
+
+                  <div className="mt-4 grid gap-3 text-sm md:grid-cols-3">
+                    <div>
+                      <p className="text-surface-500">Data</p>
+                      <p className="mt-1 font-medium text-surface-200">
+                        {formatDateTime(match.scheduledFor)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-surface-500">Envio até</p>
+                      <p className="mt-1 font-medium text-surface-200">
+                        {formatDateTime(match.submissionDeadline)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-surface-500">Votação encerra</p>
+                      <p className="mt-1 font-medium text-surface-200">
+                        {formatDateTime(match.votingEnd)}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-surface-500">Votação encerra</p>
-                    <p className="mt-1 font-medium text-surface-200">
-                      {formatDateTime(match.votingEnd)}
-                    </p>
-                  </div>
+
+                  {(canSubmit || alreadySubmitted) && (
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3">
+                      <p className="text-sm text-surface-300">
+                        {alreadySubmitted
+                          ? 'Envio recebido para este confronto.'
+                          : 'Seu envio esta aberto para este confronto.'}
+                      </p>
+                      {canSubmit && (
+                        <Button size="sm" onClick={() => setSubmissionMatch(match)}>
+                          <Mic className="mr-2 h-4 w-4" />
+                          Enviar assobio
+                        </Button>
+                      )}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>

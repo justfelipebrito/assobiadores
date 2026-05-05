@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createSubmission, moderateSubmission } from './submission-service';
+import { createSubmission, removeSubmission, reportSubmission } from './submission-service';
 
 function createQuerySnapshot(docs: Array<{ id: string; data?: Record<string, unknown> }> = []) {
   return {
@@ -25,6 +25,8 @@ function createDb({
   adminRole = 'admin',
   userDisplayName = 'User One',
   submissionExists = true,
+  submissionData = { battleId: 'battle-1', userId: 'user-2', status: 'approved' },
+  existingReport = false,
 }: {
   battle?: Record<string, unknown>;
   battleExists?: boolean;
@@ -33,6 +35,8 @@ function createDb({
   adminRole?: string;
   userDisplayName?: string;
   submissionExists?: boolean;
+  submissionData?: Record<string, unknown>;
+  existingReport?: boolean;
 }) {
   const entryQuery = createQuery(createQuerySnapshot(entryDocs));
   const existingSubmissionQuery = createQuery(
@@ -41,9 +45,16 @@ function createDb({
   const submissionRef = {
     id: 'submission-1',
     set: vi.fn(),
-    get: vi.fn(async () => ({ exists: submissionExists })),
+    get: vi.fn(async () => ({ exists: submissionExists, data: () => submissionData })),
     update: vi.fn(),
   };
+  const reportRef = {
+    id: 'report-1',
+    set: vi.fn(),
+  };
+  const existingReportQuery = createQuery(
+    createQuerySnapshot(existingReport ? [{ id: 'report-existing' }] : []),
+  );
 
   const db = {
     collection: vi.fn((name: string) => {
@@ -76,27 +87,42 @@ function createDb({
           })),
         };
       }
+      if (name === 'submissionReports') {
+        return {
+          where: existingReportQuery.where,
+          doc: vi.fn(() => reportRef),
+        };
+      }
       throw new Error(`Unexpected collection ${name}`);
     }),
   };
 
-  return { db, submissionRef };
+  return { db, submissionRef, reportRef };
 }
 
-const activeBattle = { status: 'active' };
+const activeBattle = { status: 'active', submissionDeadline: new Date('2026-05-07T12:00:00.000Z') };
 
 describe('createSubmission', () => {
-  it('creates a submitted video for a confirmed battle participant', async () => {
+  const audioInput = {
+    audioURL: 'https://storage.example/battle.webm',
+    audioPath: 'battle-submissions/battle-1/user-1.webm',
+    contentType: 'audio/webm',
+    sizeBytes: 2048,
+    durationSeconds: 5,
+    category: 'freestyle' as const,
+  };
+
+  it('creates an active audio submission for a confirmed battle participant', async () => {
     const { db, submissionRef } = createDb({ battle: activeBattle });
 
     await expect(
       createSubmission(db as never, {
         battleId: 'battle-1',
         userId: 'user-1',
-        videoURL: 'https://youtu.be/abc123',
-        title: 'Meu assobio',
+        ...audioInput,
+        now: new Date('2026-05-07T11:00:00.000Z'),
       }),
-    ).resolves.toEqual({ submissionId: 'submission-1', status: 'submitted' });
+    ).resolves.toEqual({ submissionId: 'submission-1', status: 'approved' });
 
     expect(submissionRef.set).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -104,42 +130,72 @@ describe('createSubmission', () => {
         userId: 'user-1',
         userDisplayName: 'User One',
         entryId: 'entry-1',
-        videoPlatform: 'youtube',
-        status: 'submitted',
+        mediaType: 'audio',
+        mediaURL: 'https://storage.example/battle.webm',
+        mediaPath: 'battle-submissions/battle-1/user-1.webm',
+        mediaContentType: 'audio/webm',
+        mediaDurationSeconds: 5,
+        videoPlatform: 'other',
+        status: 'approved',
         voteCount: 0,
+        reportCount: 0,
+        removedAt: null,
+        removedBy: null,
       }),
     );
   });
 
-  it('rejects invalid video URLs', async () => {
+  it('rejects invalid audio metadata', async () => {
     const { db } = createDb({ battle: activeBattle });
 
     await expect(
       createSubmission(db as never, {
         battleId: 'battle-1',
         userId: 'user-1',
-        videoURL: 'not-a-url',
-        title: 'Video',
+        ...audioInput,
+        contentType: 'video/mp4',
       }),
-    ).rejects.toMatchObject({ status: 400, message: 'URL de video invalida' });
+    ).rejects.toMatchObject({ status: 400, message: 'Envie um audio valido' });
   });
 
-  it('requires active battle status and confirmed entry', async () => {
+  it('allows submissions during registration after the participant has joined', async () => {
+    const { db } = createDb({
+      battle: { status: 'registration', submissionDeadline: new Date('2026-05-07T12:00:00.000Z') },
+    });
+
     await expect(
-      createSubmission(createDb({ battle: { status: 'registration' } }).db as never, {
+      createSubmission(db as never, {
         battleId: 'battle-1',
         userId: 'user-1',
-        videoURL: 'https://youtu.be/abc123',
-        title: 'Video',
+        ...audioInput,
+        now: new Date('2026-05-07T11:00:00.000Z'),
+      }),
+    ).resolves.toEqual({ submissionId: 'submission-1', status: 'approved' });
+  });
+
+  it('requires open submission status, deadline, and confirmed entry', async () => {
+    await expect(
+      createSubmission(createDb({ battle: { status: 'voting' } }).db as never, {
+        battleId: 'battle-1',
+        userId: 'user-1',
+        ...audioInput,
       }),
     ).rejects.toMatchObject({ status: 400 });
+
+    await expect(
+      createSubmission(createDb({ battle: activeBattle }).db as never, {
+        battleId: 'battle-1',
+        userId: 'user-1',
+        ...audioInput,
+        now: new Date('2026-05-07T12:01:00.000Z'),
+      }),
+    ).rejects.toMatchObject({ status: 400, message: 'Prazo de envio encerrado' });
 
     await expect(
       createSubmission(createDb({ battle: activeBattle, entryDocs: [] }).db as never, {
         battleId: 'battle-1',
         userId: 'user-1',
-        videoURL: 'https://youtu.be/abc123',
-        title: 'Video',
+        ...audioInput,
       }),
     ).rejects.toMatchObject({ status: 403 });
   });
@@ -151,38 +207,87 @@ describe('createSubmission', () => {
       createSubmission(db as never, {
         battleId: 'battle-1',
         userId: 'user-1',
-        videoURL: 'https://youtu.be/abc123',
-        title: 'Video',
+        ...audioInput,
       }),
     ).rejects.toMatchObject({ status: 409 });
   });
 });
 
-describe('moderateSubmission', () => {
-  it('allows admins to approve submissions', async () => {
+describe('removeSubmission', () => {
+  it('allows admins to remove submissions', async () => {
     const { db, submissionRef } = createDb({ battle: activeBattle });
 
     await expect(
-      moderateSubmission(db as never, {
+      removeSubmission(db as never, {
         submissionId: 'submission-1',
         moderatorId: 'admin-1',
-        status: 'approved',
       }),
-    ).resolves.toEqual({ submissionId: 'submission-1', status: 'approved' });
+    ).resolves.toEqual({ submissionId: 'submission-1', status: 'removed' });
     expect(submissionRef.update).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'approved' }),
+      expect.objectContaining({ status: 'removed', removedBy: 'admin-1' }),
     );
   });
 
-  it('rejects non-admin moderation', async () => {
+  it('rejects non-admin removal', async () => {
     const { db } = createDb({ battle: activeBattle, adminRole: 'user' });
 
     await expect(
-      moderateSubmission(db as never, {
+      removeSubmission(db as never, {
         submissionId: 'submission-1',
         moderatorId: 'user-1',
-        status: 'approved',
       }),
     ).rejects.toMatchObject({ status: 403 });
+  });
+});
+
+describe('reportSubmission', () => {
+  it('creates a report and increments the submission report count', async () => {
+    const { db, submissionRef, reportRef } = createDb({ battle: activeBattle });
+
+    await expect(
+      reportSubmission(db as never, {
+        submissionId: 'submission-1',
+        reporterId: 'user-1',
+        reason: 'platform_rules',
+        description: 'Conteudo fora das regras',
+      }),
+    ).resolves.toEqual({ reportId: 'report-1', status: 'open' });
+
+    expect(reportRef.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        submissionId: 'submission-1',
+        reporterId: 'user-1',
+        reportedUserId: 'user-2',
+        reason: 'platform_rules',
+        status: 'open',
+      }),
+    );
+    expect(submissionRef.update).toHaveBeenCalledWith(
+      expect.objectContaining({ updatedAt: expect.anything() }),
+    );
+  });
+
+  it('blocks self reports and duplicate reports', async () => {
+    await expect(
+      reportSubmission(
+        createDb({
+          battle: activeBattle,
+          submissionData: { battleId: 'battle-1', userId: 'user-1', status: 'approved' },
+        }).db as never,
+        {
+          submissionId: 'submission-1',
+          reporterId: 'user-1',
+          reason: 'platform_rules',
+        },
+      ),
+    ).rejects.toMatchObject({ status: 400 });
+
+    await expect(
+      reportSubmission(createDb({ battle: activeBattle, existingReport: true }).db as never, {
+        submissionId: 'submission-1',
+        reporterId: 'user-1',
+        reason: 'platform_rules',
+      }),
+    ).rejects.toMatchObject({ status: 409 });
   });
 });

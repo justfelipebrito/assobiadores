@@ -27,6 +27,7 @@ export function AudioHighlightPlayer({
   durationSeconds,
   voteCount,
   size = 'default',
+  showHeader = true,
 }: {
   src: string;
   username: string;
@@ -35,6 +36,7 @@ export function AudioHighlightPlayer({
   durationSeconds?: number | null;
   voteCount?: number | null;
   size?: 'default' | 'compact';
+  showHeader?: boolean;
 }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
@@ -49,8 +51,12 @@ export function AudioHighlightPlayer({
     if (!audio) return;
 
     if (audio.paused) {
-      await audio.play();
-      setPlaying(true);
+      try {
+        await audio.play();
+        setPlaying(true);
+      } catch {
+        setPlaying(false);
+      }
     } else {
       audio.pause();
       setPlaying(false);
@@ -72,20 +78,22 @@ export function AudioHighlightPlayer({
         onEnded={() => setPlaying(false)}
       />
 
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold">
-            <span className="text-white">{username}</span>
-            {naturalidade ? <span className="text-surface-400"> - {naturalidade}</span> : null}
-          </p>
-          {typeof voteCount === 'number' && (
-            <p className="mt-1 text-xs font-medium text-surface-500">
-              {voteCount} {voteCount === 1 ? 'voto' : 'votos'}
+      {showHeader && (
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold">
+              <span className="text-white">{username}</span>
+              {naturalidade ? <span className="text-surface-400"> - {naturalidade}</span> : null}
             </p>
-          )}
+            {typeof voteCount === 'number' && (
+              <p className="mt-1 text-xs font-medium text-surface-500">
+                {voteCount} {voteCount === 1 ? 'voto' : 'votos'}
+              </p>
+            )}
+          </div>
+          <Badge variant="purple">{COMPETITION_CATEGORY_LABELS[category]}</Badge>
         </div>
-        <Badge variant="purple">{COMPETITION_CATEGORY_LABELS[category]}</Badge>
-      </div>
+      )}
 
       <div className="flex items-center gap-3">
         <button

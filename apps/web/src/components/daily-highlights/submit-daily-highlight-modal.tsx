@@ -147,7 +147,13 @@ export function SubmitDailyHighlightModal({
     setSuccess(null);
 
     try {
-      const token = await user.getIdToken();
+      let token: string;
+      try {
+        token = await user.getIdToken(true);
+      } catch {
+        throw new Error('Sessao expirada. Entre novamente.');
+      }
+
       const formData = new FormData();
       formData.append('audio', audioBlob, 'assobio.webm');
       formData.append('category', category);

@@ -26,8 +26,8 @@ export default function CreateBattlePage() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('freestyle');
+  const [visibility, setVisibility] = useState<'public' | 'invite_only'>('public');
   const [maxParticipants, setMaxParticipants] = useState(20);
-  const [registrationEnd, setRegistrationEnd] = useState(offsetDate(3));
   const [submissionDeadline, setSubmissionDeadline] = useState(offsetDate(6));
   const [votingStart, setVotingStart] = useState(offsetDate(7));
   const [votingEnd, setVotingEnd] = useState(offsetDate(10));
@@ -68,9 +68,9 @@ export default function CreateBattlePage() {
           description,
           format,
           category,
+          visibility,
           maxParticipants: format === 'duel' ? 2 : maxParticipants,
           votingType: 'public',
-          registrationEnd: new Date(registrationEnd).toISOString(),
           submissionDeadline: new Date(submissionDeadline).toISOString(),
           votingStart: new Date(votingStart).toISOString(),
           votingEnd: new Date(votingEnd).toISOString(),
@@ -211,15 +211,52 @@ export default function CreateBattlePage() {
           </Card>
         )}
 
+        {/* Access + voting */}
+        <Card>
+          <CardContent className="space-y-5">
+            <div>
+              <p className="mb-3 text-sm font-semibold text-white">Entrada</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {[
+                  { value: 'public', label: 'Aberta', desc: 'Qualquer usuario logado pode participar.' },
+                  { value: 'invite_only', label: 'Por convite', desc: 'Somente convidados aparecem como participantes.' },
+                ].map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setVisibility(opt.value as 'public' | 'invite_only')}
+                    className={`rounded-xl border p-4 text-left transition-all ${
+                      visibility === opt.value
+                        ? 'border-brand-500/50 bg-brand-500/10'
+                        : 'border-white/10 bg-white/[0.02] hover:border-white/20'
+                    }`}
+                  >
+                    <span className="font-semibold text-white">{opt.label}</span>
+                    <span className="mt-1 block text-xs text-surface-500">{opt.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-3 text-sm font-semibold text-white">Votacao</p>
+              <p className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-surface-300">
+                Comunidade vota com peso de 70%; o criador da batalha tem o voto de desempate
+                com peso de 30%. Participantes nao votam na propria batalha.
+                {format === 'duel' && ' Em empate no 1 vs 1, ninguem pontua.'}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Dates */}
         <Card>
           <CardContent className="space-y-4">
             <p className="text-sm font-semibold text-white">Cronograma</p>
             <div className="grid gap-4 sm:grid-cols-2">
               {[
-                { label: 'Inscrições encerram', value: registrationEnd, set: setRegistrationEnd },
                 {
-                  label: 'Prazo de submissão',
+                  label: 'Envios até',
                   value: submissionDeadline,
                   set: setSubmissionDeadline,
                 },

@@ -21,7 +21,17 @@ export default function AdminDashboard() {
             <CardContent>
               <h3 className="font-semibold text-white">Campeonatos</h3>
               <p className="mt-1 text-sm text-surface-400">
-                Campeonatos oficiais e classificatorias
+                Campeonatos oficiais, fases e partidas
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
+        <Link href="/classificatorias">
+          <Card className="transition-shadow hover:shadow-md">
+            <CardContent>
+              <h3 className="font-semibold text-white">Classificatórias</h3>
+              <p className="mt-1 text-sm text-surface-400">
+                Inscrições, sorteios e rodadas oficiais
               </p>
             </CardContent>
           </Card>
@@ -30,7 +40,7 @@ export default function AdminDashboard() {
           <Card className="transition-shadow hover:shadow-md">
             <CardContent>
               <h3 className="font-semibold text-white">Moderacao</h3>
-              <p className="mt-1 text-sm text-surface-400">Aprovar submissoes</p>
+              <p className="mt-1 text-sm text-surface-400">Denuncias e remocao de envios</p>
             </CardContent>
           </Card>
         </Link>
