@@ -10,7 +10,7 @@
     "type-check": "turbo type-check",
     "test": "turbo test && pnpm test:rules",
     "test:unit": "turbo test",
-    "test:rules": "firebase emulators:exec --config firebase/firebase.json --only firestore --project demo-batalha \"vitest run firebase/firestore.rules.test.ts\"",
+    "test:rules": "pnpm exec firebase emulators:exec --config firebase/firebase.json --only firestore --project demo-batalha \"pnpm exec vitest run firebase/firestore.rules.test.ts\"",
     "validate:mp": "node scripts/validate-mercado-pago.cjs",
     "validate:mp:order": "node scripts/validate-mercado-pago.cjs --create-order",
     "emulators": "firebase emulators:start --config firebase/firebase.json --project demo-batalha",

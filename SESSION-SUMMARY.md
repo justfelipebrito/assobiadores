@@ -727,6 +727,7 @@ Latest hardening/refactor:
   - updated `apps/web/apphosting.yaml` so GA4 and AdSense public IDs are available at build/runtime in Firebase App Hosting.
   - created Firebase App Hosting backend `assobiador-web` in `us-east4` for project `assobiadores-3f0f6`; `southamerica-east1` is not available for App Hosting, so the workflow defaults to `assobiador-web`.
   - created deploy service account `github-actions-deploy@assobiadores-3f0f6.iam.gserviceaccount.com`, granted `roles/firebase.admin` and `roles/firebaseapphosting.admin`, and generated the GitHub secret JSON at `/private/tmp/assobiadores-github-actions-deploy.json`.
+  - fixed CI rules-test command to call Firebase CLI through `pnpm exec firebase` instead of assuming a global `firebase` binary exists on GitHub runners.
 
 Security/test work to do before expanding features:
 
