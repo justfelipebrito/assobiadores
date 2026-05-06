@@ -1,5 +1,7 @@
 import { FieldValue, type DocumentSnapshot, type Firestore } from 'firebase-admin/firestore';
+import { SEASON_SCORING, type CompetitionCategory } from '@batalha/types';
 import { ApiError } from './api-errors';
+import { buildPointActivity } from './point-activity-service';
 
 function getBattlePrizeShares(amount: number) {
   const prizePool = Math.floor(amount * 0.8);
@@ -33,9 +35,10 @@ export async function confirmPaymentTargets(db: Firestore, paymentDoc: DocumentS
   }
 
   if (payment.qualifierRegistrationId) {
+    const qualifierRegistrationId = String(payment.qualifierRegistrationId);
     const registrationRef = db
       .collection('qualifierRegistrations')
-      .doc(payment.qualifierRegistrationId);
+      .doc(qualifierRegistrationId);
     const registrationDoc = await registrationRef.get();
     const registration = registrationDoc.data();
     const participantUserDoc = registration?.userId
@@ -55,6 +58,7 @@ export async function confirmPaymentTargets(db: Firestore, paymentDoc: DocumentS
       const category = String(registration.category);
       const seasonKey = String(seasonYear);
       const categoryPoints = participantUser?.seasonCategoryPoints?.[seasonKey]?.[category];
+      const entryPoints = SEASON_SCORING.qualifier.entry;
 
       batch.set(
         db
@@ -70,7 +74,7 @@ export async function confirmPaymentTargets(db: Firestore, paymentDoc: DocumentS
         { merge: true },
       );
       batch.set(
-        db.collection('qualifierParticipants').doc(registrationRef.id),
+        db.collection('qualifierParticipants').doc(qualifierRegistrationId),
         {
           userId: registration.userId,
           seasonId: registration.seasonId ?? 'season-2026',
@@ -88,6 +92,33 @@ export async function confirmPaymentTargets(db: Firestore, paymentDoc: DocumentS
         },
         { merge: true },
       );
+      if (registration.userId && entryPoints > 0) {
+        batch.update(db.collection('users').doc(registration.userId), {
+          points: FieldValue.increment(entryPoints),
+          xp: FieldValue.increment(entryPoints),
+          [`seasonPoints.${seasonKey}.points`]: FieldValue.increment(entryPoints),
+          [`seasonPoints.${seasonKey}.xp`]: FieldValue.increment(entryPoints),
+          [`seasonPoints.${seasonKey}.updatedAt`]: FieldValue.serverTimestamp(),
+          [`seasonCategoryPoints.${seasonKey}.${category}.points`]:
+            FieldValue.increment(entryPoints),
+          [`seasonCategoryPoints.${seasonKey}.${category}.xp`]: FieldValue.increment(entryPoints),
+          [`seasonCategoryPoints.${seasonKey}.${category}.updatedAt`]:
+            FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        const pointActivity = buildPointActivity({
+          userId: String(registration.userId),
+          points: entryPoints,
+          reason: 'qualifier_entry',
+          label: 'Entrada em Classificatoria',
+          sourceType: 'qualifier',
+          sourceId: qualifierRegistrationId,
+          sourceTitle: `Classificatoria ${registration.region} ${registration.category}`,
+          category: category as CompetitionCategory,
+          seasonId: seasonKey,
+        });
+        batch.set(db.collection('pointActivities').doc(pointActivity.id), pointActivity);
+      }
     }
   }
 

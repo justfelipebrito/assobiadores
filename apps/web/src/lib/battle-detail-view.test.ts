@@ -3,6 +3,9 @@ import {
   canSubmitBattleEntry,
   getBattleRuleCards,
   getBattleScheduleItems,
+  getBattleSubmissionResultBreakdown,
+  sortBattleSubmissionsForResult,
+  sortBattleEntriesForDisplay,
 } from './battle-detail-view';
 
 describe('battle detail view helpers', () => {
@@ -27,7 +30,8 @@ describe('battle detail view helpers', () => {
     expect(getBattleRuleCards(battle)).toEqual([
       {
         title: 'Votação',
-        description: 'Comunidade vale 70%; criador vale 30%. Participantes não votam.',
+        description:
+          'Comunidade decide o resultado. Em empate, o criador desempata. Participantes não votam.',
       },
       {
         title: 'Prêmio',
@@ -81,5 +85,65 @@ describe('battle detail view helpers', () => {
       }),
     ).toBe(false);
   });
-});
 
+  it('orders finished battle winner first and the remaining participants by vote count', () => {
+    const entries = [
+      { id: 'entry-4', userId: 'user-4' },
+      { id: 'entry-2', userId: 'user-2' },
+      { id: 'entry-1', userId: 'user-1' },
+      { id: 'entry-3', userId: 'user-3' },
+    ] as never[];
+
+    expect(
+      sortBattleEntriesForDisplay({
+        battle: {
+          status: 'finished',
+          winners: [
+            { userId: 'user-1', place: 1 },
+            { userId: 'legacy-second-place', place: 2 },
+          ],
+        } as never,
+        entries,
+        submissionsByUserId: new Map([
+          ['user-2', { voteCount: 8 }],
+          ['user-3', { voteCount: 2 }],
+          ['user-4', { voteCount: 12 }],
+        ]) as never,
+      }).map((entry) => entry.userId),
+    ).toEqual(['user-1', 'user-4', 'user-2', 'user-3']);
+  });
+
+  it('orders finished battle submissions by winner first and community votes after', () => {
+    const submissions = [
+      { id: 'sub-2', userId: 'user-2', voteCount: 8 },
+      { id: 'sub-3', userId: 'user-3', voteCount: 2 },
+      { id: 'sub-1', userId: 'user-1', voteCount: 4 },
+      { id: 'sub-4', userId: 'user-4', voteCount: 12 },
+    ] as never[];
+
+    expect(
+      sortBattleSubmissionsForResult({
+        battle: {
+          status: 'finished',
+          winners: [{ userId: 'user-1', place: 1 }],
+        } as never,
+        submissions,
+      }).map((submission) => submission.userId),
+    ).toEqual(['user-1', 'user-4', 'user-2', 'user-3']);
+  });
+
+  it('separates community votes from the creator vote signal', () => {
+    expect(
+      getBattleSubmissionResultBreakdown({
+        voteCount: 8,
+        publicVoteCount: 7,
+        judgeVoteCount: 1,
+      }),
+    ).toEqual({ publicVoteCount: 7, hasCreatorVote: true });
+
+    expect(getBattleSubmissionResultBreakdown({ voteCount: 4 })).toEqual({
+      publicVoteCount: 4,
+      hasCreatorVote: false,
+    });
+  });
+});

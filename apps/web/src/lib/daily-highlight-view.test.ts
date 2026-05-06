@@ -4,6 +4,7 @@ import {
   formatBrazilDayKey,
   getBrazilDayKey,
   getDailyHighlightDayKeys,
+  getDailyHighlightPlacementLabel,
   getDailyHighlightsForDay,
   getVisibleDailyHighlights,
   shiftBrazilDayKey,
@@ -103,6 +104,13 @@ describe('daily highlight view helpers', () => {
 
   it('formats Brazil day keys for pt-BR UI copy', () => {
     expect(formatBrazilDayKey('2026-05-05')).toBe('05/05/2026');
+  });
+
+  it('formats finalized placement labels', () => {
+    expect(getDailyHighlightPlacementLabel({ placement: 1 } as never)).toBe('1º lugar');
+    expect(getDailyHighlightPlacementLabel({ placement: 2 } as never)).toBe('2º lugar');
+    expect(getDailyHighlightPlacementLabel({ placement: 3 } as never)).toBe('3º lugar');
+    expect(getDailyHighlightPlacementLabel({ placement: null } as never)).toBeNull();
   });
 
   it('moves Brazil day keys by calendar day', () => {

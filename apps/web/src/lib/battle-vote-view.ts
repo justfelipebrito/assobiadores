@@ -31,11 +31,12 @@ export function getBattleWinnerForSubmission({
   submission: Pick<Submission, 'userId'> | null;
 }) {
   if (!submission) return null;
-  return battle.winners.find((winner) => winner.userId === submission.userId) ?? null;
+  return (
+    battle.winners.find((winner) => winner.place === 1 && winner.userId === submission.userId) ??
+    null
+  );
 }
 
-export function getBattleWinnerBadgeLabel(place: number) {
-  if (place === 1) return 'Vencedor';
-  return `${place}º lugar`;
+export function getBattleWinnerBadgeLabel() {
+  return 'Vencedor';
 }
-

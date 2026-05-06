@@ -26,7 +26,7 @@ export default function RegisterPage() {
 
   useEffect(() => {
     if (user) {
-      router.push('/meu-perfil');
+      router.push('/conta');
     }
   }, [router, user]);
 
@@ -53,7 +53,7 @@ export default function RegisterPage() {
       const signedUser = provider === 'google' ? await signInWithGoogle() : await signInWithApple();
       if (!signedUser) return;
       await bootstrapUser(signedUser);
-      router.push('/meu-perfil');
+      router.push('/conta');
     } catch (err) {
       setLocalError(err instanceof Error ? err.message : 'Erro ao preparar perfil');
     } finally {
@@ -107,10 +107,10 @@ export default function RegisterPage() {
         }
       }
       if (lastError) throw lastError;
-      router.push('/meu-perfil');
+      router.push('/conta');
     } catch (err) {
       setLocalError(err instanceof Error ? err.message : 'Erro ao salvar naturalidade');
-      router.push('/meu-perfil');
+      router.push('/conta');
     } finally {
       setAuthActionLoading(false);
     }

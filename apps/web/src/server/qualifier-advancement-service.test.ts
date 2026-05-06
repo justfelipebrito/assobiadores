@@ -101,6 +101,21 @@ function createDb({
           doc: vi.fn((id: string) => ({ id })),
         };
       }
+      if (name === 'qualifierParticipants') {
+        return {
+          doc: vi.fn((id: string) => ({ id })),
+        };
+      }
+      if (name === 'championships') {
+        return {
+          doc: vi.fn((id: string) => ({ id })),
+        };
+      }
+      if (name === 'pointActivities') {
+        return {
+          doc: vi.fn((id: string) => ({ id })),
+        };
+      }
       throw new Error(`Unexpected collection ${name}`);
     }),
   };
@@ -129,7 +144,20 @@ describe('advanceQualifierRound', () => {
 
     expect(batch.update).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'registration-1' }),
-      expect.objectContaining({ bracketStatus: 'qualified', currentMatchId: null }),
+      expect.objectContaining({
+        bracketStatus: 'qualified',
+        currentMatchId: null,
+        qualifiedChampionshipId: 'championship-sp-2026-freestyle',
+      }),
+    );
+    expect(batch.set).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'registration-1' }),
+      expect.objectContaining({
+        userId: 'user-1',
+        bracketStatus: 'qualified',
+        qualifiedChampionshipId: 'championship-sp-2026-freestyle',
+      }),
+      { merge: true },
     );
     expect(batch.update).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'user-1' }),
@@ -142,6 +170,28 @@ describe('advanceQualifierRound', () => {
       expect.objectContaining({ id: 'qualifier-sp-2026-freestyle' }),
       expect.objectContaining({ status: 'finished', currentRound: 1 }),
       { merge: true },
+    );
+    expect(batch.set).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'championship-sp-2026-freestyle' }),
+      expect.objectContaining({
+        participantIds: expect.anything(),
+        currentParticipants: 64,
+        qualifierBattleIds: expect.anything(),
+      }),
+      { merge: true },
+    );
+    expect(batch.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'qualifier__registration-1__qualifier_regional_qualification__user-1',
+      }),
+      expect.objectContaining({
+        userId: 'user-1',
+        points: 500,
+        reason: 'qualifier_regional_qualification',
+        sourceType: 'qualifier',
+        sourceId: 'registration-1',
+        category: 'freestyle',
+      }),
     );
   });
 

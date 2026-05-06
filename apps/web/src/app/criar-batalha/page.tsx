@@ -241,9 +241,8 @@ export default function CreateBattlePage() {
             <div>
               <p className="mb-3 text-sm font-semibold text-white">Votacao</p>
               <p className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-surface-300">
-                Comunidade vota com peso de 70%; o criador da batalha tem o voto de desempate
-                com peso de 30%. Participantes nao votam na propria batalha.
-                {format === 'duel' && ' Em empate no 1 vs 1, ninguem pontua.'}
+                Comunidade decide o resultado. Em empate, o criador da batalha desempata.
+                Participantes nao votam na propria batalha.
               </p>
             </div>
           </CardContent>

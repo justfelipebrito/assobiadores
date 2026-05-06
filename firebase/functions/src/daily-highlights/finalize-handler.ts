@@ -41,6 +41,24 @@ function getNestedSeasonPoints(user: Record<string, any>, seasonId: string, cate
   };
 }
 
+function cleanIdPart(value: string) {
+  return value.replace(/[^a-zA-Z0-9_-]/g, '_');
+}
+
+function buildPointActivityId({
+  userId,
+  reason,
+  sourceType,
+  sourceId,
+}: {
+  userId: string;
+  reason: string;
+  sourceType: string;
+  sourceId: string;
+}) {
+  return [sourceType, sourceId, reason, userId].map((part) => cleanIdPart(part)).join('__');
+}
+
 function buildPlacementPointUpdate({
   user,
   seasonId,
@@ -121,6 +139,12 @@ export async function finalizeDailyHighlightsForDay(
       const userRef = db.collection('users').doc(highlight.userId);
       const userDoc = await userRef.get();
       const user = userDoc.data() ?? {};
+      const activityId = buildPointActivityId({
+        userId: highlight.userId,
+        reason: 'daily_highlight_placement',
+        sourceType: 'daily_highlight',
+        sourceId: highlight.id,
+      });
       batch.update(
         userRef,
         buildPlacementPointUpdate({
@@ -130,6 +154,20 @@ export async function finalizeDailyHighlightsForDay(
           points: winner.points,
         }),
       );
+      batch.set(db.collection('pointActivities').doc(activityId), {
+        id: activityId,
+        userId: highlight.userId,
+        points: winner.points,
+        reason: 'daily_highlight_placement',
+        label: `Top ${winner.place} em Destaques Diarios`,
+        sourceType: 'daily_highlight',
+        sourceId: highlight.id,
+        sourceTitle: 'Destaques Diarios',
+        category: highlight.category,
+        seasonId,
+        occurredAt: FieldValue.serverTimestamp(),
+        createdAt: FieldValue.serverTimestamp(),
+      });
     }
   }
 

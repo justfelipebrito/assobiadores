@@ -1,10 +1,14 @@
 'use client';
 
-import { Trophy, Swords, Star, TrendingUp, Calendar, Music } from 'lucide-react';
-import { useDocument } from '@batalha/firebase';
+import { Trophy, Swords, Star, TrendingUp, ListChecks } from 'lucide-react';
+import { limit, orderBy, useCollection, useDocument, where } from '@batalha/firebase';
 import { Avatar, Badge, StatCard, ProgressBar, Skeleton, EmptyState } from '@batalha/ui';
-import { formatNumber, calculateRank, getRankTier, RANKS } from '@batalha/utils';
-import type { User } from '@batalha/types';
+import { formatDateTime, formatNumber, getRankTier, RANKS, toDate } from '@batalha/utils';
+import type { BattleEntry, DailyHighlight, PointActivity, Submission, User } from '@batalha/types';
+import {
+  getPointActivitySecondaryText,
+  getPublicProfileStats,
+} from '../../../lib/profile-activity-view';
 
 const RANK_COLORS: Record<number, { bg: string; text: string; border: string; glow: string }> = {
   1: { bg: 'from-surface-600/20 to-surface-700/20', text: 'text-surface-400', border: 'border-surface-600/30', glow: '' },
@@ -31,6 +35,21 @@ function getNextRankPoints(currentPoints: number): { current: number; next: numb
 
 export default function ProfilePage({ params }: { params: { userId: string } }) {
   const { data: user, loading } = useDocument<User>('users', params.userId);
+  const { data: battleEntries } = useCollection<BattleEntry>('battleEntries', [
+    where('userId', '==', params.userId),
+  ]);
+  const { data: submissions } = useCollection<Submission>('submissions', [
+    where('userId', '==', params.userId),
+  ]);
+  const { data: dailyHighlights } = useCollection<DailyHighlight>('dailyHighlights', [
+    where('userId', '==', params.userId),
+  ]);
+  const { data: pointActivities, loading: pointActivitiesLoading } =
+    useCollection<PointActivity>('pointActivities', [
+      where('userId', '==', params.userId),
+      orderBy('occurredAt', 'desc'),
+      limit(30),
+    ]);
 
   if (loading) {
     return (
@@ -59,6 +78,13 @@ export default function ProfilePage({ params }: { params: { userId: string } }) 
   const tier = getRankTier(user.points);
   const rankColor = RANK_COLORS[tier] || RANK_COLORS[1]!;
   const progress = getNextRankPoints(user.points);
+  const stats = getPublicProfileStats({
+    user,
+    battleEntries,
+    submissions,
+    dailyHighlights,
+    pointActivities,
+  });
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
@@ -114,22 +140,22 @@ export default function ProfilePage({ params }: { params: { userId: string } }) 
         <StatCard
           icon={<Swords className="h-5 w-5" />}
           label="Batalhas"
-          value={formatNumber(user.stats.battlesEntered)}
+          value={formatNumber(stats.battlesEntered)}
         />
         <StatCard
           icon={<Trophy className="h-5 w-5" />}
           label="Vitorias"
-          value={formatNumber(user.stats.battlesWon)}
+          value={formatNumber(stats.battlesWon)}
         />
         <StatCard
           icon={<Star className="h-5 w-5" />}
           label="Top 3"
-          value={formatNumber(user.stats.topThreeFinishes)}
+          value={formatNumber(stats.topThreeFinishes)}
         />
         <StatCard
           icon={<TrendingUp className="h-5 w-5" />}
           label="Votos recebidos"
-          value={formatNumber(user.stats.totalVotesReceived)}
+          value={formatNumber(stats.totalVotesReceived)}
         />
       </div>
 
@@ -151,14 +177,49 @@ export default function ProfilePage({ params }: { params: { userId: string } }) 
         </div>
       )}
 
-      {/* Battle history placeholder */}
+      {/* Points activity */}
       <div className="mt-8">
-        <h2 className="mb-4 text-lg font-semibold text-white">Historico de Batalhas</h2>
-        <EmptyState
-          icon={<Calendar className="h-10 w-10" />}
-          title="Nenhuma batalha ainda"
-          description="O historico de batalhas aparecera aqui."
-        />
+        <h2 className="mb-4 text-lg font-semibold text-white">Pontos conquistados</h2>
+        {pointActivitiesLoading ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map((item) => (
+              <Skeleton key={item} className="h-20 w-full" />
+            ))}
+          </div>
+        ) : pointActivities.length > 0 ? (
+          <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+            {pointActivities.map((activity) => {
+              const occurredAt = toDate(activity.occurredAt);
+              const secondary = getPointActivitySecondaryText(activity);
+
+              return (
+                <div
+                  key={activity.id}
+                  className="flex items-center gap-4 border-b border-white/10 px-4 py-4 last:border-b-0"
+                >
+                  <div className="flex h-11 w-16 shrink-0 items-center justify-center rounded-xl border border-brand-400/30 bg-brand-500/10 text-sm font-bold text-brand-300">
+                    +{formatNumber(activity.points)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-white">{activity.label}</p>
+                    {secondary && (
+                      <p className="mt-1 truncate text-sm text-surface-400">{secondary}</p>
+                    )}
+                  </div>
+                  <div className="shrink-0 text-right text-xs text-surface-500">
+                    {occurredAt ? formatDateTime(occurredAt) : 'Data pendente'}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <EmptyState
+            icon={<ListChecks className="h-10 w-10" />}
+            title="Nenhum ponto conquistado ainda"
+            description="As pontuacoes de batalhas, destaques e competicoes aparecerao aqui."
+          />
+        )}
       </div>
     </div>
   );

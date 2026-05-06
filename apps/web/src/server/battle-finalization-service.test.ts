@@ -25,6 +25,7 @@ function createDb({
     category: 'freestyle',
     format: 'duel',
     createdBy: 'creator-1',
+    votingEnd: new Date('2026-05-01T00:00:00.000Z'),
     prizeDistribution: { first: 1000, second: 500, third: 0 },
   },
   submissions = [
@@ -50,7 +51,7 @@ function createDb({
     querySnapshot(submissions.map((item) => ({ data: () => item }))),
   );
   const entriesQuery = createQuery(querySnapshot(entries.map((item) => ({ data: () => item }))));
-  const batch = { update: vi.fn(), commit: vi.fn() };
+  const batch = { set: vi.fn(), update: vi.fn(), commit: vi.fn() };
   const db = {
     batch: vi.fn(() => batch),
     collection: vi.fn((name: string) => {
@@ -69,6 +70,11 @@ function createDb({
       }
       if (name === 'submissions') return { where: submissionsQuery.where };
       if (name === 'battleEntries') return { where: entriesQuery.where };
+      if (name === 'pointActivities') {
+        return {
+          doc: vi.fn((id: string) => ({ id })),
+        };
+      }
       throw new Error(`Unexpected collection ${name}`);
     }),
   };
@@ -84,10 +90,7 @@ describe('finalizeBattle', () => {
     ).resolves.toMatchObject({
       success: true,
       officialScoringApplied: true,
-      winners: [
-        { userId: 'user-a', place: 1, points: 10, prize: 1000 },
-        { userId: 'user-b', place: 2, points: 0, prize: 500 },
-      ],
+      winners: [{ userId: 'user-a', place: 1, points: 10, prize: 1000 }],
     });
 
     expect(batch.update).toHaveBeenCalledWith(
@@ -95,6 +98,20 @@ describe('finalizeBattle', () => {
       expect.objectContaining({
         status: 'finished',
         winners: expect.arrayContaining([expect.objectContaining({ userId: 'user-a' })]),
+      }),
+    );
+    expect(batch.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'battle__battle-1__battle_win__user-a',
+      }),
+      expect.objectContaining({
+        userId: 'user-a',
+        points: 10,
+        reason: 'battle_win',
+        label: 'Vitoria em batalha',
+        sourceType: 'battle',
+        sourceId: 'battle-1',
+        category: 'freestyle',
       }),
     );
     expect(batch.commit).toHaveBeenCalledTimes(1);
@@ -107,6 +124,8 @@ describe('finalizeBattle', () => {
         category: 'freestyle',
         format: 'duel',
         createdBy: 'creator-1',
+        votingEnd: new Date('2026-05-01T00:00:00.000Z'),
+        prizePool: 2500,
         prizeDistribution: { first: 1000, second: 500, third: 0 },
       },
       submissions: [
@@ -120,10 +139,7 @@ describe('finalizeBattle', () => {
     ).resolves.toMatchObject({
       success: true,
       officialScoringApplied: false,
-      winners: [
-        { userId: 'user-a', place: 1, points: 0, prize: 1000 },
-        { userId: 'user-b', place: 2, points: 0, prize: 500 },
-      ],
+      winners: [],
     });
 
     expect(batch.update).toHaveBeenCalledWith(
@@ -134,15 +150,18 @@ describe('finalizeBattle', () => {
       expect.anything(),
       expect.objectContaining({ points: expect.anything() }),
     );
+    expect(batch.set).not.toHaveBeenCalled();
   });
 
-  it('uses community and creator judge weights to rank winners', async () => {
+  it('uses community votes as the battle score', async () => {
     const { db } = createDb({
       battle: {
         status: 'voting',
         category: 'freestyle',
         format: 'group',
         createdBy: 'creator-1',
+        votingEnd: new Date('2026-05-01T00:00:00.000Z'),
+        prizePool: 2500,
         prizeDistribution: { first: 1000, second: 500, third: 0 },
       },
       submissions: [
@@ -172,8 +191,48 @@ describe('finalizeBattle', () => {
       actorUserId: 'creator-1',
     });
 
+    expect(result.winners[0]).toEqual({ userId: 'user-a', place: 1, points: 20, prize: 2500 });
+    expect(result.winners).toHaveLength(1);
+  });
+
+  it('uses the creator vote only as a tie-breaker', async () => {
+    const { db } = createDb({
+      battle: {
+        status: 'voting',
+        category: 'freestyle',
+        format: 'group',
+        createdBy: 'creator-1',
+        votingEnd: new Date('2026-05-01T00:00:00.000Z'),
+        prizeDistribution: { first: 1000, second: 500, third: 0 },
+      },
+      submissions: [
+        { userId: 'user-a', status: 'approved', voteCount: 5, publicVoteCount: 5 },
+        {
+          userId: 'user-b',
+          status: 'approved',
+          voteCount: 5,
+          publicVoteCount: 5,
+          judgeVoteCount: 1,
+        },
+        { userId: 'user-c', status: 'approved', voteCount: 1, publicVoteCount: 1 },
+        { userId: 'user-d', status: 'approved', voteCount: 1, publicVoteCount: 1 },
+        { userId: 'user-e', status: 'approved', voteCount: 1, publicVoteCount: 1 },
+      ],
+      entries: [
+        { userId: 'user-a', status: 'confirmed' },
+        { userId: 'user-b', status: 'confirmed' },
+        { userId: 'user-c', status: 'confirmed' },
+        { userId: 'user-d', status: 'confirmed' },
+        { userId: 'user-e', status: 'confirmed' },
+      ],
+    });
+
+    const result = await finalizeBattle(db as never, {
+      battleId: 'battle-1',
+      actorUserId: 'creator-1',
+    });
+
     expect(result.winners[0]).toEqual({ userId: 'user-b', place: 1, points: 20, prize: 1000 });
-    expect(result.winners[1]).toEqual({ userId: 'user-a', place: 2, points: 0, prize: 500 });
   });
 
   it('ignores approved submissions from users without confirmed entries when choosing winners', async () => {
@@ -183,6 +242,7 @@ describe('finalizeBattle', () => {
         category: 'freestyle',
         format: 'duel',
         createdBy: 'creator-1',
+        votingEnd: new Date('2026-05-01T00:00:00.000Z'),
         prizeDistribution: { first: 1000, second: 500, third: 0 },
       },
       submissions: [
@@ -201,7 +261,7 @@ describe('finalizeBattle', () => {
       actorUserId: 'creator-1',
     });
 
-    expect(result.winners.map((winner) => winner.userId)).toEqual(['user-a', 'user-b']);
+    expect(result.winners.map((winner) => winner.userId)).toEqual(['user-a']);
     expect(result.winners[0]).toMatchObject({ userId: 'user-a', points: 10 });
   });
 
@@ -219,5 +279,26 @@ describe('finalizeBattle', () => {
         actorUserId: 'admin-1',
       }),
     ).rejects.toMatchObject({ status: 400 });
+  });
+
+  it('blocks finalization before voting period ends', async () => {
+    await expect(
+      finalizeBattle(
+        createDb({
+          battle: {
+            status: 'voting',
+            category: 'freestyle',
+            format: 'duel',
+            createdBy: 'creator-1',
+            votingEnd: new Date('2026-05-05T22:00:00.000Z'),
+          },
+        }).db as never,
+        {
+          battleId: 'battle-1',
+          actorUserId: 'creator-1',
+          now: new Date('2026-05-05T21:59:00.000Z'),
+        },
+      ),
+    ).rejects.toMatchObject({ status: 400, message: 'Votacao ainda nao encerrou' });
   });
 });

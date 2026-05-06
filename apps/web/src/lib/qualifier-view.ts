@@ -61,8 +61,17 @@ export function getQualifierRegistrationStateCopy(
 export function sortQualifierMatches(matches: QualifierMatch[]) {
   return [...matches].sort((a, b) => {
     if (a.roundNumber !== b.roundNumber) return a.roundNumber - b.roundNumber;
-    return getTime(a.scheduledFor) - getTime(b.scheduledFor);
+    const scheduledDiff = getTime(a.scheduledFor) - getTime(b.scheduledFor);
+    if (scheduledDiff !== 0) return scheduledDiff;
+    const dayDiff = (a.matchDayIndex ?? 0) - (b.matchDayIndex ?? 0);
+    if (dayDiff !== 0) return dayDiff;
+    return (a.sequenceInDay ?? 0) - (b.sequenceInDay ?? 0);
   });
+}
+
+export function getDisplayQualifierRound(roundNumbers: number[], selectedRound: number | null) {
+  if (selectedRound !== null && roundNumbers.includes(selectedRound)) return selectedRound;
+  return roundNumbers.at(-1) ?? 1;
 }
 
 export function getQualifierMatchStatusCopy(status: QualifierMatch['status']) {
@@ -82,6 +91,67 @@ export function getQualifierMatchStatusCopy(status: QualifierMatch['status']) {
     default:
       return 'Agendado';
   }
+}
+
+export function getQualifierMatchHeaderDateCopy(
+  match: Pick<QualifierMatch, 'status' | 'submissionDeadline'>,
+  formatDateTime: (value: unknown) => string,
+) {
+  if (match.status === 'voting') return 'Votação em andamento';
+  if (match.status === 'walkover') return 'Resultado por W.O.';
+  if (match.status === 'finished') return 'Confronto finalizado';
+  return `Envio até ${formatDateTime(match.submissionDeadline)}`;
+}
+
+export function getQualifierMatchResultCopy({
+  winnerName,
+  qualifiedForRegional,
+}: {
+  winnerName?: string | null;
+  qualifiedForRegional?: boolean;
+}) {
+  if (!winnerName) {
+    return {
+      title: 'Resultado',
+      value: 'Aguardando',
+      tone: 'muted' as const,
+    };
+  }
+
+  if (qualifiedForRegional) {
+    return {
+      title: 'Classificado para o Regional',
+      value: winnerName,
+      tone: 'success' as const,
+    };
+  }
+
+  return {
+    title: 'Resultado',
+    value: winnerName,
+    tone: 'default' as const,
+  };
+}
+
+export function getQualifierRuleCards(maxQualified = 64) {
+  return [
+    {
+      title: 'INSCRIÇÃO',
+      description: 'A inscrição é vinculada à sua Naturalidade e categoria escolhida.',
+    },
+    {
+      title: 'ENVIO',
+      description: 'Em cada confronto, grave seu assobio na plataforma até 14:59.',
+    },
+    {
+      title: 'VOTAÇÃO',
+      description: 'Votação pública das 15:00 às 21:59. Participantes não votam.',
+    },
+    {
+      title: 'CLASSIFICAÇÃO',
+      description: `Até ${maxQualified} competidores avançam para o Regional da categoria.`,
+    },
+  ];
 }
 
 export function getQualifierEmptyMatchesCopy(

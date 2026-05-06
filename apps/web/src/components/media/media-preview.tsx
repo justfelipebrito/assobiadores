@@ -14,6 +14,7 @@ export function MediaPreview({
   durationSeconds,
   voteCount,
   size,
+  resultLabel,
 }: {
   mediaType?: 'audio' | 'video';
   mediaURL?: string | null;
@@ -24,6 +25,7 @@ export function MediaPreview({
   durationSeconds?: number | null;
   voteCount?: number | null;
   size?: 'default' | 'compact';
+  resultLabel?: string | null;
 }) {
   if (mediaType === 'audio' && mediaURL) {
     return (
@@ -35,6 +37,7 @@ export function MediaPreview({
         durationSeconds={durationSeconds}
         voteCount={voteCount}
         size={size}
+        resultLabel={resultLabel}
       />
     );
   }

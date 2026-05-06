@@ -407,6 +407,17 @@ describe('server-owned collections rules', () => {
       dailyHighlightId: 'daily-1',
       userId: 'user-2',
     });
+    await seed('pointActivities/activity-1', {
+      userId: 'user-1',
+      points: 20,
+      reason: 'battle_win',
+      label: 'Vitoria em batalha',
+      sourceType: 'battle',
+      sourceId: 'battle-1',
+      seasonId: '2026',
+      occurredAt: serverTimestamp(),
+      createdAt: serverTimestamp(),
+    });
     await seed('qualifierRegistrations/qualifier-registration-1', {
       userId: 'user-1',
       seasonId: '2026',
@@ -474,6 +485,7 @@ describe('server-owned collections rules', () => {
     await assertSucceeds(getDoc(doc(unauthDb(), 'votes/vote-1')));
     await assertSucceeds(getDoc(doc(unauthDb(), 'dailyHighlights/daily-1')));
     await assertSucceeds(getDoc(doc(unauthDb(), 'dailyHighlightLikes/like-1')));
+    await assertSucceeds(getDoc(doc(unauthDb(), 'pointActivities/activity-1')));
     await assertSucceeds(getDoc(doc(unauthDb(), 'qualifierMatches/qualifier-match-1')));
     await assertSucceeds(getDoc(doc(unauthDb(), 'qualifierSubmissions/qualifier-submission-1')));
     await assertSucceeds(getDoc(doc(unauthDb(), 'qualifierTracks/qualifier-sp-2026-freestyle')));
@@ -577,6 +589,22 @@ describe('server-owned collections rules', () => {
         userId: 'user-1',
       }),
     );
+  });
+
+  it('prevents direct client writes to point activities', async () => {
+    await assertFails(
+      setDoc(doc(authedDb('user-1'), 'pointActivities/activity-2'), {
+        userId: 'user-1',
+        points: 999,
+        reason: 'battle_win',
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(authedDb('user-1'), 'pointActivities/activity-1'), {
+        points: 999,
+      }),
+    );
+    await assertFails(deleteDoc(doc(authedDb('admin-1'), 'pointActivities/activity-1')));
   });
 
   it('prevents direct client writes to qualifier registrations', async () => {

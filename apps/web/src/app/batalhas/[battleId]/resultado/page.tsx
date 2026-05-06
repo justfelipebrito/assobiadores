@@ -1,13 +1,19 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft, Medal, Trophy } from 'lucide-react';
+import { ArrowLeft, Trophy } from 'lucide-react';
 import { useCollection, useDocument, where, orderBy } from '@batalha/firebase';
 import { Card, CardContent, EmptyState, Skeleton, Badge } from '@batalha/ui';
 import type { Battle, Submission } from '@batalha/types';
 import { MediaPreview } from '../../../../components/media/media-preview';
-
-const PLACE_BADGES = ['Ouro', 'Prata', 'Bronze'];
+import {
+  getBattleSubmissionResultBreakdown,
+  sortBattleSubmissionsForResult,
+} from '../../../../lib/battle-detail-view';
+import {
+  getBattleWinnerBadgeLabel,
+  getBattleWinnerForSubmission,
+} from '../../../../lib/battle-vote-view';
 
 export default function ResultPage({ params }: { params: { battleId: string } }) {
   const { data: battle, loading: battleLoading } = useDocument<Battle>('battles', params.battleId);
@@ -21,6 +27,9 @@ export default function ResultPage({ params }: { params: { battleId: string } })
   );
 
   const loading = battleLoading || submissionsLoading;
+  const displaySubmissions = battle
+    ? sortBattleSubmissionsForResult({ battle, submissions })
+    : submissions;
 
   if (loading) {
     return (
@@ -48,44 +57,57 @@ export default function ResultPage({ params }: { params: { battleId: string } })
           Resultado
         </div>
         <h1 className="mt-2 text-2xl font-bold text-white">{battle.title}</h1>
-        <p className="mt-1 text-surface-400">Ranking dos assobios por votos.</p>
+        <p className="mt-1 text-surface-400">Resultado pelos votos da comunidade.</p>
       </div>
 
       <div className="mt-6 space-y-4">
         {submissions.length === 0 ? (
           <EmptyState title="Sem resultados ainda" description="Os resultados aparecerao quando houver assobios enviados." />
         ) : (
-          submissions.map((submission, index) => (
-            <Card key={submission.id}>
-              <CardContent>
-                <div className="grid gap-4 md:grid-cols-[220px_1fr]">
-                  <MediaPreview
-                    mediaType={submission.mediaType}
-                    mediaURL={submission.mediaURL}
-                    videoURL={submission.videoURL}
-                    username={submission.userDisplayName ?? submission.userId}
-                    category={submission.category}
-                    durationSeconds={submission.mediaDurationSeconds}
-                    voteCount={submission.voteCount}
-                    size="compact"
-                  />
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant={index < 3 ? 'gold' : 'default'}>
-                        <Medal className="mr-1 h-3 w-3" />
-                        {index + 1}o lugar{index < 3 ? ` - ${PLACE_BADGES[index]}` : ''}
-                      </Badge>
-                      <Badge variant="purple">{submission.voteCount} votos</Badge>
+          displaySubmissions.map((submission) => {
+            const winner = getBattleWinnerForSubmission({ battle, submission });
+            const resultBreakdown = getBattleSubmissionResultBreakdown(submission);
+
+            return (
+              <Card key={submission.id}>
+                <CardContent>
+                  <div className="grid gap-4 md:grid-cols-[220px_1fr]">
+                    <MediaPreview
+                      mediaType={submission.mediaType}
+                      mediaURL={submission.mediaURL}
+                      videoURL={submission.videoURL}
+                      username={submission.userDisplayName ?? submission.userId}
+                      category={submission.category}
+                      durationSeconds={submission.mediaDurationSeconds}
+                      voteCount={resultBreakdown.publicVoteCount}
+                      size="compact"
+                    />
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {winner && (
+                          <Badge variant="gold">
+                            <Trophy className="mr-1 h-3 w-3" />
+                            {getBattleWinnerBadgeLabel()}
+                          </Badge>
+                        )}
+                        <Badge variant="purple">
+                          {resultBreakdown.publicVoteCount}{' '}
+                          {resultBreakdown.publicVoteCount === 1 ? 'voto' : 'votos'}
+                        </Badge>
+                        {resultBreakdown.hasCreatorVote && (
+                          <Badge variant="default">Voto do Criador</Badge>
+                        )}
+                      </div>
+                      <h2 className="mt-3 text-lg font-semibold text-white">{submission.title}</h2>
+                      {submission.description && (
+                        <p className="mt-1 text-sm text-surface-400">{submission.description}</p>
+                      )}
                     </div>
-                    <h2 className="mt-3 text-lg font-semibold text-white">{submission.title}</h2>
-                    {submission.description && (
-                      <p className="mt-1 text-sm text-surface-400">{submission.description}</p>
-                    )}
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))
+                </CardContent>
+              </Card>
+            );
+          })
         )}
       </div>
     </div>

@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { confirmPaymentTargets } from './payment-confirmation';
 
-function createDb() {
+function createDb({
+  documents = {},
+}: {
+  documents?: Record<string, Record<string, unknown>>;
+} = {}) {
   const refs = new Map<string, { id: string }>();
   const ref = (id: string) => {
     if (!refs.has(id)) refs.set(id, { id });
@@ -17,7 +21,10 @@ function createDb() {
     collection: vi.fn((name: string) => ({
       doc: vi.fn((id: string) => ({
         ...ref(`${name}/${id}`),
-        get: vi.fn(async () => ({ exists: true, data: () => ({}) })),
+        get: vi.fn(async () => ({
+          exists: true,
+          data: () => documents[`${name}/${id}`] ?? {},
+        })),
       })),
     })),
   };
@@ -60,5 +67,58 @@ describe('confirmPaymentTargets', () => {
       }),
     );
     expect(batch.commit).toHaveBeenCalledTimes(1);
+  });
+
+  it('confirms qualifier registrations and writes the entry point activity', async () => {
+    const { db, batch, ref } = createDb({
+      documents: {
+        'qualifierRegistrations/registration-1': {
+          userId: 'user-1',
+          seasonId: 'season-2026',
+          region: 'SP',
+          category: 'freestyle',
+        },
+        'users/user-1': {
+          displayName: 'User One',
+          seasonCategoryPoints: { '2026': { freestyle: { points: 25, rank: 'Iniciante' } } },
+        },
+      },
+    });
+    const paymentDoc = {
+      ref: ref('payments/payment-1'),
+      data: () => ({
+        status: 'pending',
+        amount: 400,
+        qualifierRegistrationId: 'registration-1',
+      }),
+    };
+
+    await confirmPaymentTargets(db as never, paymentDoc as never);
+
+    expect(batch.update).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'qualifierRegistrations/registration-1' }),
+      expect.objectContaining({ status: 'confirmed', bracketStatus: 'waiting_draw' }),
+    );
+    expect(batch.update).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'users/user-1' }),
+      expect.objectContaining({
+        points: expect.anything(),
+        'seasonCategoryPoints.2026.freestyle.points': expect.anything(),
+      }),
+    );
+    expect(batch.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'pointActivities/qualifier__registration-1__qualifier_entry__user-1',
+      }),
+      expect.objectContaining({
+        userId: 'user-1',
+        points: 50,
+        reason: 'qualifier_entry',
+        sourceType: 'qualifier',
+        sourceId: 'registration-1',
+        category: 'freestyle',
+        seasonId: '2026',
+      }),
+    );
   });
 });

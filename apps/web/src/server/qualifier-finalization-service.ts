@@ -1,10 +1,24 @@
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
-import { SEASON_SCORING } from '@batalha/types';
+import {
+  SEASON_SCORING,
+  type BrazilState,
+  type CompetitionCategory,
+} from '@batalha/types';
 import { ApiError } from './api-errors';
+import { getQualifierTrackId, QUALIFIER_SEASON_ID } from '../lib/qualifier-tracks';
+import { buildPointActivity } from './point-activity-service';
 
 export interface FinalizeQualifierMatchInput {
   matchId: string;
   adminUserId: string;
+}
+
+export interface FinalizeQualifierRoundInput {
+  adminUserId: string;
+  region: BrazilState;
+  category: CompetitionCategory;
+  roundNumber?: number;
+  seasonId?: string;
 }
 
 function getSubmissionVoteCount(submission: Record<string, unknown>) {
@@ -138,6 +152,18 @@ export async function finalizeQualifierMatch(
         db.collection('users').doc(winnerId),
         buildPointsUpdate(String(match.category), SEASON_SCORING.qualifier.phaseAdvance),
       );
+      const pointActivity = buildPointActivity({
+        userId: winnerId,
+        points: SEASON_SCORING.qualifier.phaseAdvance,
+        reason: 'qualifier_phase_advance',
+        label: 'Avanco em Classificatoria',
+        sourceType: 'qualifier',
+        sourceId: matchId,
+        sourceTitle: `Rodada ${Number(match.roundNumber ?? 1)}`,
+        category: String(match.category) as CompetitionCategory,
+        seasonId: '2026',
+      });
+      transaction.set(db.collection('pointActivities').doc(pointActivity.id), pointActivity);
     }
 
     return {
@@ -150,4 +176,61 @@ export async function finalizeQualifierMatch(
       pointsAwarded: winnerId ? SEASON_SCORING.qualifier.phaseAdvance : 0,
     };
   });
+}
+
+export async function finalizeQualifierRound(
+  db: Firestore,
+  {
+    adminUserId,
+    region,
+    category,
+    roundNumber,
+    seasonId = QUALIFIER_SEASON_ID,
+  }: FinalizeQualifierRoundInput,
+) {
+  if (!adminUserId) throw new ApiError(401, 'Nao autorizado');
+
+  const adminDoc = await db.collection('users').doc(adminUserId).get();
+  if (!adminDoc.exists || adminDoc.data()?.role !== 'admin') {
+    throw new ApiError(403, 'Apenas administradores podem finalizar confrontos');
+  }
+
+  const trackDoc = await db
+    .collection('qualifierTracks')
+    .doc(getQualifierTrackId(region, category))
+    .get();
+  if (!trackDoc.exists) throw new ApiError(404, 'Classificatoria nao encontrada');
+
+  const currentRound = roundNumber ?? Number(trackDoc.data()?.currentRound ?? 0);
+  if (currentRound <= 0) throw new ApiError(400, 'Rodada atual invalida');
+
+  const matchesSnapshot = await db
+    .collection('qualifierMatches')
+    .where('seasonId', '==', seasonId)
+    .where('region', '==', region)
+    .where('category', '==', category)
+    .where('roundNumber', '==', currentRound)
+    .get();
+
+  if (matchesSnapshot.empty) {
+    throw new ApiError(404, 'Nenhum confronto encontrado para esta rodada');
+  }
+
+  const votingMatchIds = matchesSnapshot.docs
+    .filter((doc) => doc.data().status === 'voting')
+    .map((doc) => doc.id);
+
+  const results = [];
+  for (const matchId of votingMatchIds) {
+    results.push(await finalizeQualifierMatch(db, { matchId, adminUserId }));
+  }
+
+  return {
+    region,
+    category,
+    roundNumber: currentRound,
+    finalizedCount: results.length,
+    skippedCount: matchesSnapshot.size - results.length,
+    results,
+  };
 }

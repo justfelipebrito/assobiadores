@@ -29,6 +29,8 @@ import {
   canSubmitBattleEntry,
   getBattleRuleCards,
   getBattleScheduleItems,
+  getBattleSubmissionResultBreakdown,
+  sortBattleEntriesForDisplay,
 } from '@/lib/battle-detail-view';
 import {
   getBattleSubmissionVoteState,
@@ -161,6 +163,17 @@ export default function BattleDetailPage({ params }: { params: { battleId: strin
     submissions.forEach((submission) => map.set(submission.userId, submission));
     return map;
   }, [submissions]);
+  const displayEntries = useMemo(
+    () =>
+      battle
+        ? sortBattleEntriesForDisplay({
+            battle,
+            entries: confirmedEntries,
+            submissionsByUserId,
+          })
+        : confirmedEntries,
+    [battle, confirmedEntries, submissionsByUserId],
+  );
   const currentUserEntry = useMemo(
     () => confirmedEntries.find((entry) => user && entry.userId === user.uid) ?? null,
     [confirmedEntries, user],
@@ -502,9 +515,12 @@ export default function BattleDetailPage({ params }: { params: { battleId: strin
               </div>
             ) : (
               <div className="space-y-4">
-                {confirmedEntries.map((entry) => {
+                {displayEntries.map((entry) => {
                   const submission = submissionsByUserId.get(entry.userId);
                   const winner = getBattleWinnerForSubmission({ battle, submission: submission ?? null });
+                  const resultBreakdown = submission
+                    ? getBattleSubmissionResultBreakdown(submission)
+                    : null;
                   const voteState = submission
                     ? getBattleSubmissionVoteState({
                         submissionId: submission.id,
@@ -531,7 +547,7 @@ export default function BattleDetailPage({ params }: { params: { battleId: strin
                             {winner && (
                               <Badge variant={winner.place === 1 ? 'gold' : 'default'}>
                                 <Trophy className="mr-1 h-3 w-3" />
-                                {getBattleWinnerBadgeLabel(winner.place)}
+                                {getBattleWinnerBadgeLabel()}
                               </Badge>
                             )}
                             {voteState?.isSelectedVote && (
@@ -571,8 +587,8 @@ export default function BattleDetailPage({ params }: { params: { battleId: strin
                       {winner && (
                         <div className="mt-4 grid gap-2 rounded-xl border border-white/10 bg-surface-950/40 px-4 py-3 text-sm text-surface-300 sm:grid-cols-2">
                           <span>
-                            Pontos:{' '}
-                            <span className="font-semibold text-white">{winner.points}</span>
+                            Pontuação Ranking:{' '}
+                            <span className="font-semibold text-white">+{winner.points}</span>
                           </span>
                           {winner.prize > 0 && (
                             <span>
@@ -587,6 +603,19 @@ export default function BattleDetailPage({ params }: { params: { battleId: strin
 
                       {submission ? (
                         <div className="mt-4">
+                          {battle.status === 'finished' && resultBreakdown && (
+                            <div className="mb-3 flex flex-wrap gap-2 text-xs text-surface-300">
+                              <span className="rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5">
+                                Comunidade: {resultBreakdown.publicVoteCount}{' '}
+                                {resultBreakdown.publicVoteCount === 1 ? 'voto' : 'votos'}
+                              </span>
+                              {resultBreakdown.hasCreatorVote && (
+                                <span className="rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5">
+                                  Voto do Criador
+                                </span>
+                              )}
+                            </div>
+                          )}
                           <MediaPreview
                             mediaType={submission.mediaType}
                             mediaURL={submission.mediaURL}
@@ -594,7 +623,11 @@ export default function BattleDetailPage({ params }: { params: { battleId: strin
                             username={submission.userDisplayName ?? getEntryName(entry)}
                             category={submission.category}
                             durationSeconds={submission.mediaDurationSeconds}
-                            voteCount={submission.voteCount}
+                            voteCount={
+                              battle.status === 'finished'
+                                ? resultBreakdown?.publicVoteCount
+                                : submission.voteCount
+                            }
                             size="compact"
                           />
                         </div>

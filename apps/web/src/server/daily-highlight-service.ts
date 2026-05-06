@@ -7,6 +7,7 @@ import {
 } from '@batalha/types';
 import { calculateRank } from '@batalha/utils';
 import { ApiError } from './api-errors';
+import { buildPointActivity } from './point-activity-service';
 
 export interface CreateDailyHighlightInput {
   userId: string;
@@ -183,6 +184,18 @@ export async function createDailyHighlightFromAudio(
       createdAt: FieldValue.serverTimestamp(),
       updatedAt: FieldValue.serverTimestamp(),
     });
+    const pointActivity = buildPointActivity({
+      userId,
+      points: DAILY_HIGHLIGHT_SUBMISSION_POINTS,
+      reason: 'daily_highlight_submission',
+      label: 'Envio em Destaques Diarios',
+      sourceType: 'daily_highlight',
+      sourceId: dailyHighlightRef.id,
+      sourceTitle: 'Destaques Diarios',
+      category,
+      seasonId,
+    });
+    transaction.set(db.collection('pointActivities').doc(pointActivity.id), pointActivity);
     transaction.update(
       userRef,
       buildSeasonScoreUpdate({

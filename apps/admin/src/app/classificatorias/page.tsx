@@ -75,10 +75,14 @@ function AdminQualifierActions() {
   const [region, setRegion] = useState<BrazilState>('SP');
   const [category, setCategory] = useState<CompetitionCategory>('freestyle');
   const [loading, setLoading] = useState(false);
+  const [finalizing, setFinalizing] = useState(false);
   const [advancing, setAdvancing] = useState(false);
 
   const callQualifierApi = async (
-    path: '/api/admin/qualifiers/generate' | '/api/admin/qualifiers/advance-round',
+    path:
+      | '/api/admin/qualifiers/generate'
+      | '/api/admin/qualifiers/finalize-round'
+      | '/api/admin/qualifiers/advance-round',
   ) => {
     if (!user) {
       throw new Error('Entre como admin para gerenciar Classificatórias.');
@@ -101,6 +105,30 @@ function AdminQualifierActions() {
     }
 
     return data;
+  };
+
+  const finalizeRound = async () => {
+    if (
+      !confirm(
+        `Finalizar rodada atual da Classificatória ${region} ${COMPETITION_CATEGORY_LABELS[category]}?`,
+      )
+    ) {
+      return;
+    }
+
+    setFinalizing(true);
+    try {
+      const data = await callQualifierApi('/api/admin/qualifiers/finalize-round');
+      toast.success(
+        data.finalizedCount > 0
+          ? `Rodada finalizada: ${data.finalizedCount} confronto(s).`
+          : 'Nenhum confronto em votação para finalizar.',
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao finalizar rodada');
+    } finally {
+      setFinalizing(false);
+    }
   };
 
   const generateBracket = async () => {
@@ -162,33 +190,46 @@ function AdminQualifierActions() {
             </p>
           </div>
 
-          <div className="grid w-full gap-3 md:grid-cols-[1fr_1fr_auto_auto] lg:max-w-3xl">
-            <SelectField
-              label="Estado"
-              value={region}
-              onChange={(value) => setRegion(value as BrazilState)}
-              options={BRAZIL_STATE_OPTIONS}
-            />
-            <SelectField
-              label="Categoria"
-              value={category}
-              onChange={(value) => setCategory(value as CompetitionCategory)}
-              options={COMPETITION_CATEGORIES.map((item) => ({
-                value: item.value,
-                label: item.label,
-              }))}
-            />
-            <Button onClick={generateBracket} loading={loading} className="md:self-end">
-              Gerar chave
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={advanceRound}
-              loading={advancing}
-              className="md:self-end"
-            >
-              Avançar rodada
-            </Button>
+          <div className="grid w-full gap-4 lg:max-w-3xl">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <SelectField
+                label="Estado"
+                value={region}
+                onChange={(value) => setRegion(value as BrazilState)}
+                options={BRAZIL_STATE_OPTIONS}
+              />
+              <SelectField
+                label="Categoria"
+                value={category}
+                onChange={(value) => setCategory(value as CompetitionCategory)}
+                options={COMPETITION_CATEGORIES.map((item) => ({
+                  value: item.value,
+                  label: item.label,
+                }))}
+              />
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Button onClick={generateBracket} loading={loading} className="w-full">
+                Gerar chave
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={finalizeRound}
+                loading={finalizing}
+                className="w-full"
+              >
+                Finalizar rodada
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={advanceRound}
+                loading={advancing}
+                className="w-full"
+              >
+                Avançar rodada
+              </Button>
+            </div>
           </div>
         </div>
       </CardContent>

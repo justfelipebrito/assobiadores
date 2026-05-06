@@ -44,13 +44,28 @@ describe('battle vote view helpers', () => {
 
     expect(
       getBattleWinnerForSubmission({
-        battle: { winners: [{ userId: 'user-1', place: 1, points: 20, prize: 500 }] },
+        battle: {
+          winners: [
+            { userId: 'user-1', place: 1, points: 20, prize: 500 },
+            { userId: 'user-2', place: 2, points: 0, prize: 0 },
+          ],
+        },
         submission: { userId: 'user-1' },
       } as never),
     ).toMatchObject({ place: 1, points: 20, prize: 500 });
 
-    expect(getBattleWinnerBadgeLabel(1)).toBe('Vencedor');
-    expect(getBattleWinnerBadgeLabel(2)).toBe('2º lugar');
+    expect(
+      getBattleWinnerForSubmission({
+        battle: {
+          winners: [
+            { userId: 'user-1', place: 1, points: 20, prize: 500 },
+            { userId: 'user-2', place: 2, points: 0, prize: 0 },
+          ],
+        },
+        submission: { userId: 'user-2' },
+      } as never),
+    ).toBeNull();
+
+    expect(getBattleWinnerBadgeLabel()).toBe('Vencedor');
   });
 });
-

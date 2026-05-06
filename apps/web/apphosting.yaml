@@ -26,6 +26,18 @@ env:
     availability:
       - BUILD
       - RUNTIME
+  - variable: NEXT_PUBLIC_GA_MEASUREMENT_ID
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT
+    availability:
+      - BUILD
+      - RUNTIME
+  - variable: NEXT_PUBLIC_GOOGLE_ADSENSE_BOTTOM_SLOT
+    availability:
+      - BUILD
+      - RUNTIME
   - variable: FIREBASE_ADMIN_CLIENT_EMAIL
     secret: FIREBASE_ADMIN_CLIENT_EMAIL
   - variable: FIREBASE_ADMIN_PRIVATE_KEY

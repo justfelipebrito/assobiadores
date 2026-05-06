@@ -67,6 +67,7 @@ function createDb({
       return { exists: true, data: () => ({}) };
     }),
     update: vi.fn(),
+    set: vi.fn(),
   };
   const db = {
     collection: vi.fn((name: string) => {
@@ -75,6 +76,7 @@ function createDb({
       if (name === 'qualifierSubmissions') return { where: submissionsQuery.where };
       if (name === 'qualifierVotes') return { where: votesQuery.where };
       if (name === 'qualifierRegistrations') return { doc: vi.fn((id: string) => ref(id)) };
+      if (name === 'pointActivities') return { doc: vi.fn((id: string) => ref(id)) };
       throw new Error(`Unexpected collection ${name}`);
     }),
     runTransaction: vi.fn(async (callback) => callback(tx)),
@@ -112,6 +114,17 @@ describe('finalizeQualifierMatch', () => {
       expect.objectContaining({
         points: expect.anything(),
         'seasonCategoryPoints.2026.freestyle.points': expect.anything(),
+      }),
+    );
+    expect(tx.set).toHaveBeenCalledWith(
+      ref('qualifier__match-1__qualifier_phase_advance__user-a'),
+      expect.objectContaining({
+        userId: 'user-a',
+        points: 200,
+        reason: 'qualifier_phase_advance',
+        sourceType: 'qualifier',
+        sourceId: 'match-1',
+        category: 'freestyle',
       }),
     );
   });

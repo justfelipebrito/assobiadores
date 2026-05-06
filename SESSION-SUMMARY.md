@@ -27,7 +27,7 @@
 
 - `firestore.rules` — Hardened security rules (protected user/account/ranking/photo metadata not client-writable; payments, battleEntries, submissions, votes, battleInvites not client-writable)
 - `storage.rules` — Public avatar reads with all client writes blocked; profile photo uploads go through the server API
-- `firestore.indexes.json` — 8 composite indexes
+- `firestore.indexes.json` — 13 composite indexes
 - Cloud Functions:
   - `onPaymentWebhook` (v2 onRequest) — Mercado Pago webhook handler with idempotency
   - `expirePayments` (v2 scheduler, every 30min)
@@ -358,9 +358,9 @@ seasons/{id}
 ### Phase 8: Testing + Deploy
 
 - Component tests
-- CI/CD test workflow
-- CI/CD (GitHub Actions)
-- Production deploy to Firebase App Hosting
+- CI/CD test workflow — done for PR/push validation
+- CI/CD (GitHub Actions) — done for Firebase App Hosting rollout path
+- Production deploy to Firebase App Hosting — workflow added; requires GitHub `FIREBASE_SERVICE_ACCOUNT` secret and `FIREBASE_APP_HOSTING_BACKEND_ID` variable before first run
 
 ---
 
@@ -609,12 +609,12 @@ Latest hardening/refactor:
   - creator-owned finalization is now available through `POST /api/battles/{battleId}/finalize`; the admin API remains an override path, but the admin UI no longer shows edit/finalize controls for normal battle operation;
   - admin battle rows are clickable/keyboard-accessible again and include an `Abrir` action to inspect or edit a battle when admin intervention is needed;
   - admin battle edit form is aligned with public battle rules: removed obsolete voting-mode selector, paid-battle prize total is read-only/derived from confirmed payments, and admin saves no longer overwrite paid battle prize pool/distribution;
-  - paid battle confirmations now update flexible prize pools: 20% platform fee, 80% prize pool, with 50/30/20 distribution for 1st/2nd/3rd;
+  - paid battle confirmations now update flexible prize pools: 20% platform fee, 80% prize pool, paid to the single battle winner;
   - emulator paid battle seed now reflects confirmed paid entries only and derives prize/platform amounts from entry payments;
-  - battle votes now follow the product rule of 70% community and 30% creator judge weighting. Confirmed participants are blocked from voting in their own battle by the trusted vote API, and finalization ranks by weighted score instead of raw vote count;
-  - battle creation now supports open vs invite-only entry, while `1v1` forces exactly two participants and tied `1v1` results award no season/category points;
-  - trusted vote creation now enforces participant-only and judge-only voting modes server-side, still blocks duplicate votes and self-votes, and no longer uses video wording;
-  - trusted battle finalization now treats tied `1v1` results as no-points outcomes;
+  - battle votes now follow the product rule of 100% community vote with the creator vote used only as a tie-break signal. Confirmed participants are blocked from voting in their own battle by the trusted vote API, creator votes no longer increment public `voteCount`, and finalization ranks by community votes first;
+  - battle creation now supports open vs invite-only entry, while `1v1` forces exactly two participants and unresolved tied results award no season/category points;
+  - trusted vote creation now blocks duplicate votes, self-votes, and confirmed participants voting in their own battle; battle voting is public/community-first with only the creator vote stored separately for tie-breaks;
+  - trusted battle finalization now treats unresolved tied battle results as no-winner/no-points outcomes, while a creator tie-break vote can resolve a community-vote tie;
   - emulator battle entries now denormalize display names for cleaner participant QA.
 - Fixed local QA audio playback:
   - seeded battle, qualifier, and `Destaques Diários` media now point to a real same-origin WAV fixture at `/sample-audio/assobio.wav` instead of a non-existent Firebase Storage emulator object;
@@ -665,8 +665,13 @@ Latest hardening/refactor:
 - Battle listing now shows paid battle prize pools inline in the metadata row after participants/date, as `Prêmio: R$ ...`, while free/no-prize battles omit the prize label.
 - Battle vote/result feedback:
   - battle detail now reads the logged user's `votes` doc for the current battle, marks the selected contestant as `Seu voto`, and disables the remaining vote buttons while keeping the `Votar` label;
-  - finished battles now highlight winners directly in the participant list (`Vencedor`, `2º lugar`, `3º lugar`) and show awarded points/prize from `battle.winners`;
+  - finished battles now have a single winner only; tied 1v1 battles store no winner and award no points;
+  - finished battle participant lists now sort the winner first, then the remaining contestants from most votes to least;
+  - finished battle submissions now separate community vote count from the creator vote signal, showing `Voto do Criador` only when that vote exists;
+  - finished battle winner metadata now labels ranking points as `Pontuação Ranking: +N`;
   - battle finalization now chooses winners only from confirmed participant submissions, ensuring the displayed winner and awarded points stay aligned;
+  - battle finalization now stores only the first-place winner in `battle.winners`; paid battles award the available battle prize pool to that winner, and the older Cloud Functions finalizer follows the same single-winner rule;
+  - battle finalization now requires `votingEnd` to be reached before creator/admin finalization can run; this is enforced in the trusted service and covered by focused tests;
   - added tested battle vote/result view helpers and finalization coverage for ignoring non-participant submissions.
 - `/batalhas` now includes a logged-in top scope switch (`Todas` / `Minhas batalhas` / `Minhas participações`) in the same list section instead of a separate inner section. `Minhas batalhas` means battles created by the logged user; `Minhas participações` means battles where the user has a confirmed `battleEntries` record, backed by the `{userId, status}` Firestore index.
 - `/batalhas` filter dropdowns were simplified after the top scope switch: neutral dropdown state now shows the field label instead of another `Todas` option, and `Inscrições abertas` was removed from status filters because contestants can submit immediately after joining/payment/invite.
@@ -676,6 +681,52 @@ Latest hardening/refactor:
   - community battle creation now allows a small 60-second future-date tolerance for `Envios até`, avoiding false `Prazo de envio deve ser futuro` errors caused by `datetime-local` minute precision and server/client timing drift;
   - battle creators no longer see the public `Participar`/`Pagar entrada` CTA on their own battle;
   - free and paid battle entry paths now reject creator self-participation server-side.
+- QA emulator seed for battle `eqTboF8twYKWwMsPer0C`:
+  - reset only that battle's entries/submissions/votes;
+  - seeded 20 confirmed contestants with approved on-platform audio submissions and vote counts;
+  - set the battle to `voting` with `votingEnd` in the past so the creator/admin finish flow can be validated immediately.
+- Public profile point activity feed:
+  - added server-owned `pointActivities` documents for ranking point awards, with Firestore rules allowing public reads and blocking all client writes;
+  - trusted web services now write point activity rows for daily highlight submissions, battle wins, qualifier entry confirmations, qualifier phase advancement, and Regional qualification;
+  - Cloud Functions finalizers now also write point activity rows for battle wins and daily highlight top-3 placements;
+  - `/perfil/[userId]` replaced the placeholder battle history with `Pontos conquistados`, showing rows such as `+20 Vitoria em batalha` and `+1 Envio em Destaques Diarios`;
+  - public profile counters are now derived from real public records where possible (`battleEntries`, `submissions`, `dailyHighlights`, `pointActivities`) while keeping server aggregates as a fallback floor, reducing stale stat displays after QA reseeds or missed backfills.
+- Account/profile wording and homepage UX polish:
+  - `/conta` is now the logged-in account settings page, with `/meu-perfil` kept as a compatibility redirect to avoid breaking old links;
+  - account navigation copy changed from `Meu Perfil` to `Minha Conta`, preserving `Meu Perfil` terminology for public profile contexts;
+  - homepage main column is visually ordered as Batalhas first, then Classificatórias, then Campeonatos;
+  - homepage Batalhas remains capped to 6 active cards, and Campeonato cards after the first 6 are hidden on mobile while still available on wider layouts;
+  - finalized same-day Destaques Diários cards can show subtle `1º lugar` / `2º lugar` / `3º lugar` placement text above the media card.
+- Classificatórias polish and QA seed:
+  - `/classificatorias/[slug]` replaced the old `Como funciona` block with a `Regras` section matching the Batalhas card style;
+  - qualifier bracket generation now marks first-round byes as `currentRound: 2` and `waiting_draw`, so odd/unpaired contestants are immediately waiting for the next round instead of remaining in round 1;
+  - focused tests cover qualifier rule cards and the active-vs-bye registration updates during first-round generation;
+  - qualifier match sorting now uses round, scheduled date, match day, and sequence so brackets render from Dia 1 forward consistently;
+  - public qualifier match cards now show `Votação em andamento` during the voting window instead of repeating the submission deadline;
+  - public qualifier W.O. cards now show `Resultado por W.O.` instead of stale submission deadline copy;
+  - Cloud Functions now include `finalizeDueQualifiers`, a scheduled finalizer that checks due qualifier matches every 5 minutes in `America/Sao_Paulo` and finalizes voting matches after `votingEnd`;
+  - admin Classificatórias gained a manual `Finalizar rodada` override, and the operation controls now place selectors and buttons on separate rows for readability;
+  - qualifier advancement now writes qualified contestants into the matching Regional championship (`championship-{state}-2026-{category}`), updating `participantIds` and `currentParticipants` so the public Regional page shows them after qualification;
+  - public qualifier bracket result cards now read the matching Regional championship participant list and show `Classificado para o Regional` when the winner has actually qualified, avoiding the ambiguous `Resultado` state after the final advance;
+  - qualifier advancement also mirrors qualification metadata onto the public `qualifierParticipants/{registrationId}` record with merge writes, keeping future public UI reads aligned without exposing private registration/payment fields;
+  - the V1 QA seed now puts `SP Freestyle 2026` in the final qualifier round with 500 confirmed contestants, 64 round-3 matches, 122 submitted audio entries, 58 voting matches, 6 visible W.O. matches, and 6 W.O. winners already waiting for qualification;
+  - the same seed now keeps historical Rodada 1 and Rodada 2 match/submission documents so the public qualifier bracket chevrons can navigate back from the live final round;
+  - the public qualifier page now defaults to the latest available round instead of always starting at Rodada 1;
+  - after QA runs `Finalizar rodada` and then `Avançar rodada`, the final 64 alive contestants should be written into `championship-sp-2026-freestyle` for Regional page validation;
+  - browser QA status: Classificatórias flow is checked for contestant/voter views, round navigation, W.O. display, final-round advancement, and Regional qualification visibility.
+- Google integrations for stable/V1 launch:
+  - added env-gated GA4 integration that loads `gtag.js` only when `NEXT_PUBLIC_GA_MEASUREMENT_ID` is set and emulator mode is off;
+  - GA4 page views are sent on client-side route/query changes so navigation interest can be tracked across the app;
+  - added env-gated Google AdSense bottom banner using `NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT` and `NEXT_PUBLIC_GOOGLE_ADSENSE_BOTTOM_SLOT`, with bottom spacing and a `Publicidade` label;
+  - documented setup in `docs/GOOGLE-INTEGRATIONS.md`;
+  - added focused tests for Google integration config gating and GA page-path building.
+- CI/CD:
+  - added GitHub Actions CI in `.github/workflows/ci.yml` for PRs and pushes to `main`/`develop`, running pnpm install, tests including Firestore rules emulator tests, type-check, and build on Node.js 22 + Java 21;
+  - added production deployment workflow in `.github/workflows/firebase-app-hosting.yml` that validates first, deploys Firestore/Storage config, then creates a Firebase App Hosting rollout by commit SHA;
+  - documented required GitHub secrets/variables and App Hosting runtime configuration in `docs/CI-CD.md`;
+  - updated `apps/web/apphosting.yaml` so GA4 and AdSense public IDs are available at build/runtime in Firebase App Hosting.
+  - created Firebase App Hosting backend `assobiador-web` in `us-east4` for project `assobiadores-3f0f6`; `southamerica-east1` is not available for App Hosting, so the workflow defaults to `assobiador-web`.
+  - created deploy service account `github-actions-deploy@assobiadores-3f0f6.iam.gserviceaccount.com`, granted `roles/firebase.admin` and `roles/firebaseapphosting.admin`, and generated the GitHub secret JSON at `/private/tmp/assobiadores-github-actions-deploy.json`.
 
 Security/test work to do before expanding features:
 
@@ -720,7 +771,7 @@ Still needed:
 - [ ] Deploy Firestore security rules: `firebase deploy --only firestore:rules`
 - [ ] Deploy Firestore indexes: `firebase deploy --only firestore:indexes`
 - [x] Deploy Cloud Functions cleanly: all production functions are deployed as active `v2` functions on Node.js 22
-- [ ] Set up Firebase App Hosting for `apps/web`
+- [x] Set up Firebase App Hosting backend for `apps/web` (`assobiador-web`, `us-east4`)
 
 ---
 

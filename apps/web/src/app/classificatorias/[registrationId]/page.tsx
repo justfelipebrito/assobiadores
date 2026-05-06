@@ -21,6 +21,7 @@ import { limit, useAuth, useCollection, useDocument, where } from '@batalha/fire
 import {
   BRAZIL_STATE_LABELS,
   COMPETITION_CATEGORY_LABELS,
+  type Championship,
   type QualifierMatch,
   type QualifierRegistration,
   type QualifierSubmission,
@@ -33,8 +34,12 @@ import { AudioHighlightPlayer } from '@/components/media/audio-highlight-player'
 import { SubmitQualifierMatchModal } from '@/components/qualifiers/submit-qualifier-match-modal';
 import {
   getQualifierEmptyMatchesCopy,
+  getDisplayQualifierRound,
+  getQualifierMatchHeaderDateCopy,
+  getQualifierMatchResultCopy,
   getQualifierMatchStatusCopy,
   getQualifierRegistrationStateCopy,
+  getQualifierRuleCards,
   sortQualifierMatches,
 } from '@/lib/qualifier-view';
 import {
@@ -43,8 +48,6 @@ import {
   parseQualifierTrackSlug,
   QUALIFIER_BRACKET_END_LABEL,
   QUALIFIER_BRACKET_START_LABEL,
-  QUALIFIER_FINALIZATION_LABEL,
-  QUALIFIER_REGISTRATION_DEADLINE_LABEL,
   QUALIFIER_SEASON_ID,
   QUALIFIER_SUBMISSION_DEADLINE_LABEL,
   QUALIFIER_VOTING_WINDOW_LABEL,
@@ -103,17 +106,24 @@ export default function QualifierRegistrationPage() {
   const params = useParams<{ registrationId: string }>();
   const registrationId = params.registrationId;
   const publicTrackSlug = parseQualifierTrackSlug(registrationId);
-  const [selectedRound, setSelectedRound] = useState(1);
+  const [selectedRound, setSelectedRound] = useState<number | null>(null);
   const [submissionMatch, setSubmissionMatch] = useState<QualifierMatch | null>(null);
   const [votingSubmissionId, setVotingSubmissionId] = useState<string | null>(null);
   const [votedMatchIds, setVotedMatchIds] = useState<Set<string>>(new Set());
   const publicTrackId = publicTrackSlug
     ? getQualifierTrackId(publicTrackSlug.region, publicTrackSlug.category)
     : undefined;
+  const regionalChampionshipId = publicTrackSlug
+    ? `championship-${publicTrackSlug.region.toLowerCase()}-2026-${publicTrackSlug.category}`
+    : undefined;
   const { user, loading: authLoading } = useAuth();
   const { data: publicTrack, loading: publicTrackLoading } = useDocument<QualifierTrack>(
     'qualifierTracks',
     publicTrackId,
+  );
+  const { data: regionalChampionship } = useDocument<Championship>(
+    'championships',
+    regionalChampionshipId,
   );
   const { data: registration, loading: registrationLoading } = useDocument<QualifierRegistration>(
     'qualifierRegistrations',
@@ -159,6 +169,10 @@ export default function QualifierRegistrationPage() {
     () => new Map(trackParticipants.map((participant) => [participant.userId, participant])),
     [trackParticipants],
   );
+  const regionalParticipantIds = useMemo(
+    () => new Set(regionalChampionship?.participantIds ?? []),
+    [regionalChampionship],
+  );
   const confirmedParticipants = useMemo(() => {
     return [...trackParticipants].sort((a, b) => {
       const aConfirmedAt = getTime(a.confirmedAt);
@@ -172,9 +186,7 @@ export default function QualifierRegistrationPage() {
       (a, b) => a - b,
     );
   }, [sortedMatches]);
-  const displayRound = publicRoundNumbers.includes(selectedRound)
-    ? selectedRound
-    : (publicRoundNumbers[0] ?? 1);
+  const displayRound = getDisplayQualifierRound(publicRoundNumbers, selectedRound);
   const publicRoundMatches = sortedMatches.filter((match) => match.roundNumber === displayRound);
   const submissionByMatchAndUserId = useMemo(() => {
     const grouped = new Map<string, Map<string, QualifierSubmission>>();
@@ -274,17 +286,17 @@ export default function QualifierRegistrationPage() {
         </section>
 
         <section className="mt-6 rounded-2xl border border-white/10 bg-surface-900/70 p-5">
-          <h2 className="font-semibold text-white">Como funciona</h2>
+          <h2 className="font-semibold text-white">Regras</h2>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
-            {[
-              `Inscrições até ${QUALIFIER_REGISTRATION_DEADLINE_LABEL}.`,
-              `Envios em cada fase até ${QUALIFIER_SUBMISSION_DEADLINE_LABEL}.`,
-              `Votação pública das ${QUALIFIER_VOTING_WINDOW_LABEL}.`,
-              `Resultado de cada confronto às ${QUALIFIER_FINALIZATION_LABEL}.`,
-              `Até ${publicTrack?.maxQualified ?? 64} competidores se classificam para o Regional.`,
-            ].map((item) => (
-              <div key={item} className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
-                <p className="text-sm text-surface-300">{item}</p>
+            {getQualifierRuleCards(publicTrack?.maxQualified ?? 64).map((rule) => (
+              <div
+                key={rule.title}
+                className="rounded-xl border border-white/10 bg-white/[0.03] p-4"
+              >
+                <p className="text-xs font-semibold uppercase tracking-wide text-surface-500">
+                  {rule.title}
+                </p>
+                <p className="mt-1 text-sm text-surface-300">{rule.description}</p>
               </div>
             ))}
           </div>
@@ -349,6 +361,18 @@ export default function QualifierRegistrationPage() {
                 const second = participantByUserId.get(match.participantIds[1] ?? '');
                 const hasVoted = votedMatchIds.has(match.id);
                 const userIsParticipant = Boolean(user && match.participantIds.includes(user.uid));
+                const winnerParticipant = match.winnerId
+                  ? participantByUserId.get(match.winnerId)
+                  : null;
+                const winnerName = match.winnerId
+                  ? (winnerParticipant?.displayName ?? match.winnerId)
+                  : null;
+                const resultCopy = getQualifierMatchResultCopy({
+                  winnerName,
+                  qualifiedForRegional: Boolean(
+                    match.winnerId && regionalParticipantIds.has(match.winnerId),
+                  ),
+                });
 
                 return (
                   <div
@@ -361,11 +385,11 @@ export default function QualifierRegistrationPage() {
                         <Badge variant="gold">{getQualifierMatchStatusCopy(match.status)}</Badge>
                       </div>
                       <p className="text-xs text-surface-500">
-                        Envio até {formatDateTime(match.submissionDeadline)}
+                        {getQualifierMatchHeaderDateCopy(match, formatDateTime)}
                       </p>
                     </div>
 
-                    <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_8rem] md:items-center">
+                    <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_13rem] md:items-center">
                       <div className="space-y-2">
                         {[first, second].map((participant, index) => {
                           const fallback = match.participantIds[index] ?? 'A definir';
@@ -438,22 +462,27 @@ export default function QualifierRegistrationPage() {
                         })}
                       </div>
 
-                      <div className="self-center rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-center text-sm">
-                        <p className="text-xs text-surface-500">Resultado</p>
+                      <div
+                        className={
+                          resultCopy.tone === 'success'
+                            ? 'self-center rounded-lg border border-brand-500/20 bg-brand-500/10 px-3 py-2 text-center text-sm'
+                            : 'self-center rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-center text-sm'
+                        }
+                      >
+                        <p
+                          className={
+                            resultCopy.tone === 'success'
+                              ? 'text-xs font-semibold text-brand-300'
+                              : 'text-xs text-surface-500'
+                          }
+                        >
+                          {resultCopy.title}
+                        </p>
                         <p className="mt-1 font-semibold text-white">
-                          {match.winnerId
-                            ? (participantByUserId.get(match.winnerId)?.displayName ??
-                              match.winnerId)
-                            : 'Aguardando'}
+                          {resultCopy.value}
                         </p>
                       </div>
                     </div>
-
-                    {match.status === 'voting' && userIsParticipant && (
-                      <p className="mt-3 rounded-xl border border-yellow-500/20 bg-yellow-500/10 px-3 py-2 text-xs font-semibold text-yellow-300">
-                        Participantes não votam em Classificatórias.
-                      </p>
-                    )}
                   </div>
                 );
               })}

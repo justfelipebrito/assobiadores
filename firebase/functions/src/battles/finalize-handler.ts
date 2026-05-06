@@ -1,4 +1,4 @@
-import { calculateRank, getBattleWinPoints, getPrizeForPlace } from '../domain/ranking';
+import { calculateRank, getBattleWinPoints } from '../domain/ranking';
 
 export interface FinalizeBattleFieldValue {
   increment(value: number): unknown;
@@ -17,6 +17,7 @@ export interface FinalizeBattleFirestore {
     where(field: string, operator: string, value: unknown): any;
   };
   batch(): {
+    set(ref: unknown, data: Record<string, unknown>): void;
     update(ref: unknown, data: Record<string, unknown>): void;
     commit(): Promise<unknown>;
   };
@@ -40,6 +41,24 @@ export interface BattleScoringEligibility {
 }
 
 export const GROUP_BATTLE_MIN_PARTICIPANTS_FOR_SCORING = 5;
+
+function cleanIdPart(value: string) {
+  return value.replace(/[^a-zA-Z0-9_-]/g, '_');
+}
+
+function buildPointActivityId({
+  userId,
+  reason,
+  sourceType,
+  sourceId,
+}: {
+  userId: string;
+  reason: string;
+  sourceType: string;
+  sourceId: string;
+}) {
+  return [sourceType, sourceId, reason, userId].map((part) => cleanIdPart(part)).join('__');
+}
 
 export function hasBattleCategoryForSeasonScoring(battle: Record<string, unknown>) {
   return typeof battle.category === 'string' && battle.category.trim().length > 0;
@@ -93,10 +112,7 @@ export function getBattleScoringEligibility({
     };
   }
 
-  const totalVotes = submissions.reduce((sum, submission) => {
-    const voteCount = typeof submission.voteCount === 'number' ? submission.voteCount : 0;
-    return sum + voteCount;
-  }, 0);
+  const totalVotes = submissions.reduce((sum, submission) => sum + getPublicVoteCount(submission), 0);
   if (totalVotes <= 0) {
     return { eligible: false, reason: 'no-public-votes', confirmedParticipantIds };
   }
@@ -108,11 +124,38 @@ export function shouldAwardOfficialBattlePoints(battle: Record<string, unknown>)
   return hasBattleCategoryForSeasonScoring(battle);
 }
 
-function hasDuelWinnerTie(battle: Record<string, unknown>, submissions: Array<Record<string, any>>) {
-  if (battle.format !== 'duel' || submissions.length < 2) return false;
-  const firstVotes = typeof submissions[0]?.voteCount === 'number' ? submissions[0].voteCount : 0;
-  const secondVotes = typeof submissions[1]?.voteCount === 'number' ? submissions[1].voteCount : 0;
-  return firstVotes === secondVotes;
+function getPublicVoteCount(submission: Record<string, any>) {
+  if (typeof submission.publicVoteCount === 'number') return submission.publicVoteCount;
+  const voteCount = typeof submission.voteCount === 'number' ? submission.voteCount : 0;
+  const judgeVoteCount =
+    typeof submission.judgeVoteCount === 'number' ? submission.judgeVoteCount : 0;
+  return Math.max(0, voteCount - judgeVoteCount);
+}
+
+function getJudgeVoteCount(submission: Record<string, any>) {
+  return typeof submission.judgeVoteCount === 'number' ? submission.judgeVoteCount : 0;
+}
+
+function rankBattleSubmissions(submissions: Array<Record<string, any>>) {
+  return submissions
+    .map((submission) => ({
+      submission,
+      publicVotes: getPublicVoteCount(submission),
+      creatorTieBreak: getJudgeVoteCount(submission) > 0 ? 1 : 0,
+    }))
+    .sort(
+      (a, b) =>
+        b.publicVotes - a.publicVotes ||
+        b.creatorTieBreak - a.creatorTieBreak,
+    );
+}
+
+function hasUnresolvedWinnerTie(ranked: ReturnType<typeof rankBattleSubmissions>) {
+  if (ranked.length < 2) return false;
+  return (
+    ranked[0]?.publicVotes === ranked[1]?.publicVotes &&
+    ranked[0]?.creatorTieBreak === ranked[1]?.creatorTieBreak
+  );
 }
 
 function getBattleSeasonId(battle: Record<string, unknown>) {
@@ -139,6 +182,11 @@ function getNestedSeasonPoints(user: Record<string, any>, seasonId: string, cate
     seasonPoints: user.seasonPoints?.[seasonId]?.points ?? 0,
     seasonCategoryPoints: user.seasonCategoryPoints?.[seasonId]?.[category]?.points ?? 0,
   };
+}
+
+function getWinnerPrize(battle: Record<string, any>) {
+  if (typeof battle.prizePool === 'number' && battle.prizePool > 0) return battle.prizePool;
+  return Number(battle.prizeDistribution?.first ?? 0);
 }
 
 export async function finalizeBattleHandler({
@@ -197,24 +245,22 @@ export async function finalizeBattleHandler({
     entries: entryData,
     submissions: submissionData,
   });
-  const duelWinnerTie = hasDuelWinnerTie(battle, submissionData);
-  const awardsOfficialPoints = scoringEligibility.eligible && !duelWinnerTie;
+  const rankedSubmissions = rankBattleSubmissions(submissionData);
+  const unresolvedWinnerTie = hasUnresolvedWinnerTie(rankedSubmissions);
+  const awardsOfficialPoints = scoringEligibility.eligible && !unresolvedWinnerTie;
   const seasonId = getBattleSeasonId(battle);
   const category = typeof battle.category === 'string' ? battle.category : null;
   const winPoints = getBattleWinPoints(battle.format);
   const batch = db.batch();
   const winners: BattleWinnerResult[] = [];
 
-  const topSubmissions = submissions.docs.slice(0, 3);
-  for (let i = 0; i < topSubmissions.length; i++) {
-    const sub = topSubmissions[i]!;
-    const place = i + 1;
-
+  if (!unresolvedWinnerTie && rankedSubmissions[0]) {
+    const submission = rankedSubmissions[0].submission;
     winners.push({
-      userId: sub.data().userId,
-      place,
-      points: awardsOfficialPoints && place === 1 ? winPoints : 0,
-      prize: getPrizeForPlace(place, battle.prizeDistribution),
+      userId: submission.userId,
+      place: 1,
+      points: awardsOfficialPoints ? winPoints : 0,
+      prize: getWinnerPrize(battle),
     });
   }
 
@@ -237,12 +283,7 @@ export async function finalizeBattleHandler({
       };
 
       if (winner) {
-        if (winner.place === 1) {
-          statsUpdate['stats.battlesWon'] = fieldValue.increment(1);
-        }
-        if (winner.place <= 3) {
-          statsUpdate['stats.topThreeFinishes'] = fieldValue.increment(1);
-        }
+        statsUpdate['stats.battlesWon'] = fieldValue.increment(1);
       }
 
       batch.update(userRef, {
@@ -267,6 +308,29 @@ export async function finalizeBattleHandler({
         ...statsUpdate,
         updatedAt: fieldValue.serverTimestamp(),
       });
+
+      if (pointsAwarded > 0) {
+        const activityId = buildPointActivityId({
+          userId,
+          reason: 'battle_win',
+          sourceType: 'battle',
+          sourceId: battleId,
+        });
+        batch.set(db.collection('pointActivities').doc(activityId), {
+          id: activityId,
+          userId,
+          points: pointsAwarded,
+          reason: 'battle_win',
+          label: 'Vitoria em batalha',
+          sourceType: 'battle',
+          sourceId: battleId,
+          sourceTitle: typeof battle.title === 'string' ? battle.title : null,
+          category,
+          seasonId,
+          occurredAt: fieldValue.serverTimestamp(),
+          createdAt: fieldValue.serverTimestamp(),
+        });
+      }
     }
   }
 
@@ -277,7 +341,7 @@ export async function finalizeBattleHandler({
     seasonScoringApplied: awardsOfficialPoints,
     seasonScoringEligibility: {
       eligible: scoringEligibility.eligible,
-      reason: duelWinnerTie ? 'duel-tie' : scoringEligibility.reason,
+      reason: unresolvedWinnerTie ? 'unresolved-tie' : scoringEligibility.reason,
     },
     updatedAt: fieldValue.serverTimestamp(),
   });

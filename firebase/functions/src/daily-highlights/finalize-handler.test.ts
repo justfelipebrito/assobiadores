@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { getBrazilDayKey } from './finalize-handler';
+import { describe, expect, it, vi } from 'vitest';
+import { finalizeDailyHighlightsForDay, getBrazilDayKey } from './finalize-handler';
 import { getDailyHighlightPlacementPoints } from '../domain/ranking';
 
 function sortForDailyResult<T extends { id: string; voteCount: number; createdAt: Date }>(
@@ -35,5 +35,96 @@ describe('daily highlight finalization helpers', () => {
 
   it('uses the daily highlight placement scoring table', () => {
     expect([1, 2, 3, 4].map(getDailyHighlightPlacementPoints)).toEqual([15, 10, 5, 0]);
+  });
+
+  it('writes point activity rows for daily top 3 placements', async () => {
+    const updates: Array<{ ref: unknown; data: Record<string, unknown> }> = [];
+    const sets: Array<{ ref: unknown; data: Record<string, unknown> }> = [];
+    const batch = {
+      update: vi.fn((ref, data) => updates.push({ ref, data })),
+      set: vi.fn((ref, data) => sets.push({ ref, data })),
+      commit: vi.fn(async () => undefined),
+    };
+    const highlights = [
+      {
+        id: 'daily-1',
+        userId: 'user-1',
+        category: 'freestyle',
+        voteCount: 8,
+        createdAt: new Date('2026-05-05T10:00:00.000Z'),
+      },
+      {
+        id: 'daily-2',
+        userId: 'user-2',
+        category: 'freestyle',
+        voteCount: 4,
+        createdAt: new Date('2026-05-05T11:00:00.000Z'),
+      },
+    ];
+    const dailyQuery = {
+      where: vi.fn(() => dailyQuery),
+      get: vi.fn(async () => ({
+        docs: highlights.map((highlight) => ({
+          id: highlight.id,
+          ref: { id: highlight.id },
+          data: () => highlight,
+        })),
+      })),
+    };
+    const db = {
+      batch: vi.fn(() => batch),
+      collection: vi.fn((name: string) => {
+        if (name === 'dailyHighlights') return dailyQuery;
+        if (name === 'users') {
+          return {
+            doc: vi.fn((id: string) => ({
+              id,
+              get: vi.fn(async () => ({ data: () => ({ points: 0 }) })),
+            })),
+          };
+        }
+        if (name === 'pointActivities') {
+          return { doc: vi.fn((id: string) => ({ id })) };
+        }
+        throw new Error(`Unexpected collection ${name}`);
+      }),
+    };
+
+    await expect(
+      finalizeDailyHighlightsForDay(db as never, { dayKey: '2026-05-05' }),
+    ).resolves.toMatchObject({
+      finalized: 2,
+      winners: [
+        { dailyHighlightId: 'daily-1', userId: 'user-1', place: 1, points: 15 },
+        { dailyHighlightId: 'daily-2', userId: 'user-2', place: 2, points: 10 },
+      ],
+    });
+
+    expect(sets).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          ref: expect.objectContaining({
+            id: 'daily_highlight__daily-1__daily_highlight_placement__user-1',
+          }),
+          data: expect.objectContaining({
+            userId: 'user-1',
+            points: 15,
+            reason: 'daily_highlight_placement',
+            label: 'Top 1 em Destaques Diarios',
+            sourceType: 'daily_highlight',
+            sourceId: 'daily-1',
+            seasonId: '2026',
+          }),
+        }),
+      ]),
+    );
+    expect(updates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          ref: expect.objectContaining({ id: 'user-1' }),
+          data: expect.objectContaining({ points: expect.anything() }),
+        }),
+      ]),
+    );
   });
 });

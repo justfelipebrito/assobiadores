@@ -73,7 +73,7 @@ function createDb({
 }
 
 describe('createVote', () => {
-  it('creates a vote and increments vote count transactionally', async () => {
+  it('creates a public vote and increments community vote counts transactionally', async () => {
     const { db, tx, voteRef, submissionRef } = createDb();
 
     await expect(
@@ -95,7 +95,10 @@ describe('createVote', () => {
     );
     expect(tx.update).toHaveBeenCalledWith(
       submissionRef,
-      expect.objectContaining({ voteCount: expect.anything() }),
+      expect.objectContaining({
+        voteCount: expect.anything(),
+        publicVoteCount: expect.anything(),
+      }),
     );
   });
 
@@ -162,7 +165,7 @@ describe('createVote', () => {
     });
   });
 
-  it('records the battle creator vote as the judge signal', async () => {
+  it('records the battle creator vote as a tie-break signal without incrementing public votes', async () => {
     const { db, tx, voteRef, submissionRef } = createDb({
       battle: { status: 'voting', createdBy: 'creator-1' },
     });
@@ -179,9 +182,11 @@ describe('createVote', () => {
       voteRef,
       expect.objectContaining({ voterType: 'judge', voterId: 'creator-1' }),
     );
-    expect(tx.update).toHaveBeenCalledWith(
-      submissionRef,
+    const updatePayload = tx.update.mock.calls.find((call) => call[0] === submissionRef)?.[1];
+    expect(updatePayload).toEqual(
       expect.objectContaining({ judgeVoteCount: expect.anything() }),
     );
+    expect(updatePayload).not.toHaveProperty('voteCount');
+    expect(updatePayload).not.toHaveProperty('publicVoteCount');
   });
 });

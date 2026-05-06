@@ -133,7 +133,7 @@ export async function generateQualifierBracket(
     const hasBye = !matchId;
     batch.update(db.collection('qualifierRegistrations').doc(registration.id), {
       bracketStatus: hasBye ? 'waiting_draw' : 'active',
-      currentRound: 1,
+      currentRound: hasBye ? 2 : 1,
       currentMatchId: matchId ?? null,
       matchIds: matchId ? FieldValue.arrayUnion(matchId) : [],
       updatedAt: FieldValue.serverTimestamp(),

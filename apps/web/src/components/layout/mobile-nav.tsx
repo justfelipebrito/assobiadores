@@ -68,8 +68,8 @@ export function MobileNav({
           <nav className="flex-1 px-3 py-4">
             <div className="space-y-1">
               {user && (
-                <NavLink href="/meu-perfil" icon={<User className="h-5 w-5" />} onClick={onClose}>
-                  Meu Perfil
+                <NavLink href="/conta" icon={<User className="h-5 w-5" />} onClick={onClose}>
+                  Minha Conta
                 </NavLink>
               )}
             </div>

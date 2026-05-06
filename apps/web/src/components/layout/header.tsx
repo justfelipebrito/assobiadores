@@ -156,12 +156,12 @@ export function Header() {
                     <div className="fixed inset-0 z-40" onClick={() => setProfileOpen(false)} />
                     <div className="absolute right-0 top-full z-50 mt-2 w-56 animate-scale-in rounded-xl border border-white/10 bg-surface-900 p-2 shadow-elevated">
                       <Link
-                        href="/meu-perfil"
+                        href="/conta"
                         onClick={() => setProfileOpen(false)}
                         className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-surface-300 transition-colors hover:bg-white/5 hover:text-white"
                       >
                         <User className="h-4 w-4" />
-                        Meu Perfil
+                        Minha Conta
                       </Link>
                       <div className="my-1 border-t border-white/5" />
                       <button

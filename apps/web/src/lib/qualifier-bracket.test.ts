@@ -39,7 +39,7 @@ describe('qualifier bracket planning', () => {
     expect(getQualifierDailyMatchLimit(501)).toBe(24);
   });
 
-  it('creates only the initial round pairings and byes', () => {
+  it('creates every initial round pairing and byes for contestants already waiting on round 2', () => {
     const result = buildInitialQualifierMatchPlans({
       entrants: entrants(100),
       seasonId: 'season-2026',

@@ -136,13 +136,18 @@ describe('generateQualifierBracket', () => {
       }),
       { merge: true },
     );
-    expect(batch.update).toHaveBeenCalledWith(
-      expect.objectContaining({ id: expect.stringMatching(/^registration-/) }),
-      expect.objectContaining({
-        bracketStatus: expect.stringMatching(/active|waiting_draw/),
-        currentRound: 1,
-      }),
+    const registrationUpdates = batch.update.mock.calls.map(([, data]) => data);
+    const activeUpdates = registrationUpdates.filter(
+      (data) => data.bracketStatus === 'active' && data.currentRound === 1,
     );
+    const byeUpdates = registrationUpdates.filter(
+      (data) =>
+        data.bracketStatus === 'waiting_draw' &&
+        data.currentRound === 2 &&
+        data.currentMatchId === null,
+    );
+    expect(activeUpdates).toHaveLength(72);
+    expect(byeUpdates).toHaveLength(28);
     expect(batch.commit).toHaveBeenCalledTimes(1);
   });
 

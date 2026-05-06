@@ -25,6 +25,7 @@ function createDb({
   const dailyHighlightRef = { id: 'daily-1' };
   const newDailyHighlightRef = { id: 'daily-new' };
   const likeRef = { id: '2026-05-03_user-1' };
+  const pointActivityRef = { id: 'daily_highlight__daily-new__daily_highlight_submission__user-1' };
   const dailyQuery = createQuery(!hasExistingDailySubmission);
 
   const tx = {
@@ -55,12 +56,17 @@ function createDb({
           doc: vi.fn(() => likeRef),
         };
       }
+      if (name === 'pointActivities') {
+        return {
+          doc: vi.fn(() => pointActivityRef),
+        };
+      }
       throw new Error(`Unexpected collection ${name}`);
     }),
     runTransaction: vi.fn(async (callback) => callback(tx)),
   };
 
-  return { db, tx, userRef, dailyHighlightRef, newDailyHighlightRef, likeRef };
+  return { db, tx, userRef, dailyHighlightRef, newDailyHighlightRef, likeRef, pointActivityRef };
 }
 
 describe('createDailyHighlight', () => {
@@ -77,7 +83,7 @@ describe('createDailyHighlight', () => {
   });
 
   it('creates an audio daily highlight with category metadata', async () => {
-    const { db, tx, userRef, newDailyHighlightRef } = createDb();
+    const { db, tx, userRef, newDailyHighlightRef, pointActivityRef } = createDb();
 
     await expect(
       createDailyHighlightFromAudio(db as never, {
@@ -100,6 +106,19 @@ describe('createDailyHighlight', () => {
         mediaURL: 'https://storage.example/audio.webm',
         mediaPath: 'daily-highlights/user-1/audio.webm',
         mediaDurationSeconds: 42,
+      }),
+    );
+    expect(tx.set).toHaveBeenCalledWith(
+      pointActivityRef,
+      expect.objectContaining({
+        userId: 'user-1',
+        points: 1,
+        reason: 'daily_highlight_submission',
+        label: 'Envio em Destaques Diarios',
+        sourceType: 'daily_highlight',
+        sourceId: 'daily-new',
+        category: 'melodia',
+        seasonId: '2026',
       }),
     );
     expect(tx.update).toHaveBeenCalledWith(
@@ -135,6 +154,7 @@ describe('likeDailyHighlight', () => {
       likeDailyHighlight(db as never, {
         dailyHighlightId: 'daily-1',
         userId: 'user-1',
+        now: new Date('2026-05-03T18:00:00.000Z'),
       }),
     ).resolves.toEqual({ likeId: '2026-05-03_user-1' });
 
@@ -157,6 +177,7 @@ describe('likeDailyHighlight', () => {
       likeDailyHighlight(createDb().db as never, {
         dailyHighlightId: 'daily-1',
         userId: 'author-1',
+        now: new Date('2026-05-03T18:00:00.000Z'),
       }),
     ).rejects.toMatchObject({ status: 400 });
 
@@ -164,6 +185,7 @@ describe('likeDailyHighlight', () => {
       likeDailyHighlight(createDb({ hasExistingLike: true }).db as never, {
         dailyHighlightId: 'daily-1',
         userId: 'user-1',
+        now: new Date('2026-05-03T18:00:00.000Z'),
       }),
     ).rejects.toMatchObject({ status: 409, message: 'Voce ja votou em um destaque hoje' });
   });

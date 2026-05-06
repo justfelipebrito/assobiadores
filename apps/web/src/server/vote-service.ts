@@ -79,10 +79,12 @@ export async function createVote(
       createdAt: FieldValue.serverTimestamp(),
     });
     transaction.update(submissionRef, {
-      voteCount: FieldValue.increment(1),
       ...(voterType === 'judge'
         ? { judgeVoteCount: FieldValue.increment(1) }
-        : { publicVoteCount: FieldValue.increment(1) }),
+        : {
+            voteCount: FieldValue.increment(1),
+            publicVoteCount: FieldValue.increment(1),
+          }),
       updatedAt: FieldValue.serverTimestamp(),
     });
 

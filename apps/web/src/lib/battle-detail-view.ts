@@ -1,5 +1,5 @@
 import { Calendar, Music, Trophy, Vote, type LucideIcon } from 'lucide-react';
-import type { Battle } from '@batalha/types';
+import type { Battle, BattleEntry, Submission } from '@batalha/types';
 import { toDate } from '@batalha/utils';
 
 export type BattleScheduleItem = {
@@ -15,9 +15,9 @@ export type BattleRuleCard = {
 
 export function getVotingCopy(battle: Pick<Battle, 'format'>) {
   if (battle.format === 'duel') {
-    return 'Comunidade vota, participantes não votam. Em empate, ninguém pontua.';
+    return 'Comunidade decide o resultado. Em empate, o criador desempata. Participantes não votam.';
   }
-  return 'Comunidade vale 70%; criador vale 30%. Participantes não votam.';
+  return 'Comunidade decide o resultado. Em empate, o criador desempata. Participantes não votam.';
 }
 
 export function getBattleScheduleItems(
@@ -65,3 +65,82 @@ export function canSubmitBattleEntry({
   return now.getTime() <= submissionDeadline.getTime();
 }
 
+type BattleWinnerSummary = Pick<Battle['winners'][number], 'userId' | 'place'>;
+type SubmissionResultFields = Pick<Submission, 'voteCount'> & {
+  publicVoteCount?: number | null;
+  judgeVoteCount?: number | null;
+};
+
+function getWinnerPlace(winners: BattleWinnerSummary[], userId: string) {
+  return winners.find((winner) => winner.place === 1 && winner.userId === userId)?.place ?? null;
+}
+
+function getSubmissionVoteCount(submission: Pick<Submission, 'voteCount'> | undefined) {
+  if (!submission) return 0;
+  return getBattleSubmissionResultBreakdown(submission).publicVoteCount;
+}
+
+export function sortBattleEntriesForDisplay({
+  battle,
+  entries,
+  submissionsByUserId,
+}: {
+  battle: Pick<Battle, 'status' | 'winners'>;
+  entries: BattleEntry[];
+  submissionsByUserId?: Map<string, Pick<Submission, 'voteCount'>>;
+}) {
+  if (battle.status !== 'finished') return entries;
+
+  return [...entries].sort((a, b) => {
+    const aPlace = getWinnerPlace(battle.winners, a.userId);
+    const bPlace = getWinnerPlace(battle.winners, b.userId);
+
+    if (aPlace && bPlace) return aPlace - bPlace;
+    if (aPlace) return -1;
+    if (bPlace) return 1;
+
+    return (
+      getSubmissionVoteCount(submissionsByUserId?.get(b.userId)) -
+      getSubmissionVoteCount(submissionsByUserId?.get(a.userId))
+    );
+  });
+}
+
+export function sortBattleSubmissionsForResult({
+  battle,
+  submissions,
+}: {
+  battle: Pick<Battle, 'status' | 'winners'>;
+  submissions: Submission[];
+}) {
+  if (battle.status !== 'finished') return submissions;
+
+  return [...submissions].sort((a, b) => {
+    const aPlace = getWinnerPlace(battle.winners, a.userId);
+    const bPlace = getWinnerPlace(battle.winners, b.userId);
+
+    if (aPlace && bPlace) return aPlace - bPlace;
+    if (aPlace) return -1;
+    if (bPlace) return 1;
+
+    return (
+      getBattleSubmissionResultBreakdown(b).publicVoteCount -
+      getBattleSubmissionResultBreakdown(a).publicVoteCount
+    );
+  });
+}
+
+export function getBattleSubmissionResultBreakdown(submission: SubmissionResultFields) {
+  const voteCount = typeof submission.voteCount === 'number' ? submission.voteCount : 0;
+  const judgeVoteCount =
+    typeof submission.judgeVoteCount === 'number' ? Math.max(0, submission.judgeVoteCount) : 0;
+  const publicVoteCount =
+    typeof submission.publicVoteCount === 'number'
+      ? Math.max(0, submission.publicVoteCount)
+      : Math.max(0, voteCount - judgeVoteCount);
+
+  return {
+    publicVoteCount,
+    hasCreatorVote: judgeVoteCount > 0,
+  };
+}

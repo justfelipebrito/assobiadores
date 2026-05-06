@@ -28,6 +28,7 @@ export function AudioHighlightPlayer({
   voteCount,
   size = 'default',
   showHeader = true,
+  resultLabel,
 }: {
   src: string;
   username: string;
@@ -37,6 +38,7 @@ export function AudioHighlightPlayer({
   voteCount?: number | null;
   size?: 'default' | 'compact';
   showHeader?: boolean;
+  resultLabel?: string | null;
 }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
@@ -77,6 +79,12 @@ export function AudioHighlightPlayer({
         onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
         onEnded={() => setPlaying(false)}
       />
+
+      {resultLabel && (
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-yellow-400">
+          {resultLabel}
+        </p>
+      )}
 
       {showHeader && (
         <div className="flex items-start justify-between gap-3">

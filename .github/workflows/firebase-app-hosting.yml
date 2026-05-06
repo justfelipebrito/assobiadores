@@ -1,0 +1,115 @@
+name: Deploy Firebase App Hosting
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: firebase-app-hosting-production
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate before deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    env:
+      NEXT_PUBLIC_FIREBASE_API_KEY: ${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}
+      NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ secrets.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+      NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID || 'assobiadores-3f0f6' }}
+      NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+      NEXT_PUBLIC_FIREBASE_APP_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}
+      NEXT_PUBLIC_GA_MEASUREMENT_ID: ${{ secrets.NEXT_PUBLIC_GA_MEASUREMENT_ID }}
+      NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT: ${{ secrets.NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT }}
+      NEXT_PUBLIC_GOOGLE_ADSENSE_BOTTOM_SLOT: ${{ secrets.NEXT_PUBLIC_GOOGLE_ADSENSE_BOTTOM_SLOT }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+          run_install: false
+
+      - name: Setup pnpm cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Setup Java for Firebase emulators
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run automated tests
+        run: pnpm test
+
+      - name: Type-check
+        run: pnpm type-check
+
+      - name: Build
+        run: pnpm build
+
+  deploy:
+    name: Deploy production
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+
+    env:
+      FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID || 'assobiadores-3f0f6' }}
+      FIREBASE_APP_HOSTING_BACKEND_ID: ${{ vars.FIREBASE_APP_HOSTING_BACKEND_ID || 'assobiador-web' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+          run_install: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Deploy Firestore and Storage config
+        run: pnpm exec firebase deploy --config firebase/firebase.json --project "$FIREBASE_PROJECT_ID" --only firestore,storage --non-interactive
+
+      - name: Create App Hosting rollout
+        run: |
+          if [ -z "$FIREBASE_APP_HOSTING_BACKEND_ID" ]; then
+            echo "Set FIREBASE_APP_HOSTING_BACKEND_ID as a GitHub Actions variable."
+            exit 1
+          fi
+
+          pnpm exec firebase --project "$FIREBASE_PROJECT_ID" apphosting:rollouts:create "$FIREBASE_APP_HOSTING_BACKEND_ID" \
+            --git-commit "$GITHUB_SHA" \
+            --force \
+            --non-interactive

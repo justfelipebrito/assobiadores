@@ -98,10 +98,11 @@ function userProfile(userId) {
 }
 
 function rankingPoints(index) {
+  const rankSeed = Math.max(1, 501 - index);
   return {
-    freestyle: 1000 + (201 - index) * 17,
-    melodia: 700 + (201 - index) * 11,
-    passaros: 400 + (201 - index) * 7,
+    freestyle: 1000 + rankSeed * 17,
+    melodia: 700 + rankSeed * 11,
+    passaros: 400 + rankSeed * 7,
   };
 }
 
@@ -303,7 +304,7 @@ async function seedUsers() {
     city: 'Rio de Janeiro',
   });
 
-  for (let index = 1; index <= 200; index += 1) {
+  for (let index = 1; index <= 500; index += 1) {
     const uid = `qa-rank-${String(index).padStart(3, '0')}`;
     const profile = userProfile(uid);
     await seedUser({
@@ -653,11 +654,12 @@ async function seedQualifierDayOne() {
             region: state,
             category: category.value,
             status: isMainTrack ? 'active' : 'registration_open',
-            registeredCount: isMainTrack ? 100 : 0,
-            confirmedCount: isMainTrack ? 100 : 0,
-            plannedMatchDays: isMainTrack ? 8 : 0,
-            plannedMatchCount: isMainTrack ? 36 : 0,
-            currentRound: isMainTrack ? 1 : 0,
+            registeredCount: isMainTrack ? 500 : 0,
+            confirmedCount: isMainTrack ? 500 : 0,
+            dailyMatchLimit: isMainTrack ? 12 : baseTrack.dailyMatchLimit,
+            plannedMatchDays: isMainTrack ? 38 : 0,
+            plannedMatchCount: isMainTrack ? 436 : 0,
+            currentRound: isMainTrack ? 3 : 0,
           });
       }),
     ),
@@ -665,14 +667,107 @@ async function seedQualifierDayOne() {
 
   const qualifierUsers = [
     'user-local',
-    ...Array.from({ length: 99 }).map((_, i) => `qa-rank-${String(i + 1).padStart(3, '0')}`),
+    ...Array.from({ length: 499 }).map((_, i) => `qa-rank-${String(i + 1).padStart(3, '0')}`),
   ];
+  const activeQualifierUsers = qualifierUsers.slice(0, 128);
+  const missingSubmissionUsers = new Set(
+    Array.from({ length: 6 }, (_, index) => activeQualifierUsers[index * 20 + 1]).filter(Boolean),
+  );
+  const walkoverWinnerUsers = new Set(
+    Array.from({ length: 6 }, (_, index) => activeQualifierUsers[index * 20]).filter(Boolean),
+  );
+  const votingNow = new Date();
+  const baseDate = new Date(votingNow.getTime() - 3 * 60 * 60 * 1000);
+  const submissionDeadline = new Date(votingNow.getTime() - 2 * 60 * 60 * 1000);
+  const votingStart = new Date(votingNow.getTime() - 90 * 60 * 1000);
+  const votingEnd = new Date(votingNow.getTime() + 6 * 60 * 60 * 1000);
+
+  async function seedHistoricalQualifierMatch({
+    roundNumber,
+    index,
+    first,
+    second,
+    winner,
+    matchDayStart,
+  }) {
+    const matchId = `qualifier-sp-2026-freestyle-r${roundNumber}-m${index + 1}`;
+    const matchDayIndex = matchDayStart + Math.floor(index / 12);
+    const matchDateOffset = (matchDayIndex - 1) * 24 * 60 * 60 * 1000;
+    const matchScheduledFor = new Date(baseDate.getTime() + matchDateOffset);
+    const submissionIds = {};
+    const publicVoteCounts = {};
+
+    for (const userId of [first, second]) {
+      const submissionId = `qualifier-submission-${matchId}-${userId}`;
+      const profile = userProfile(userId);
+      submissionIds[userId] = submissionId;
+      publicVoteCounts[userId] = userId === winner ? 2 : 1;
+      await db.collection('qualifierSubmissions').doc(submissionId).set({
+        id: submissionId,
+        matchId,
+        registrationId: `qualifier-sp-2026-freestyle-${userId}`,
+        seasonId: QUALIFIER_SEASON_ID,
+        category: 'freestyle',
+        region: 'SP',
+        roundNumber,
+        userId,
+        userDisplayName: profile.displayName,
+        mediaType: 'audio',
+        mediaURL: SAMPLE_AUDIO_URL,
+        mediaPath: SAMPLE_AUDIO_PATH,
+        mediaContentType: 'audio/wav',
+        mediaDurationSeconds: 5,
+        mediaSizeBytes: 2048,
+        status: 'submitted',
+        publicVoteCount: publicVoteCounts[userId],
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      });
+    }
+
+    await db.collection('qualifierMatches').doc(matchId).set({
+      id: matchId,
+      seasonId: QUALIFIER_SEASON_ID,
+      category: 'freestyle',
+      region: 'SP',
+      roundNumber,
+      roundLabel: `Rodada ${roundNumber}`,
+      matchDayIndex,
+      sequenceInDay: (index % 12) + 1,
+      participantIds: [first, second],
+      registrationIds: [
+        `qualifier-sp-2026-freestyle-${first}`,
+        `qualifier-sp-2026-freestyle-${second}`,
+      ],
+      status: 'finished',
+      scheduledFor: Timestamp.fromDate(matchScheduledFor),
+      submissionDeadline: Timestamp.fromDate(submissionDeadline),
+      votingStart: Timestamp.fromDate(votingStart),
+      votingEnd: Timestamp.fromDate(votingEnd),
+      submissionIds,
+      publicVoteCounts,
+      winnerId: winner,
+      walkoverWinnerId: null,
+      disqualifiedUserIds: [],
+      nextMatchId: null,
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+    });
+  }
 
   await Promise.all(
     qualifierUsers.map(async (userId, index) => {
       const profile = userProfile(userId);
       const id = `qualifier-sp-2026-freestyle-${userId}`;
       const createdAt = Timestamp.fromDate(new Date(Date.UTC(2026, 4, 4, 10, index, 0)));
+      const matchIndex = activeQualifierUsers.indexOf(userId);
+      const matchId =
+        matchIndex >= 0
+          ? `qualifier-sp-2026-freestyle-r3-m${Math.floor(matchIndex / 2) + 1}`
+          : null;
+      const isWalkoverWinner = walkoverWinnerUsers.has(userId);
+      const isWalkoverLoser = missingSubmissionUsers.has(userId);
+      const isActiveFinalist = matchIndex >= 0 && !isWalkoverWinner && !isWalkoverLoser;
 
       await db.collection('qualifierRegistrations').doc(id).set({
         id,
@@ -681,10 +776,14 @@ async function seedQualifierDayOne() {
         category: 'freestyle',
         region: 'SP',
         status: 'confirmed',
-        bracketStatus: 'active',
-        currentRound: 1,
-        currentMatchId: index < 10 ? `qualifier-sp-2026-freestyle-r1-m${Math.floor(index / 2) + 1}` : null,
-        matchIds: index < 10 ? [`qualifier-sp-2026-freestyle-r1-m${Math.floor(index / 2) + 1}`] : [],
+        bracketStatus: isWalkoverWinner
+          ? 'waiting_draw'
+          : isActiveFinalist
+            ? 'active'
+            : 'eliminated',
+        currentRound: matchIndex >= 0 ? (isWalkoverWinner ? 4 : 3) : 2,
+        currentMatchId: isWalkoverWinner ? null : matchId,
+        matchIds: matchId ? [matchId] : [],
         qualifiedChampionshipId: null,
         entryFeeCents: 400,
         platformFeePercent: 20,
@@ -702,8 +801,12 @@ async function seedQualifierDayOne() {
         category: 'freestyle',
         region: 'SP',
         displayName: profile.displayName,
-        rank: rankFor(userId.startsWith('qa-rank-') ? rankingPoints(Number(userId.slice(-3))).freestyle : 0),
-        points: userId.startsWith('qa-rank-') ? rankingPoints(Number(userId.slice(-3))).freestyle : 0,
+        rank: rankFor(
+          userId.startsWith('qa-rank-') ? rankingPoints(Number(userId.slice(-3))).freestyle : 0,
+        ),
+        points: userId.startsWith('qa-rank-')
+          ? rankingPoints(Number(userId.slice(-3))).freestyle
+          : 0,
         confirmedAt: createdAt,
         updatedAt: createdAt,
       });
@@ -732,30 +835,64 @@ async function seedQualifierDayOne() {
     }),
   );
 
-  const matchPairs = [
-    ['user-local', 'qa-rank-001', 'submissions_open'],
-    ['qa-rank-002', 'qa-rank-003', 'voting'],
-    ['qa-rank-004', 'qa-rank-005', 'voting'],
-    ['qa-rank-006', 'qa-rank-007', 'submissions_open'],
-    ['qa-rank-008', 'qa-rank-009', 'submissions_open'],
-  ];
-  const baseDate = new Date('2026-06-01T00:00:00-03:00');
-  const submissionDeadline = new Date('2026-06-01T14:59:00-03:00');
-  const votingStart = new Date('2026-06-01T15:00:00-03:00');
-  const votingEnd = new Date('2026-06-01T21:59:00-03:00');
+  const matchPairs = Array.from({ length: 64 }, (_, index) => [
+    activeQualifierUsers[index * 2],
+    activeQualifierUsers[index * 2 + 1],
+  ]);
+
+  const roundOnePairs = Array.from({ length: 244 }, (_, index) => [
+    qualifierUsers[index],
+    qualifierUsers[index + 256],
+  ]);
+  const roundTwoPairs = Array.from({ length: 128 }, (_, index) => [
+    qualifierUsers[index],
+    qualifierUsers[index + 128],
+  ]);
+
+  await Promise.all([
+    ...roundOnePairs.map(([first, second], index) =>
+      seedHistoricalQualifierMatch({
+        roundNumber: 1,
+        index,
+        first,
+        second,
+        winner: first,
+        matchDayStart: 1,
+      }),
+    ),
+    ...roundTwoPairs.map(([first, second], index) =>
+      seedHistoricalQualifierMatch({
+        roundNumber: 2,
+        index,
+        first,
+        second,
+        winner: first,
+        matchDayStart: 22,
+      }),
+    ),
+  ]);
 
   await Promise.all(
-    matchPairs.map(async ([first, second, status], index) => {
-      const matchId = `qualifier-sp-2026-freestyle-r1-m${index + 1}`;
+    matchPairs.map(async ([first, second], index) => {
+      const matchId = `qualifier-sp-2026-freestyle-r3-m${index + 1}`;
       const submissionIds = {};
       const publicVoteCounts = {};
+      const usersInMatch = [first, second];
+      const missingUsersInMatch = usersInMatch.filter((userId) => missingSubmissionUsers.has(userId));
+      const walkoverWinnerId =
+        missingUsersInMatch.length === 1
+          ? usersInMatch.find((userId) => !missingSubmissionUsers.has(userId))
+          : null;
+      const matchDayIndex = 33 + Math.floor(index / 12);
+      const matchDateOffset = (matchDayIndex - 1) * 24 * 60 * 60 * 1000;
+      const matchScheduledFor = new Date(baseDate.getTime() + matchDateOffset);
 
-      if (status === 'voting') {
-        for (const userId of [first, second]) {
+      for (const userId of usersInMatch) {
+        if (!missingSubmissionUsers.has(userId)) {
           const submissionId = `qualifier-submission-${matchId}-${userId}`;
           const profile = userProfile(userId);
           submissionIds[userId] = submissionId;
-          publicVoteCounts[userId] = index === 1 && userId === first ? 3 : 0;
+          publicVoteCounts[userId] = (index + (userId === first ? 2 : 0)) % 9;
           await db.collection('qualifierSubmissions').doc(submissionId).set({
             id: submissionId,
             matchId,
@@ -763,7 +900,7 @@ async function seedQualifierDayOne() {
             seasonId: QUALIFIER_SEASON_ID,
             category: 'freestyle',
             region: 'SP',
-            roundNumber: 1,
+            roundNumber: 3,
             userId,
             userDisplayName: profile.displayName,
             mediaType: 'audio',
@@ -785,25 +922,25 @@ async function seedQualifierDayOne() {
         seasonId: QUALIFIER_SEASON_ID,
         category: 'freestyle',
         region: 'SP',
-        roundNumber: 1,
-        roundLabel: 'Rodada 1',
-        matchDayIndex: 1,
-        sequenceInDay: index + 1,
+        roundNumber: 3,
+        roundLabel: 'Rodada 3',
+        matchDayIndex,
+        sequenceInDay: (index % 12) + 1,
         participantIds: [first, second],
         registrationIds: [
           `qualifier-sp-2026-freestyle-${first}`,
           `qualifier-sp-2026-freestyle-${second}`,
         ],
-        status,
-        scheduledFor: Timestamp.fromDate(baseDate),
+        status: walkoverWinnerId ? 'walkover' : 'voting',
+        scheduledFor: Timestamp.fromDate(matchScheduledFor),
         submissionDeadline: Timestamp.fromDate(submissionDeadline),
         votingStart: Timestamp.fromDate(votingStart),
         votingEnd: Timestamp.fromDate(votingEnd),
         submissionIds,
         publicVoteCounts,
-        winnerId: null,
-        walkoverWinnerId: null,
-        disqualifiedUserIds: [],
+        winnerId: walkoverWinnerId,
+        walkoverWinnerId,
+        disqualifiedUserIds: missingUsersInMatch,
         nextMatchId: null,
         createdAt: Timestamp.now(),
         updatedAt: Timestamp.now(),

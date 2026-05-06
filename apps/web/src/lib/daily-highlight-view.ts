@@ -43,6 +43,13 @@ export function formatBrazilDayKey(dayKey: string) {
   return `${day}/${month}/${year}`;
 }
 
+export function getDailyHighlightPlacementLabel(highlight: Pick<DailyHighlight, 'placement'>) {
+  if (highlight.placement === 1) return '1º lugar';
+  if (highlight.placement === 2) return '2º lugar';
+  if (highlight.placement === 3) return '3º lugar';
+  return null;
+}
+
 export function shiftBrazilDayKey(dayKey: string, days: number) {
   const [year, month, day] = dayKey.split('-').map(Number);
   if (!year || !month || !day) return dayKey;

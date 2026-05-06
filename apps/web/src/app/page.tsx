@@ -41,6 +41,7 @@ import { SubmitDailyHighlightModal } from '@/components/daily-highlights/submit-
 import {
   formatBrazilDayKey,
   getBrazilDayKey,
+  getDailyHighlightPlacementLabel,
   getVisibleDailyHighlights,
 } from '@/lib/daily-highlight-view';
 import {
@@ -237,6 +238,10 @@ export default function HomePage() {
   );
   const highlightsMoreHref = '/destaques';
   const hasSubmittedDailyHighlightToday = todayUserHighlights.length > 0;
+  const getHomepageHighlightResultLabel = (highlight: DailyHighlight) => {
+    if (highlight.dayKey !== todayDailyHighlightKey || highlight.status !== 'finalized') return null;
+    return getDailyHighlightPlacementLabel(highlight);
+  };
 
   const hasActiveBattles = activeBattles.length > 0;
   const qualifierStates = useMemo<BrazilState[]>(
@@ -359,6 +364,7 @@ export default function HomePage() {
                 category={featuredHighlight.category}
                 durationSeconds={featuredHighlight.mediaDurationSeconds}
                 voteCount={featuredHighlight.voteCount}
+                resultLabel={getHomepageHighlightResultLabel(featuredHighlight)}
               />
 
               <div className="grid gap-4 lg:grid-rows-2">
@@ -378,6 +384,7 @@ export default function HomePage() {
                     durationSeconds={highlight.mediaDurationSeconds}
                     voteCount={highlight.voteCount}
                     size="compact"
+                    resultLabel={getHomepageHighlightResultLabel(highlight)}
                   />
                 ))}
                 {secondaryHighlights.length < 2 &&
@@ -405,8 +412,8 @@ export default function HomePage() {
       </section>
 
       <div className="mx-auto grid max-w-6xl gap-8 px-4 py-8 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <div className="min-w-0 space-y-10">
-          <section>
+        <div className="flex min-w-0 flex-col gap-10">
+          <section className="order-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-yellow-500/10 text-yellow-400">
@@ -459,7 +466,7 @@ export default function HomePage() {
             </div>
           </section>
 
-          <section>
+          <section className="order-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-yellow-500/10 text-yellow-400">
@@ -482,11 +489,15 @@ export default function HomePage() {
               {championshipsLoading ? (
                 Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-44" />)
               ) : visibleChampionships.length > 0 ? (
-                visibleChampionships.map((championship) => {
+                visibleChampionships.map((championship, index) => {
                   const dateCopy = getChampionshipDateCopy(championship);
                   const participantCount = getChampionshipParticipantCount(championship);
                   return (
-                    <Link key={championship.id} href={`/campeonatos/${championship.id}`}>
+                    <Link
+                      key={championship.id}
+                      href={`/campeonatos/${championship.id}`}
+                      className={index >= 6 ? 'hidden sm:block' : undefined}
+                    >
                       <Card className="group h-full cursor-pointer">
                         <CardContent className="flex h-full flex-col">
                           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -557,7 +568,7 @@ export default function HomePage() {
             </div>
           </section>
 
-          <section>
+          <section className="order-1">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500/10 text-brand-400">

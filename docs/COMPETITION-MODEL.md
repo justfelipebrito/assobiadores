@@ -25,16 +25,16 @@ Free/non-subscribed creators are limited to 50 entries for group battles. Subscr
 
 Battle detail pages are the primary battle surface. A user opening `/batalhas/{battleId}` should immediately see the participants, whether each participant has submitted audio, and any playable submitted audio. Public/open battles can show an inline `Participar` action while registration is open. Paid battles show `Pagar entrada` and use the same Pix confirmation modal pattern as qualifiers. Invite-only battles should show the participant/media state without a public join action.
 
-`1v1` battles are exactly two participants, always use open community voting, and tied `1v1` results award no season/category points.
+`1v1` battles are exactly two participants, always use open community voting, and tied `1v1` results without a creator tie-break award no season/category points.
 
-Battle votes use a fixed split:
+Battle votes are community-first:
 
-- community vote: 70%;
-- creator judge vote: 30%.
+- community votes decide the result with 100% weight;
+- the creator vote is stored separately and is used only as a tie-breaker when community votes are tied.
 
-Confirmed participants cannot vote in their own battle. The trusted vote API records the creator vote as the judge signal and all other eligible non-participant votes as community votes. Finalization ranks submissions by weighted score, not raw vote count.
+Confirmed participants cannot vote in their own battle. The trusted vote API records the creator vote as the tie-break signal and all other eligible non-participant votes as community votes. Finalization ranks submissions by community vote count first and only consults the creator signal when the top community score is tied.
 
-Paid battle prize pools are flexible and based on confirmed paid entries. On each approved entry payment, the platform keeps 20% and 80% goes into the battle prize pool. Prize distribution is 50% to 1st place, 30% to 2nd place, and 20% to 3rd place.
+Paid battle prize pools are flexible and based on confirmed paid entries. On each approved entry payment, the platform keeps 20% and 80% goes into the battle prize pool. Battles have a single winner, so the winner receives the available battle prize pool.
 
 ## Invitations
 

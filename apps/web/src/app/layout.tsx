@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Toaster } from 'sonner';
+import { BottomAdBanner } from '@/components/ads/bottom-ad-banner';
+import { GoogleAnalytics } from '@/components/analytics/google-analytics';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
 import { QualifierRegistrationNotice } from '@/components/qualifiers/qualifier-registration-notice';
@@ -29,9 +31,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="pt-BR" className="dark">
       <body className="flex min-h-screen flex-col">
+        <GoogleAnalytics />
         <Header />
         <main className="flex-1">{children}</main>
         <Footer />
+        <BottomAdBanner />
         <QualifierRegistrationNotice />
         <Toaster
           position="top-center"

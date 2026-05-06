@@ -7,8 +7,10 @@ import {
   type QualifierEntrant,
 } from '../lib/qualifier-bracket';
 import { getQualifierTrackId, QUALIFIER_SEASON_ID } from '../lib/qualifier-tracks';
+import { buildPointActivity } from './point-activity-service';
 
 const QUALIFIER_BRACKET_START = new Date('2026-06-01T00:00:00-03:00');
+const QUALIFIER_SEASON_YEAR = 2026;
 
 export interface AdvanceQualifierRoundInput {
   adminUserId: string;
@@ -110,13 +112,30 @@ export async function advanceQualifierRound(
   const batch = db.batch();
 
   if (waitingRegistrations.length <= maxQualified) {
+    const qualifiedChampionshipId = `championship-${region.toLowerCase()}-${QUALIFIER_SEASON_YEAR}-${category}`;
+    const qualifiedUserIds = waitingRegistrations.map((registration) => registration.userId);
+
     waitingRegistrations.forEach((registration) => {
       batch.update(db.collection('qualifierRegistrations').doc(registration.id), {
         bracketStatus: 'qualified',
         currentRound,
         currentMatchId: null,
+        qualifiedChampionshipId,
         updatedAt: FieldValue.serverTimestamp(),
       });
+      batch.set(
+        db.collection('qualifierParticipants').doc(registration.id),
+        {
+          userId: registration.userId,
+          seasonId,
+          region,
+          category,
+          bracketStatus: 'qualified',
+          qualifiedChampionshipId,
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
       batch.update(db.collection('users').doc(registration.userId), {
         points: FieldValue.increment(SEASON_SCORING.qualifier.qualifyForRegional),
         xp: FieldValue.increment(SEASON_SCORING.qualifier.qualifyForRegional),
@@ -134,7 +153,30 @@ export async function advanceQualifierRound(
         [`seasonCategoryPoints.2026.${category}.updatedAt`]: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       });
+      const pointActivity = buildPointActivity({
+        userId: registration.userId,
+        points: SEASON_SCORING.qualifier.qualifyForRegional,
+        reason: 'qualifier_regional_qualification',
+        label: 'Classificacao para Regional',
+        sourceType: 'qualifier',
+        sourceId: registration.id,
+        sourceTitle: `Classificatoria ${region} ${category}`,
+        category,
+        seasonId: '2026',
+      });
+      batch.set(db.collection('pointActivities').doc(pointActivity.id), pointActivity);
     });
+
+    batch.set(
+      db.collection('championships').doc(qualifiedChampionshipId),
+      {
+        participantIds: FieldValue.arrayUnion(...qualifiedUserIds),
+        currentParticipants: qualifiedUserIds.length,
+        qualifierBattleIds: FieldValue.arrayUnion(getQualifierTrackId(region, category)),
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
 
     batch.set(
       trackRef,
