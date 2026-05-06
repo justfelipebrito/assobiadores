@@ -75,6 +75,7 @@ jobs:
     env:
       FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID || 'assobiadores-3f0f6' }}
       FIREBASE_APP_HOSTING_BACKEND_ID: ${{ vars.FIREBASE_APP_HOSTING_BACKEND_ID || 'assobiador-web' }}
+      FIREBASE_DEPLOY_STORAGE_RULES: ${{ vars.FIREBASE_DEPLOY_STORAGE_RULES || 'false' }}
 
     steps:
       - name: Checkout
@@ -99,8 +100,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Deploy Firestore and Storage config
-        run: pnpm exec firebase deploy --config firebase/firebase.json --project "$FIREBASE_PROJECT_ID" --only firestore,storage --non-interactive
+      - name: Deploy Firestore config
+        run: pnpm exec firebase deploy --config firebase/firebase.json --project "$FIREBASE_PROJECT_ID" --only firestore --non-interactive
+
+      - name: Deploy Storage rules
+        if: env.FIREBASE_DEPLOY_STORAGE_RULES == 'true'
+        run: pnpm exec firebase deploy --config firebase/firebase.json --project "$FIREBASE_PROJECT_ID" --only storage --non-interactive
 
       - name: Create App Hosting rollout
         run: |

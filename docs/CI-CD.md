@@ -10,10 +10,11 @@ This repo uses GitHub Actions for validation and Firebase production rollout.
   - Runs automated tests, Firestore rules tests through the emulator, type-check, and build.
 
 - `.github/workflows/firebase-app-hosting.yml`
-  - Runs on pushes to `main` and can be triggered manually.
-  - Runs the same validation gate before deploying.
-  - Deploys Firestore rules/indexes and Storage rules.
-  - Creates a Firebase App Hosting rollout for the configured backend.
+- Runs on pushes to `main` and can be triggered manually.
+- Runs the same validation gate before deploying.
+- Deploys Firestore rules/indexes.
+- Deploys Storage rules only when `FIREBASE_DEPLOY_STORAGE_RULES=true`.
+- Creates a Firebase App Hosting rollout for the configured backend.
 
 ## Required GitHub Settings
 
@@ -35,6 +36,7 @@ Add these repository or environment variables:
 ```text
 FIREBASE_PROJECT_ID=assobiadores-3f0f6
 FIREBASE_APP_HOSTING_BACKEND_ID=assobiador-web
+FIREBASE_DEPLOY_STORAGE_RULES=false
 ```
 
 `FIREBASE_SERVICE_ACCOUNT` should be a Google service account JSON with permission to deploy
@@ -52,6 +54,28 @@ Local key file: /private/tmp/assobiadores-github-actions-deploy.json
 
 Copy the full JSON file contents into the GitHub secret named `FIREBASE_SERVICE_ACCOUNT`, then
 delete the local key file after confirming the secret was saved.
+
+## Firebase Storage Setup
+
+The workflow does not deploy Storage rules by default because Firebase Storage must be initialized
+in Firebase Console first. Enabling `firebasestorage.googleapis.com` in Google Cloud is not enough;
+the Firebase project needs its default Storage bucket created through Firebase.
+
+To finish Storage setup:
+
+1. Open Firebase Console.
+2. Go to project `assobiadores-3f0f6`.
+3. Open **Build > Storage**.
+4. Click **Get started**.
+5. Choose the production location and create the bucket.
+6. After the bucket exists, set this GitHub Actions variable:
+
+```text
+FIREBASE_DEPLOY_STORAGE_RULES=true
+```
+
+Until then, Firestore config and App Hosting rollouts can deploy normally, but production profile
+photo/audio uploads will not work.
 
 ## Firebase App Hosting Environment
 

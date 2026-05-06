@@ -728,6 +728,8 @@ Latest hardening/refactor:
   - created Firebase App Hosting backend `assobiador-web` in `us-east4` for project `assobiadores-3f0f6`; `southamerica-east1` is not available for App Hosting, so the workflow defaults to `assobiador-web`.
   - created deploy service account `github-actions-deploy@assobiadores-3f0f6.iam.gserviceaccount.com`, granted `roles/firebase.admin` and `roles/firebaseapphosting.admin`, and generated the GitHub secret JSON at `/private/tmp/assobiadores-github-actions-deploy.json`.
   - fixed CI rules-test command to call Firebase CLI through `pnpm exec firebase` and added `firebase-tools@15.16.0` as a root dev dependency so GitHub runners have the CLI binary after `pnpm install`.
+  - adjusted production deploy so Firestore rules/indexes deploy independently and Storage rules deploy only when `FIREBASE_DEPLOY_STORAGE_RULES=true`; Firebase Storage still needs the Firebase Console `Get started` bucket setup before production uploads can work.
+  - removed the unnecessary `users.points DESC` composite index because Firestore rejected it as a single-field index that should be handled by automatic single-field indexing.
 
 Security/test work to do before expanding features:
 
@@ -769,8 +771,8 @@ Still needed:
 
 - [ ] Enable Google sign-in provider in Firebase Auth
 - [ ] Enable Apple sign-in provider in Firebase Auth (Apple Developer account is available; provider configuration still needed)
-- [ ] Deploy Firestore security rules: `firebase deploy --only firestore:rules`
-- [ ] Deploy Firestore indexes: `firebase deploy --only firestore:indexes`
+- [ ] Deploy Firestore security rules/indexes through CI/CD
+- [ ] Enable Firebase Storage in Firebase Console, then set `FIREBASE_DEPLOY_STORAGE_RULES=true` for CI/CD Storage rules deploy
 - [x] Deploy Cloud Functions cleanly: all production functions are deployed as active `v2` functions on Node.js 22
 - [x] Set up Firebase App Hosting backend for `apps/web` (`assobiador-web`, `us-east4`)
 

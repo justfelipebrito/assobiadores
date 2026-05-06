@@ -65,13 +65,6 @@
       ]
     },
     {
-      "collectionGroup": "users",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "points", "order": "DESCENDING" }
-      ]
-    },
-    {
       "collectionGroup": "dailyHighlights",
       "queryScope": "COLLECTION",
       "fields": [
