@@ -730,6 +730,7 @@ Latest hardening/refactor:
   - fixed CI rules-test command to call Firebase CLI through `pnpm exec firebase` and added `firebase-tools@15.16.0` as a root dev dependency so GitHub runners have the CLI binary after `pnpm install`.
   - adjusted production deploy so Firestore rules/indexes deploy independently and Storage rules deploy only when `FIREBASE_DEPLOY_STORAGE_RULES=true`; Firebase Storage still needs the Firebase Console `Get started` bucket setup before production uploads can work.
   - removed the unnecessary `users.points DESC` composite index because Firestore rejected it as a single-field index that should be handled by automatic single-field indexing.
+  - switched App Hosting CI/CD from `apphosting:rollouts:create --git-commit` to local-source `firebase deploy --only apphosting:assobiador-web` because the App Hosting backend is not connected to a Firebase Console GitHub repository; added the `apphosting` block to `firebase/firebase.json` and verified the command with a dry run.
 
 Security/test work to do before expanding features:
 

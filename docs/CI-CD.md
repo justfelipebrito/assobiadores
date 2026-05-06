@@ -14,7 +14,7 @@ This repo uses GitHub Actions for validation and Firebase production rollout.
 - Runs the same validation gate before deploying.
 - Deploys Firestore rules/indexes.
 - Deploys Storage rules only when `FIREBASE_DEPLOY_STORAGE_RULES=true`.
-- Creates a Firebase App Hosting rollout for the configured backend.
+- Deploys the configured Firebase App Hosting backend from the checked-out local source.
 
 ## Required GitHub Settings
 
@@ -105,3 +105,10 @@ Resource: projects/assobiadores-3f0f6/locations/us-east4/backends/assobiador-web
 `southamerica-east1` is available for Cloud Functions in this project, but Firebase App Hosting does
 not currently offer it as a primary region. Use `us-east4` for the web app until App Hosting adds a
 Brazil/South America region.
+
+The backend was created without a connected GitHub repository in Firebase Console, so CI/CD deploys
+App Hosting from local source with:
+
+```bash
+firebase deploy --config firebase/firebase.json --project assobiadores-3f0f6 --only apphosting:assobiador-web
+```

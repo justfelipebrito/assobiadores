@@ -107,14 +107,5 @@ jobs:
         if: env.FIREBASE_DEPLOY_STORAGE_RULES == 'true'
         run: pnpm exec firebase deploy --config firebase/firebase.json --project "$FIREBASE_PROJECT_ID" --only storage --non-interactive
 
-      - name: Create App Hosting rollout
-        run: |
-          if [ -z "$FIREBASE_APP_HOSTING_BACKEND_ID" ]; then
-            echo "Set FIREBASE_APP_HOSTING_BACKEND_ID as a GitHub Actions variable."
-            exit 1
-          fi
-
-          pnpm exec firebase --project "$FIREBASE_PROJECT_ID" apphosting:rollouts:create "$FIREBASE_APP_HOSTING_BACKEND_ID" \
-            --git-commit "$GITHUB_SHA" \
-            --force \
-            --non-interactive
+      - name: Deploy App Hosting
+        run: pnpm exec firebase deploy --config firebase/firebase.json --project "$FIREBASE_PROJECT_ID" --only "apphosting:$FIREBASE_APP_HOSTING_BACKEND_ID" --non-interactive
