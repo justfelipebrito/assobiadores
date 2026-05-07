@@ -213,10 +213,10 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     if (error instanceof MercadoPagoOrderError) {
-      console.error('Qualifier registration Mercado Pago order rejected:', {
+      console.error('Qualifier registration Mercado Pago order rejected:', JSON.stringify({
         status: error.status,
         responseBody: error.responseBody,
-      });
+      }));
     } else if (!(error instanceof ApiError)) {
       console.error('Qualifier registration payment error:', error);
     }
