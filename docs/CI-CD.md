@@ -22,13 +22,6 @@ Create a `production` environment in GitHub and add these secrets:
 
 ```text
 FIREBASE_SERVICE_ACCOUNT
-NEXT_PUBLIC_FIREBASE_API_KEY
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
-NEXT_PUBLIC_FIREBASE_APP_ID
-NEXT_PUBLIC_GA_MEASUREMENT_ID
-NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT
-NEXT_PUBLIC_GOOGLE_ADSENSE_BOTTOM_SLOT
 ```
 
 Add these repository or environment variables:
@@ -87,8 +80,20 @@ photo/audio uploads will not work.
 
 ## Firebase App Hosting Environment
 
-`apps/web/apphosting.yaml` declares the public Firebase, Google Analytics, and AdSense variables as
-build/runtime variables. Private runtime values remain Firebase secrets:
+`apps/web/apphosting.yaml` declares the public Firebase client values directly as build/runtime
+variables. These values are not secrets; Firebase authorization still depends on Auth, trusted
+server APIs, Firestore rules, and Storage rules.
+
+Google Analytics and AdSense are optional and should be added to `apps/web/apphosting.yaml` once the
+production IDs are available:
+
+```text
+NEXT_PUBLIC_GA_MEASUREMENT_ID
+NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT
+NEXT_PUBLIC_GOOGLE_ADSENSE_BOTTOM_SLOT
+```
+
+Private runtime values remain Firebase App Hosting secrets:
 
 ```text
 FIREBASE_ADMIN_CLIENT_EMAIL

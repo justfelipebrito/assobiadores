@@ -734,6 +734,7 @@ Latest hardening/refactor:
   - adjusted production deploy so Firestore rules/indexes deploy independently and Storage rules deploy only when `FIREBASE_DEPLOY_STORAGE_RULES=true`; Firebase Storage still needs the Firebase Console `Get started` bucket setup before production uploads can work.
   - removed the unnecessary `users.points DESC` composite index because Firestore rejected it as a single-field index that should be handled by automatic single-field indexing.
   - switched App Hosting CI/CD from `apphosting:rollouts:create --git-commit` to local-source `firebase deploy --only apphosting:assobiador-web` because the App Hosting backend is not connected to a Firebase Console GitHub repository; App Hosting now uses root-level `firebase.apphosting.json` so the source upload includes `apps/web`, and the corrected command passed a dry run.
+  - fixed App Hosting YAML env declarations for web and admin by adding explicit `value` entries for public Firebase variables; optional GA/AdSense entries are left out until real production IDs exist because App Hosting rejects env entries that do not have either `value` or `secret`.
 
 Security/test work to do before expanding features:
 

@@ -7,22 +7,27 @@ runConfig:
 
 env:
   - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: "AIzaSyDEbxi2Hq4MMkAc46orHpl4ZaNcFxGqxiE"
     availability:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: "assobiadores-3f0f6.firebaseapp.com"
     availability:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: "assobiadores-3f0f6"
     availability:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+    value: "636127404536"
     availability:
       - BUILD
       - RUNTIME
   - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: "1:636127404536:web:3e357555675258a02af60d"
     availability:
       - BUILD
       - RUNTIME
