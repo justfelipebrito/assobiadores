@@ -1,0 +1,19 @@
+{
+  "apphosting": [
+    {
+      "backendId": "assobiador-web",
+      "rootDir": "apps/web",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        ".turbo",
+        "apps/*/.next",
+        "apps/*/node_modules",
+        "packages/*/node_modules",
+        "firebase/functions/node_modules"
+      ]
+    }
+  ]
+}

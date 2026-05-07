@@ -727,10 +727,13 @@ Latest hardening/refactor:
   - updated `apps/web/apphosting.yaml` so GA4 and AdSense public IDs are available at build/runtime in Firebase App Hosting.
   - created Firebase App Hosting backend `assobiador-web` in `us-east4` for project `assobiadores-3f0f6`; `southamerica-east1` is not available for App Hosting, so the workflow defaults to `assobiador-web`.
   - created deploy service account `github-actions-deploy@assobiadores-3f0f6.iam.gserviceaccount.com`, granted `roles/firebase.admin` and `roles/firebaseapphosting.admin`, and generated the GitHub secret JSON at `/private/tmp/assobiadores-github-actions-deploy.json`.
+  - granted `roles/iam.serviceAccountAdmin` to the same deploy service account after App Hosting local-source deploy required `iam.serviceAccounts.create`.
+  - granted `roles/resourcemanager.projectIamAdmin` to the deploy service account after App Hosting local-source deploy required `cloudresourcemanager.projects.setIamPolicy`.
+  - granted `roles/iam.serviceAccountUser` on `firebase-app-hosting-compute@assobiadores-3f0f6.iam.gserviceaccount.com` to the deploy service account after App Hosting rollout required `iam.serviceAccounts.actAs`.
   - fixed CI rules-test command to call Firebase CLI through `pnpm exec firebase` and added `firebase-tools@15.16.0` as a root dev dependency so GitHub runners have the CLI binary after `pnpm install`.
   - adjusted production deploy so Firestore rules/indexes deploy independently and Storage rules deploy only when `FIREBASE_DEPLOY_STORAGE_RULES=true`; Firebase Storage still needs the Firebase Console `Get started` bucket setup before production uploads can work.
   - removed the unnecessary `users.points DESC` composite index because Firestore rejected it as a single-field index that should be handled by automatic single-field indexing.
-  - switched App Hosting CI/CD from `apphosting:rollouts:create --git-commit` to local-source `firebase deploy --only apphosting:assobiador-web` because the App Hosting backend is not connected to a Firebase Console GitHub repository; added the `apphosting` block to `firebase/firebase.json` and verified the command with a dry run.
+  - switched App Hosting CI/CD from `apphosting:rollouts:create --git-commit` to local-source `firebase deploy --only apphosting:assobiador-web` because the App Hosting backend is not connected to a Firebase Console GitHub repository; App Hosting now uses root-level `firebase.apphosting.json` so the source upload includes `apps/web`, and the corrected command passed a dry run.
 
 Security/test work to do before expanding features:
 

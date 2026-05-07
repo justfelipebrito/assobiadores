@@ -108,4 +108,4 @@ jobs:
         run: pnpm exec firebase deploy --config firebase/firebase.json --project "$FIREBASE_PROJECT_ID" --only storage --non-interactive
 
       - name: Deploy App Hosting
-        run: pnpm exec firebase deploy --config firebase/firebase.json --project "$FIREBASE_PROJECT_ID" --only "apphosting:$FIREBASE_APP_HOSTING_BACKEND_ID" --non-interactive
+        run: pnpm exec firebase deploy --config firebase.apphosting.json --project "$FIREBASE_PROJECT_ID" --only "apphosting:$FIREBASE_APP_HOSTING_BACKEND_ID" --non-interactive

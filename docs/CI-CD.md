@@ -49,7 +49,15 @@ Service account: github-actions-deploy@assobiadores-3f0f6.iam.gserviceaccount.co
 Roles:
 - roles/firebase.admin
 - roles/firebaseapphosting.admin
+- roles/iam.serviceAccountAdmin
+- roles/resourcemanager.projectIamAdmin
 Local key file: /private/tmp/assobiadores-github-actions-deploy.json
+```
+
+It also has `roles/iam.serviceAccountUser` on this specific runtime account:
+
+```text
+firebase-app-hosting-compute@assobiadores-3f0f6.iam.gserviceaccount.com
 ```
 
 Copy the full JSON file contents into the GitHub secret named `FIREBASE_SERVICE_ACCOUNT`, then
@@ -110,5 +118,9 @@ The backend was created without a connected GitHub repository in Firebase Consol
 App Hosting from local source with:
 
 ```bash
-firebase deploy --config firebase/firebase.json --project assobiadores-3f0f6 --only apphosting:assobiador-web
+firebase deploy --config firebase.apphosting.json --project assobiadores-3f0f6 --only apphosting:assobiador-web
 ```
+
+Keep App Hosting config at the repo root in `firebase.apphosting.json`. Using `firebase/firebase.json`
+for App Hosting makes the CLI upload only the `firebase/` directory, which prevents Cloud Build from
+finding `apps/web`.

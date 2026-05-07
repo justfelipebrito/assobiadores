@@ -6,19 +6,6 @@
   "storage": {
     "rules": "storage.rules"
   },
-  "apphosting": [
-    {
-      "backendId": "assobiador-web",
-      "rootDir": "../apps/web",
-      "ignore": [
-        "node_modules",
-        ".git",
-        "firebase-debug.log",
-        "firebase-debug.*.log",
-        "functions"
-      ]
-    }
-  ],
   "emulators": {
     "auth": {
       "host": "127.0.0.1",
