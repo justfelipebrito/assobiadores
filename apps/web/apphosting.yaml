@@ -31,11 +31,16 @@ env:
     availability:
       - BUILD
       - RUNTIME
-  - variable: FIREBASE_ADMIN_CLIENT_EMAIL
-    secret: FIREBASE_ADMIN_CLIENT_EMAIL
-  - variable: FIREBASE_ADMIN_PRIVATE_KEY
-    secret: FIREBASE_ADMIN_PRIVATE_KEY
+  - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
+    value: "assobiadores-3f0f6.firebasestorage.app"
+    availability:
+      - BUILD
+      - RUNTIME
   - variable: MP_ACCESS_TOKEN
     secret: MP_ACCESS_TOKEN
+    availability:
+      - RUNTIME
   - variable: MP_WEBHOOK_SECRET
     secret: MP_WEBHOOK_SECRET
+    availability:
+      - RUNTIME

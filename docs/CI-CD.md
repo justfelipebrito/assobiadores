@@ -96,10 +96,21 @@ NEXT_PUBLIC_GOOGLE_ADSENSE_BOTTOM_SLOT
 Private runtime values remain Firebase App Hosting secrets:
 
 ```text
-FIREBASE_ADMIN_CLIENT_EMAIL
-FIREBASE_ADMIN_PRIVATE_KEY
 MP_ACCESS_TOKEN
 MP_WEBHOOK_SECRET
+```
+
+The web app uses the App Hosting runtime service account through Google Application Default
+Credentials for Firebase Admin access. Do not create or deploy Firebase Admin private-key secrets for
+App Hosting unless a future environment explicitly needs key-based credentials.
+
+After creating or rotating App Hosting secrets, grant the backend access:
+
+```bash
+firebase apphosting:secrets:grantaccess MP_ACCESS_TOKEN,MP_WEBHOOK_SECRET \
+  --project assobiadores-3f0f6 \
+  --backend assobiador-web \
+  --location us-east4
 ```
 
 Keep local emulator runs using `NEXT_PUBLIC_USE_FIREBASE_EMULATORS=true`; production deploys should

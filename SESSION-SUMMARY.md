@@ -735,6 +735,9 @@ Latest hardening/refactor:
   - removed the unnecessary `users.points DESC` composite index because Firestore rejected it as a single-field index that should be handled by automatic single-field indexing.
   - switched App Hosting CI/CD from `apphosting:rollouts:create --git-commit` to local-source `firebase deploy --only apphosting:assobiador-web` because the App Hosting backend is not connected to a Firebase Console GitHub repository; App Hosting now uses root-level `firebase.apphosting.json` so the source upload includes `apps/web`, and the corrected command passed a dry run.
   - fixed App Hosting YAML env declarations for web and admin by adding explicit `value` entries for public Firebase variables; optional GA/AdSense entries are left out until real production IDs exist because App Hosting rejects env entries that do not have either `value` or `secret`.
+  - removed missing Firebase Admin private-key secrets from App Hosting config; the web runtime now uses App Hosting Application Default Credentials for Firebase Admin, while `MP_ACCESS_TOKEN` and `MP_WEBHOOK_SECRET` remain runtime-only secrets.
+  - granted the `assobiador-web` App Hosting backend access to the existing `MP_ACCESS_TOKEN` and `MP_WEBHOOK_SECRET` secrets.
+  - added focused `@batalha/firebase` tests for Firebase Admin initialization options so App Hosting can use default credentials without private-key secrets while still catching partial explicit credential config.
 
 Security/test work to do before expanding features:
 

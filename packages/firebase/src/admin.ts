@@ -1,4 +1,4 @@
-import { initializeApp, getApps, cert, type App } from 'firebase-admin/app';
+import { initializeApp, getApps, cert, type App, type AppOptions } from 'firebase-admin/app';
 import { getAuth, type Auth } from 'firebase-admin/auth';
 import { getFirestore, type Firestore } from 'firebase-admin/firestore';
 import { getStorage } from 'firebase-admin/storage';
@@ -10,23 +10,21 @@ let auth: Auth;
 let db: Firestore;
 let bucket: AdminStorageBucket;
 
-function isUsingFirebaseEmulators() {
+function isUsingFirebaseEmulators(env: NodeJS.ProcessEnv = process.env) {
   return (
-    process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === 'true' ||
-    Boolean(process.env.FIRESTORE_EMULATOR_HOST) ||
-    Boolean(process.env.FIREBASE_AUTH_EMULATOR_HOST) ||
-    Boolean(process.env.FIREBASE_STORAGE_EMULATOR_HOST)
+    env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === 'true' ||
+    Boolean(env.FIRESTORE_EMULATOR_HOST) ||
+    Boolean(env.FIREBASE_AUTH_EMULATOR_HOST) ||
+    Boolean(env.FIREBASE_STORAGE_EMULATOR_HOST)
   );
 }
 
-function getProjectId() {
-  if (isUsingFirebaseEmulators()) {
-    return process.env.GCLOUD_PROJECT || 'demo-batalha';
+function getProjectId(env: NodeJS.ProcessEnv = process.env) {
+  if (isUsingFirebaseEmulators(env)) {
+    return env.GCLOUD_PROJECT || 'demo-batalha';
   }
 
-  return (
-    process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || process.env.GCLOUD_PROJECT || 'demo-batalha'
-  );
+  return env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || env.GCLOUD_PROJECT || 'demo-batalha';
 }
 
 function configureAdminEmulators() {
@@ -36,25 +34,46 @@ function configureAdminEmulators() {
   process.env.GCLOUD_PROJECT ||= getProjectId();
 }
 
+export function buildAdminAppOptions(env: NodeJS.ProcessEnv = process.env): AppOptions {
+  const projectId = getProjectId(env);
+  const storageBucket = env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || `${projectId}.appspot.com`;
+
+  if (isUsingFirebaseEmulators(env)) {
+    return {
+      projectId,
+      storageBucket,
+    };
+  }
+
+  const clientEmail = env.FIREBASE_ADMIN_CLIENT_EMAIL;
+  const privateKey = env.FIREBASE_ADMIN_PRIVATE_KEY;
+
+  if (clientEmail || privateKey) {
+    if (!clientEmail || !privateKey) {
+      throw new Error('FIREBASE_ADMIN_CLIENT_EMAIL and FIREBASE_ADMIN_PRIVATE_KEY must be set together.');
+    }
+
+    return {
+      storageBucket,
+      credential: cert({
+        projectId,
+        clientEmail,
+        privateKey: privateKey.replace(/\\n/g, '\n'),
+      }),
+    };
+  }
+
+  return { storageBucket };
+}
+
 function getAdminApp(): App {
   if (!app) {
     if (getApps().length === 0) {
       if (isUsingFirebaseEmulators()) {
         configureAdminEmulators();
-        app = initializeApp({
-          projectId: getProjectId(),
-          storageBucket: `${getProjectId()}.appspot.com`,
-        });
+        app = initializeApp(buildAdminAppOptions());
       } else {
-        app = initializeApp({
-          storageBucket:
-            process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || `${getProjectId()}.appspot.com`,
-          credential: cert({
-            projectId: getProjectId(),
-            clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
-            privateKey: process.env.FIREBASE_ADMIN_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-          }),
-        });
+        app = initializeApp(buildAdminAppOptions());
       }
     } else {
       app = getApps()[0]!;
