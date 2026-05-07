@@ -414,11 +414,11 @@ describe('POST /api/payments/create', () => {
     });
     expect(res.status).toBe(500);
     expect(errorSpy).toHaveBeenCalledWith(
-      'Payment creation error:',
-      expect.objectContaining({
+      'Payment Mercado Pago order rejected:',
+      {
         status: 400,
         responseBody: { message: 'Invalid payer', error: 'bad_request' },
-      }),
+      },
     );
     errorSpy.mockRestore();
   });

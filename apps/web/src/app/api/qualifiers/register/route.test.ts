@@ -321,11 +321,11 @@ describe('POST /api/qualifiers/register', () => {
     });
     expect(res.status).toBe(500);
     expect(errorSpy).toHaveBeenCalledWith(
-      'Qualifier registration payment error:',
-      expect.objectContaining({
+      'Qualifier registration Mercado Pago order rejected:',
+      {
         status: 400,
         responseBody: { message: 'Invalid payer', error: 'bad_request' },
-      }),
+      },
     );
     errorSpy.mockRestore();
   });

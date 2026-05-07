@@ -8,7 +8,10 @@ import {
 } from '@batalha/types';
 import { ApiError, getErrorResponse } from '../../../../server/api-errors';
 import { requireDecodedToken } from '../../../../server/auth';
-import { createMercadoPagoPixOrder } from '../../../../server/mercado-pago-orders';
+import {
+  createMercadoPagoPixOrder,
+  MercadoPagoOrderError,
+} from '../../../../server/mercado-pago-orders';
 import { readJsonObject } from '../../../../server/request';
 import { getQualifierDailyMatchLimit } from '../../../../lib/qualifier-bracket';
 import {
@@ -209,7 +212,12 @@ export async function POST(req: NextRequest) {
       expiresAt: expiresAt.toISOString(),
     });
   } catch (error) {
-    if (!(error instanceof ApiError)) {
+    if (error instanceof MercadoPagoOrderError) {
+      console.error('Qualifier registration Mercado Pago order rejected:', {
+        status: error.status,
+        responseBody: error.responseBody,
+      });
+    } else if (!(error instanceof ApiError)) {
       console.error('Qualifier registration payment error:', error);
     }
     const response = getErrorResponse(error, 'Erro ao criar pagamento da classificatoria');

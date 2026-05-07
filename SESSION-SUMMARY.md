@@ -768,6 +768,8 @@ Latest hardening/refactor:
   - added temporary `MP_SANDBOX_AUTO_APPROVE=true` runtime config to `apps/web/apphosting.yaml` for `assobiador.com` sandbox-domain QA; remove or disable it before switching App Hosting to real production Mercado Pago credentials or running a real-money Pix smoke test.
   - fixed date-sensitive submission-service tests that started failing once the real clock passed the hardcoded battle submission deadline; the 403 confirmed-entry and 409 duplicate-submission cases now pin `now` before the deadline so they assert the intended branches.
   - production domain classificatória payment creation returned `500` because Mercado Pago rejected the Orders API request with `400`; added server-side logging of Mercado Pago's rejected response body for battle and classificatória payment creation while keeping client errors generic, plus focused route tests.
+  - tightened Mercado Pago rejection logging to print a plain `{ status, responseBody }` object from payment routes; Cloud Run was previously formatting the custom Error stack without the response body, which hid the actual Mercado Pago validation reason.
+  - deploy workflow clarification: `.github/workflows/ci.yml` only validates, while `.github/workflows/firebase-app-hosting.yml` performs the production App Hosting deploy on `main` pushes or manual `workflow_dispatch` after its own validation job.
   - remaining real Mercado Pago dispatch step: in the Mercado Pago webhook dashboard, enable **Order (Mercado Pago)** for the configured URL. Payment-only notifications do not dispatch the `order.*` event used by the Orders API Pix flow.
 
 Security/test work to do before expanding features:

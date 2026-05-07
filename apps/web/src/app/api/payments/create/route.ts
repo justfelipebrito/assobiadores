@@ -4,7 +4,10 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { checkBattleEntryEligibility } from '@batalha/utils';
 import { ApiError, getErrorResponse } from '../../../../server/api-errors';
 import { requireDecodedToken } from '../../../../server/auth';
-import { createMercadoPagoPixOrder } from '../../../../server/mercado-pago-orders';
+import {
+  createMercadoPagoPixOrder,
+  MercadoPagoOrderError,
+} from '../../../../server/mercado-pago-orders';
 import { readJsonObject } from '../../../../server/request';
 
 function getMillis(value: unknown): number | null {
@@ -187,7 +190,12 @@ export async function POST(req: NextRequest) {
       expiresAt: expiresAt.toISOString(),
     });
   } catch (error) {
-    if (!(error instanceof ApiError)) {
+    if (error instanceof MercadoPagoOrderError) {
+      console.error('Payment Mercado Pago order rejected:', {
+        status: error.status,
+        responseBody: error.responseBody,
+      });
+    } else if (!(error instanceof ApiError)) {
       console.error('Payment creation error:', error);
     }
     const response = getErrorResponse(error, 'Erro ao criar pagamento. Tente novamente.');
