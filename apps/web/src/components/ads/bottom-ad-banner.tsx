@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect } from 'react';
-import Script from 'next/script';
 import { getGoogleAdsenseConfig } from '@/lib/google-integrations';
 
 declare global {
@@ -28,12 +27,6 @@ export function BottomAdBanner() {
   return (
     <>
       <div className="h-24 sm:h-28" aria-hidden="true" />
-      <Script
-        async
-        src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${config.client}`}
-        crossOrigin="anonymous"
-        strategy="afterInteractive"
-      />
       <aside
         aria-label="Publicidade"
         className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-surface-950/95 px-3 py-2 shadow-2xl shadow-black/40 backdrop-blur"

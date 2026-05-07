@@ -84,8 +84,9 @@ photo/audio uploads will not work.
 variables. These values are not secrets; Firebase authorization still depends on Auth, trusted
 server APIs, Firestore rules, and Storage rules.
 
-Google Analytics and AdSense are optional and should be added to `apps/web/apphosting.yaml` once the
-production IDs are available:
+Google Analytics is optional and should be added to `apps/web/apphosting.yaml` once the production
+ID is available. AdSense uses `NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT` for site review first, then
+`NEXT_PUBLIC_GOOGLE_ADSENSE_BOTTOM_SLOT` after an approved display ad unit exists:
 
 ```text
 NEXT_PUBLIC_GA_MEASUREMENT_ID

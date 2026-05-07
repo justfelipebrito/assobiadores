@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { Toaster } from 'sonner';
+import { AdsensePublisherScript } from '@/components/ads/adsense-publisher-script';
 import { BottomAdBanner } from '@/components/ads/bottom-ad-banner';
 import { GoogleAnalytics } from '@/components/analytics/google-analytics';
 import { Header } from '@/components/layout/header';
@@ -30,6 +31,9 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pt-BR" className="dark">
+      <head>
+        <AdsensePublisherScript />
+      </head>
       <body className="flex min-h-screen flex-col">
         <GoogleAnalytics />
         <Header />

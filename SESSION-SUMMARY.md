@@ -718,6 +718,7 @@ Latest hardening/refactor:
   - added env-gated GA4 integration that loads `gtag.js` only when `NEXT_PUBLIC_GA_MEASUREMENT_ID` is set and emulator mode is off;
   - GA4 page views are sent on client-side route/query changes so navigation interest can be tracked across the app;
   - added env-gated Google AdSense bottom banner using `NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT` and `NEXT_PUBLIC_GOOGLE_ADSENSE_BOTTOM_SLOT`, with bottom spacing and a `Publicidade` label;
+  - added the production AdSense publisher/client ID `ca-pub-1405185920341102` to App Hosting and split publisher verification from ad-slot rendering, so Google can review `assobiador.com` before an approved bottom-banner slot exists; the publisher script is rendered in the document head so AdSense ownership verification can find it in the initial HTML;
   - documented setup in `docs/GOOGLE-INTEGRATIONS.md`;
   - added focused tests for Google integration config gating and GA page-path building.
 - CI/CD:

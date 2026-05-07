@@ -22,14 +22,21 @@ export function getGoogleAnalyticsConfig(env: GoogleEnv = process.env) {
   return { measurementId };
 }
 
-export function getGoogleAdsenseConfig(env: GoogleEnv = process.env) {
+export function getGoogleAdsensePublisherConfig(env: GoogleEnv = process.env) {
   const client = clean(env.NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT);
+  if (!client || !areGoogleIntegrationsAllowed(env)) return null;
+
+  return { client };
+}
+
+export function getGoogleAdsenseConfig(env: GoogleEnv = process.env) {
+  const publisherConfig = getGoogleAdsensePublisherConfig(env);
   const bottomSlot = clean(env.NEXT_PUBLIC_GOOGLE_ADSENSE_BOTTOM_SLOT);
 
-  if (!client || !bottomSlot || !areGoogleIntegrationsAllowed(env)) return null;
+  if (!publisherConfig || !bottomSlot) return null;
 
   return {
-    client,
+    client: publisherConfig.client,
     bottomSlot,
   };
 }

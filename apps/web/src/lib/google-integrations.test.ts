@@ -3,6 +3,7 @@ import {
   areGoogleIntegrationsAllowed,
   buildPagePath,
   getGoogleAdsenseConfig,
+  getGoogleAdsensePublisherConfig,
   getGoogleAnalyticsConfig,
 } from './google-integrations';
 
@@ -40,6 +41,27 @@ describe('google integration config', () => {
         NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT: 'ca-pub-123',
         NEXT_PUBLIC_GOOGLE_ADSENSE_BOTTOM_SLOT: '456',
         NEXT_PUBLIC_USE_FIREBASE_EMULATORS: 'true',
+      }),
+    ).toBeNull();
+  });
+
+  it('enables the AdSense publisher script with only the client id', () => {
+    expect(
+      getGoogleAdsensePublisherConfig({
+        NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT: 'ca-pub-123',
+      }),
+    ).toEqual({
+      client: 'ca-pub-123',
+    });
+    expect(
+      getGoogleAdsensePublisherConfig({
+        NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT: 'ca-pub-123',
+        NEXT_PUBLIC_USE_FIREBASE_EMULATORS: 'true',
+      }),
+    ).toBeNull();
+    expect(
+      getGoogleAdsensePublisherConfig({
+        NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT: '   ',
       }),
     ).toBeNull();
   });

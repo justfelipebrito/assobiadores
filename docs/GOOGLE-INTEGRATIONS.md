@@ -14,13 +14,23 @@ NEXT_PUBLIC_GA_MEASUREMENT_ID=G-XXXXXXXXXX
 The app loads `gtag.js` once and sends page views on client-side navigation, including query-string
 changes.
 
-## Google AdSense Bottom Banner
+## Google AdSense Site Review
 
-After the site is approved in Google AdSense, create a responsive display ad unit for the bottom
-banner and set:
+When the site is added in Google AdSense, set the publisher/client ID first:
 
 ```bash
 NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT=ca-pub-XXXXXXXXXXXXXXXX
+```
+
+This loads the AdSense publisher script on production pages so Google can verify ownership and review
+`assobiador.com`. The app does not need an ad slot for this review step.
+
+## Google AdSense Bottom Banner
+
+After the site is approved in Google AdSense, create a responsive display ad unit for the bottom
+banner and add the slot ID:
+
+```bash
 NEXT_PUBLIC_GOOGLE_ADSENSE_BOTTOM_SLOT=1234567890
 ```
 
