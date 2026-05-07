@@ -101,6 +101,7 @@ function createDb({
 }
 
 const activeBattle = { status: 'active', submissionDeadline: new Date('2026-05-07T12:00:00.000Z') };
+const beforeSubmissionDeadline = new Date('2026-05-07T11:00:00.000Z');
 
 describe('createSubmission', () => {
   const audioInput = {
@@ -196,6 +197,7 @@ describe('createSubmission', () => {
         battleId: 'battle-1',
         userId: 'user-1',
         ...audioInput,
+        now: beforeSubmissionDeadline,
       }),
     ).rejects.toMatchObject({ status: 403 });
   });
@@ -208,6 +210,7 @@ describe('createSubmission', () => {
         battleId: 'battle-1',
         userId: 'user-1',
         ...audioInput,
+        now: beforeSubmissionDeadline,
       }),
     ).rejects.toMatchObject({ status: 409 });
   });
