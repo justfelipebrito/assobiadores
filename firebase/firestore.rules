@@ -155,6 +155,11 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    match /seasonRankings/{seasonId}/users/{userId} {
+      allow read: if true;
+      allow create, update, delete: if false;
+    }
+
     match /qualifierRegistrations/{registrationId} {
       allow read: if isOwner(resource.data.userId) || isAdmin();
       allow create, update, delete: if false;

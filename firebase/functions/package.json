@@ -9,7 +9,8 @@
     "type-check": "tsc --noEmit",
     "lint": "tsc --noEmit",
     "test": "vitest run",
-    "seed:emulator": "node scripts/seed-emulator.cjs"
+    "seed:emulator": "node scripts/seed-emulator.cjs",
+    "seed:official-2026-catalog": "node scripts/seed-official-2026-catalog.cjs"
   },
   "engines": {
     "node": "22"

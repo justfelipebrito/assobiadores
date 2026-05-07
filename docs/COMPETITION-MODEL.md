@@ -90,7 +90,19 @@ Initial 2026 scoring table:
 | National 2nd place           | 25,000 |
 | National champion            | 40,000 |
 
-Ranking points should be category-scoped whenever the source event has a category. Daily highlights and battles should award points to the submitted/battle category. Overall season totals can be derived as a sum across categories, but category leaderboards remain the product source of truth for official competition context.
+The official public ranking is a unified season leaderboard. Points from Freestyle, Melodia, and
+Pássaros all contribute to the same season total, so `10` points in Melodia plus `10` points in
+Pássaros displays as `20` ranking points.
+
+Category remains important as context and audit data:
+
+- every points event in `pointActivities` stores the source category when applicable;
+- `users/{uid}.seasonCategoryPoints` can keep category breakdowns for profile/history views;
+- official competitions, qualifiers, and battles are still category-scoped for participation rules.
+
+The public leaderboard should read from the denormalized `seasonRankings/{seasonId}/users/{userId}`
+aggregate. That aggregate is maintained only by trusted server code and can be rebuilt from
+`pointActivities` if scoring logic ever needs correction.
 
 Community battle scoring needs abuse controls before release because user-created events can be farmed. At minimum, points should only be awarded after trusted finalization, confirmed participants, valid submissions, and completed voting. Additional per-user/day or per-opponent caps can be added if battle farming becomes visible.
 
@@ -191,7 +203,25 @@ Each official season should create championship shells for all category tracks:
 - 81 Regional championships, one per Brazilian state per category
 - 84 official championship shells per season total
 
-Official season rankings are category-scoped through trusted server writes to `seasonCategoryPoints`.
+Official season rankings are unified through trusted server writes to `seasonRankings`. Category
+breakdowns remain available through `seasonCategoryPoints` and the immutable `pointActivities`
+ledger.
+
+## Official 2026 Championship Catalog
+
+The production catalog should contain real championship shell documents before the events start so
+users can see the season structure and prepare:
+
+- 3 Nationals: Freestyle, Melodia, and Pássaros.
+- 81 Regionals: every Brazilian state across the same three categories.
+- Regional registration starts on June 1, 2026.
+- National dates are intentionally shown as `A definir` until the final schedule is confirmed.
+
+Use the repeatable upsert seed when the catalog needs to be restored or refreshed:
+
+```bash
+GOOGLE_CLOUD_PROJECT=assobiadores-3f0f6 GCLOUD_PROJECT=assobiadores-3f0f6 pnpm seed:official-2026-catalog
+```
 
 ### 2026 Official Season
 

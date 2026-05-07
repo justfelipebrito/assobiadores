@@ -1,5 +1,10 @@
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import { ApiError } from './api-errors';
+import {
+  DEFAULT_SEASON_ID,
+  buildInitialSeasonRanking,
+  getSeasonRankingPath,
+} from './season-ranking-service';
 
 export interface BootstrapUserInput {
   uid: string;
@@ -113,6 +118,15 @@ export async function bootstrapUserProfile(db: Firestore, user: BootstrapUserInp
     const existingPrivate = await transaction.get(privateRef);
 
     if (existingUser.exists) {
+      transaction.set(
+        db.doc(getSeasonRankingPath(DEFAULT_SEASON_ID, user.uid)),
+        buildInitialSeasonRanking({
+          userId: user.uid,
+          seasonId: DEFAULT_SEASON_ID,
+          user: existingUser.data() ?? {},
+        }),
+        { merge: true },
+      );
       if (!existingPrivate.exists) {
         transaction.set(privateRef, createPrivateUserData(user.uid), { merge: true });
       }
@@ -144,6 +158,15 @@ export async function bootstrapUserProfile(db: Firestore, user: BootstrapUserInp
 
     transaction.set(userRef, createPublicUserData(user, selectedUsername));
     transaction.set(privateRef, createPrivateUserData(user.uid), { merge: true });
+    transaction.set(
+      db.doc(getSeasonRankingPath(DEFAULT_SEASON_ID, user.uid)),
+      buildInitialSeasonRanking({
+        userId: user.uid,
+        seasonId: DEFAULT_SEASON_ID,
+        user: createPublicUserData(user, selectedUsername),
+      }),
+      { merge: true },
+    );
 
     return { created: true, username: selectedUsername };
   });

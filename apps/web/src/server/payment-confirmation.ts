@@ -2,6 +2,7 @@ import { FieldValue, type DocumentSnapshot, type Firestore } from 'firebase-admi
 import { SEASON_SCORING, type CompetitionCategory } from '@batalha/types';
 import { ApiError } from './api-errors';
 import { buildPointActivity } from './point-activity-service';
+import { buildSeasonRankingIncrement, getSeasonRankingPath } from './season-ranking-service';
 
 function getBattlePrizeShares(amount: number) {
   const prizePool = Math.floor(amount * 0.8);
@@ -106,6 +107,16 @@ export async function confirmPaymentTargets(db: Firestore, paymentDoc: DocumentS
             FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
         });
+        batch.set(
+          db.doc(getSeasonRankingPath(seasonKey, String(registration.userId))),
+          buildSeasonRankingIncrement({
+            user: participantUser ?? {},
+            seasonId: seasonKey,
+            category,
+            points: entryPoints,
+          }),
+          { merge: true },
+        );
         const pointActivity = buildPointActivity({
           userId: String(registration.userId),
           points: entryPoints,

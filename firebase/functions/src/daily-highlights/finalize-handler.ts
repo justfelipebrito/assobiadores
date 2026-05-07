@@ -1,6 +1,7 @@
 import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions/v2';
 import { calculateRank, getDailyHighlightPlacementPoints } from '../domain/ranking';
+import { buildSeasonRankingIncrement, getSeasonRankingPath } from '../domain/season-ranking';
 
 type DailyHighlightForFinalization = {
   ref: FirebaseFirestore.DocumentReference;
@@ -153,6 +154,16 @@ export async function finalizeDailyHighlightsForDay(
           category: highlight.category,
           points: winner.points,
         }),
+      );
+      batch.set(
+        db.doc(getSeasonRankingPath(seasonId, highlight.userId)),
+        buildSeasonRankingIncrement({
+          user,
+          seasonId,
+          category: highlight.category,
+          points: winner.points,
+        }),
+        { merge: true },
       );
       batch.set(db.collection('pointActivities').doc(activityId), {
         id: activityId,

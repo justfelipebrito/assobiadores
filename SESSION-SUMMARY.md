@@ -148,7 +148,7 @@
 - User-created battles can be `1v1` or group battles.
 - User-created group battles are limited to 50 entries unless the creator has a subscription/plan.
 - Users should be able to invite competitors by searching and adding exact usernames in an "add to battle" flow.
-- Rankings now use one unified season/category points model: daily highlights, standalone battles, qualifiers, Regionals, and Nationals can all award points when finalized by trusted server code and backed by documented scoring rules.
+- Rankings now use a unified season points model backed by append-only `pointActivities`: daily highlights, standalone battles, qualifiers, Regionals, and Nationals can all award points when finalized by trusted server code. Category remains source context/breakdown data, but the official public ranking total is no longer split by category.
 - Casual/community actions award small points so regular users can appear in the season table; official competition progression awards much larger proportional boosts so Regional/National winners still lead meaningfully.
 - Season rankings should support a sports-style leaderboard:
   - National League.
@@ -306,8 +306,8 @@ seasons/{id}
 - `finalizeMatch` / `finalizeChampionship` onCall CFs delegate to handlers for testability; auth + admin checks remain in the CF wrapper
 - `/ranking/temporadas` — Season archive page: lists upcoming/active/archived seasons with scope badges, date ranges, championship count; links back to ranking
 - `/ranking` — "Ver temporadas anteriores" link added
-- `/ranking` — Geral/Temporada switch; active season leaderboard orders by year-based `seasonCategoryPoints.{year}.{category}.points`
-- `User.seasonPoints` and `User.seasonCategoryPoints` typed/defaulted/protected in Firestore rules; championship finalization writes per-year and per-category season points when `seasonId` is present
+- `/ranking` — Geral/Temporada switch; active season leaderboard reads the unified `seasonRankings/{seasonId}/users` aggregate
+- `User.seasonPoints`, `User.seasonCategoryPoints`, and `seasonRankings` are typed/defaulted/protected in Firestore rules; trusted scoring writes keep unified totals and category breakdowns in sync
 - Emulator seed now creates active season `2026` and sample `seasonPoints`
 - Admin `/campeonatos` — Championship management page: lists all championships with status, qualifier count; per-championship `QualifierManager` for linking finished battles as qualifiers (toggle link/unlink via `arrayUnion`/`arrayRemove`)
 - Admin championship stage/match management UI — create stages, list stages, schedule matches, list matches, optional linked `battleId`
@@ -738,6 +738,10 @@ Latest hardening/refactor:
   - removed missing Firebase Admin private-key secrets from App Hosting config; the web runtime now uses App Hosting Application Default Credentials for Firebase Admin, while `MP_ACCESS_TOKEN` and `MP_WEBHOOK_SECRET` remain runtime-only secrets.
   - granted the `assobiador-web` App Hosting backend access to the existing `MP_ACCESS_TOKEN` and `MP_WEBHOOK_SECRET` secrets.
   - added focused `@batalha/firebase` tests for Firebase Admin initialization options so App Hosting can use default credentials without private-key secrets while still catching partial explicit credential config.
+  - refactored ranking direction toward the long-term model: `pointActivities` remains the append-only ledger, `seasonRankings/{seasonId}/users/{userId}` is the public unified season leaderboard read model, and category points are now only breakdown/audit context.
+  - removed category selector/copy from homepage and `/ranking` official ranking views so points from Freestyle, Melodia, and Pássaros combine into one season score.
+  - added an official 2026 championship catalog seed for production/emulator use: 3 Nationals and 81 Regionals are upserted as real `championships` docs; Nationals display `A definir`, and Regional registration starts on 2026-06-01.
+  - ran the official 2026 catalog seed against production project `assobiadores-3f0f6` and verified `84` championship docs exist for season `2026` (`3` national, `81` regional).
 
 Security/test work to do before expanding features:
 

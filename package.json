@@ -16,6 +16,7 @@
     "emulators": "firebase emulators:start --config firebase/firebase.json --project demo-batalha",
     "seed:emulator": "FIRESTORE_EMULATOR_HOST=127.0.0.1:8085 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 pnpm --filter functions seed:emulator",
     "seed:qa:v1": "FIRESTORE_EMULATOR_HOST=127.0.0.1:8085 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 pnpm exec node firebase/functions/scripts/seed-v1-day-one.cjs",
+    "seed:official-2026-catalog": "pnpm --filter functions seed:official-2026-catalog",
     "clean": "turbo clean"
   },
   "devDependencies": {

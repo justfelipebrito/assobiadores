@@ -61,6 +61,7 @@ function createDb({
   };
 
   const db = {
+    doc: vi.fn((path: string) => ({ id: path.split('/').at(-1) ?? path, path })),
     collection: vi.fn((name: string) => {
       if (name === 'battles') {
         return {

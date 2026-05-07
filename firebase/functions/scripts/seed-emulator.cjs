@@ -280,8 +280,8 @@ async function seedSeasons() {
 
 async function seedChampionships() {
   const qualifierSchedule = {
-    registrationStart: Timestamp.fromDate(new Date('2026-05-04T00:00:00-03:00')),
-    registrationEnd: Timestamp.fromDate(new Date('2026-05-31T23:59:59-03:00')),
+    registrationStart: Timestamp.fromDate(new Date('2026-06-01T00:00:00-03:00')),
+    registrationEnd: Timestamp.fromDate(new Date('2026-07-19T23:59:59-03:00')),
   };
   const regionalSchedule = {
     ...qualifierSchedule,
@@ -319,6 +319,7 @@ async function seedChampionships() {
       category: category.value,
       scope: 'national',
       region: null,
+      dateStatus: 'to_be_defined',
       schedule: nationalSchedule,
     })),
     ...BRAZIL_STATES.flatMap((state) =>
@@ -329,6 +330,7 @@ async function seedChampionships() {
         category: category.value,
         scope: 'regional',
         region: state.value,
+        dateStatus: 'scheduled',
         schedule: regionalSchedule,
       })),
     ),

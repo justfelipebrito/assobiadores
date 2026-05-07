@@ -1,6 +1,7 @@
 import { FieldValue, Timestamp, type Firestore } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions/v2';
 import { POINTS_TABLE } from '../domain/ranking';
+import { buildSeasonRankingIncrement, getSeasonRankingPath } from '../domain/season-ranking';
 
 type QualifierMatchDoc = FirebaseFirestore.QueryDocumentSnapshot;
 
@@ -176,9 +177,22 @@ export async function finalizeScheduledQualifierMatch(
     });
 
     if (winnerId) {
+      const winnerRef = db.collection('users').doc(winnerId);
+      const winnerDoc = await transaction.get(winnerRef);
+      const winner = winnerDoc.data() ?? {};
       transaction.update(
-        db.collection('users').doc(winnerId),
+        winnerRef,
         buildPhaseAdvancePointsUpdate(String(match.category)),
+      );
+      transaction.set(
+        db.doc(getSeasonRankingPath('2026', winnerId)),
+        buildSeasonRankingIncrement({
+          user: winner,
+          seasonId: '2026',
+          category: String(match.category),
+          points: POINTS_TABLE.qualifierPhaseAdvance,
+        }),
+        { merge: true },
       );
       const activity = buildPhaseAdvancePointActivity({
         userId: winnerId,

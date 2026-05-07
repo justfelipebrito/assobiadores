@@ -1,23 +1,16 @@
-import type { CompetitionCategory, User } from '@batalha/types';
+import type { SeasonRanking, User } from '@batalha/types';
 
 export type RankingScope = 'nacional' | 'regional';
+export type RankingEntry = User | SeasonRanking;
 
-export function getUserRankingPoints(
-  user: User,
-  seasonId: string | null,
-  category: CompetitionCategory,
-) {
-  return seasonId ? (user.seasonCategoryPoints?.[seasonId]?.[category]?.points ?? 0) : user.points;
+export function getUserRankingPoints(user: RankingEntry, seasonId: string | null) {
+  if ('totalPoints' in user) return user.totalPoints;
+  return seasonId ? (user.seasonPoints?.[seasonId]?.points ?? 0) : user.points;
 }
 
-export function getUserRankingRank(
-  user: User,
-  seasonId: string | null,
-  category: CompetitionCategory,
-) {
-  return seasonId
-    ? (user.seasonCategoryPoints?.[seasonId]?.[category]?.rank ?? 'Iniciante')
-    : user.rank;
+export function getUserRankingRank(user: RankingEntry, seasonId: string | null) {
+  if ('totalPoints' in user) return user.rank;
+  return seasonId ? (user.seasonPoints?.[seasonId]?.rank ?? 'Iniciante') : user.rank;
 }
 
 export function getRankingUsers({
@@ -25,21 +18,18 @@ export function getRankingUsers({
   scope,
   selectedState,
   seasonId,
-  category,
 }: {
-  users: User[];
+  users: RankingEntry[];
   scope: RankingScope;
   selectedState: string;
   seasonId: string | null;
-  category: CompetitionCategory;
 }) {
   return users
     .filter((user) =>
       scope === 'regional' && selectedState ? user.state === selectedState : true,
     )
     .sort((a, b) => {
-      const diff =
-        getUserRankingPoints(b, seasonId, category) - getUserRankingPoints(a, seasonId, category);
+      const diff = getUserRankingPoints(b, seasonId) - getUserRankingPoints(a, seasonId);
       if (diff !== 0) return diff;
       return a.displayName.localeCompare(b.displayName);
     });

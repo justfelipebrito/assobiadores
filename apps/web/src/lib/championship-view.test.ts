@@ -19,6 +19,7 @@ function championship(
     seasonId: '2026',
     region: null,
     status: 'registration',
+    dateStatus: 'scheduled',
     schedule: {
       registrationStart: new Date(),
       registrationEnd: new Date(),
@@ -172,6 +173,7 @@ describe('championship view helpers', () => {
           id: 'national',
           scope: 'national',
           category: 'freestyle',
+          dateStatus: 'to_be_defined',
           schedule: {
             registrationStart: new Date('2026-05-04T03:00:00.000Z'),
             registrationEnd: new Date('2026-06-01T02:59:59.000Z'),
@@ -180,7 +182,7 @@ describe('championship view helpers', () => {
           },
         }),
       ),
-    ).toBe('Início em 05/10/2026');
+    ).toBe('A definir');
   });
 
   it('uses product status copy instead of raw championship status', () => {
@@ -197,7 +199,7 @@ describe('championship view helpers', () => {
     });
 
     expect(getChampionshipStatusCopy(item, new Date('2026-05-03T12:00:00.000Z'))).toBe(
-      'Status: Classificatórias abrem em 04/05/2026',
+      'Status: Classificatórias abrem em 01/06/2026',
     );
     expect(getChampionshipStatusCopy(item, new Date('2026-06-15T12:00:00.000Z'))).toBe(
       'Status: Classificatórias em andamento',

@@ -7,6 +7,7 @@ import {
 import { ApiError } from './api-errors';
 import { getQualifierTrackId, QUALIFIER_SEASON_ID } from '../lib/qualifier-tracks';
 import { buildPointActivity } from './point-activity-service';
+import { buildSeasonRankingIncrement, getSeasonRankingPath } from './season-ranking-service';
 
 export interface FinalizeQualifierMatchInput {
   matchId: string;
@@ -148,9 +149,22 @@ export async function finalizeQualifierMatch(
     });
 
     if (winnerId) {
+      const winnerRef = db.collection('users').doc(winnerId);
+      const winnerDoc = await transaction.get(winnerRef);
+      const winner = winnerDoc.data() ?? {};
       transaction.update(
-        db.collection('users').doc(winnerId),
+        winnerRef,
         buildPointsUpdate(String(match.category), SEASON_SCORING.qualifier.phaseAdvance),
+      );
+      transaction.set(
+        db.doc(getSeasonRankingPath('2026', winnerId)),
+        buildSeasonRankingIncrement({
+          user: winner,
+          seasonId: '2026',
+          category: String(match.category),
+          points: SEASON_SCORING.qualifier.phaseAdvance,
+        }),
+        { merge: true },
       );
       const pointActivity = buildPointActivity({
         userId: winnerId,

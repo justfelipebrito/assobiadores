@@ -334,8 +334,8 @@ async function seedSeasonsAndChampionships() {
   });
 
   const regionalSchedule = {
-    registrationStart: Timestamp.fromDate(new Date('2026-05-04T00:00:00-03:00')),
-    registrationEnd: Timestamp.fromDate(new Date('2026-05-31T23:59:59-03:00')),
+    registrationStart: Timestamp.fromDate(new Date('2026-06-01T00:00:00-03:00')),
+    registrationEnd: Timestamp.fromDate(new Date('2026-07-19T23:59:59-03:00')),
     start: Timestamp.fromDate(new Date('2026-07-20T00:00:00-03:00')),
     end: Timestamp.fromDate(new Date('2026-09-27T23:59:59-03:00')),
   };
@@ -354,6 +354,7 @@ async function seedSeasonsAndChampionships() {
       category: category.value,
       scope: 'national',
       region: null,
+      dateStatus: 'to_be_defined',
       schedule: nationalSchedule,
     })),
     ...STATES.flatMap((state) =>
@@ -364,6 +365,7 @@ async function seedSeasonsAndChampionships() {
         category: category.value,
         scope: 'regional',
         region: state,
+        dateStatus: 'scheduled',
         schedule: regionalSchedule,
       })),
     ),

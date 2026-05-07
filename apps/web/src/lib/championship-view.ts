@@ -9,7 +9,7 @@ const DATE_FORMATTER = new Intl.DateTimeFormat('pt-BR', {
   timeZone: 'America/Sao_Paulo',
 });
 
-export const OFFICIAL_2026_QUALIFIER_REGISTRATION_START = new Date('2026-05-04T00:00:00-03:00');
+export const OFFICIAL_2026_QUALIFIER_REGISTRATION_START = new Date('2026-06-01T00:00:00-03:00');
 export const OFFICIAL_2026_QUALIFIER_END = new Date('2026-07-12T23:59:59-03:00');
 
 export function getChampionshipParticipantCount(championship: Championship) {
@@ -120,6 +120,7 @@ export function getChampionshipDateCopy(championship: Championship) {
   const end = formatOfficialDate(championship.schedule.end);
 
   if (championship.scope === 'national') {
+    if (championship.dateStatus === 'to_be_defined') return 'A definir';
     return start ? `Início em ${start}` : '';
   }
 

@@ -45,6 +45,10 @@ function createDb({
     collection: vi.fn((collection: string) => ({
       doc: vi.fn((id: string) => refFor(collection, id)),
     })),
+    doc: vi.fn((path: string) => {
+      if (!refs.has(path)) refs.set(path, { id: path.split('/').at(-1) ?? path, path });
+      return refs.get(path);
+    }),
     runTransaction: vi.fn(async (callback) => callback(tx)),
   };
 
@@ -88,6 +92,16 @@ describe('user bootstrap service', () => {
       expect.objectContaining({ id: 'user-abc12345', cpf: '', pixKey: '' }),
       { merge: true },
     );
+    expect(tx.set).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'seasonRankings/2026/users/user-abc12345' }),
+      expect.objectContaining({
+        id: 'user-abc12345',
+        userId: 'user-abc12345',
+        totalPoints: 0,
+        byCategory: {},
+      }),
+      { merge: true },
+    );
   });
 
   it('does not overwrite an existing public user and backfills private data only when missing', async () => {
@@ -100,10 +114,15 @@ describe('user bootstrap service', () => {
       }),
     ).resolves.toEqual({ created: false, username: 'existing_user' });
 
-    expect(tx.set).toHaveBeenCalledTimes(1);
+    expect(tx.set).toHaveBeenCalledTimes(2);
     expect(tx.set).toHaveBeenCalledWith(
       expect.objectContaining({ path: 'userPrivate/user-existing' }),
       expect.objectContaining({ id: 'user-existing' }),
+      { merge: true },
+    );
+    expect(tx.set).toHaveBeenCalledWith(
+      expect.objectContaining({ path: 'seasonRankings/2026/users/user-existing' }),
+      expect.objectContaining({ id: 'user-existing', userId: 'user-existing' }),
       { merge: true },
     );
   });

@@ -51,6 +51,7 @@ export const championshipSchema = z.object({
   scope: championshipScopeSchema,
   region: brazilStateSchema.nullable().default(null),
   status: championshipStatusSchema.default('upcoming'),
+  dateStatus: z.enum(['scheduled', 'to_be_defined']).default('scheduled'),
   schedule: championshipScheduleSchema,
   maxParticipants: z.number().int().nonnegative().default(0),
   currentParticipants: z.number().int().nonnegative().default(0),

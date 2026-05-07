@@ -8,6 +8,7 @@ import {
 } from '../lib/qualifier-bracket';
 import { getQualifierTrackId, QUALIFIER_SEASON_ID } from '../lib/qualifier-tracks';
 import { buildPointActivity } from './point-activity-service';
+import { buildSeasonRankingIncrement, getSeasonRankingPath } from './season-ranking-service';
 
 const QUALIFIER_BRACKET_START = new Date('2026-06-01T00:00:00-03:00');
 const QUALIFIER_SEASON_YEAR = 2026;
@@ -115,7 +116,7 @@ export async function advanceQualifierRound(
     const qualifiedChampionshipId = `championship-${region.toLowerCase()}-${QUALIFIER_SEASON_YEAR}-${category}`;
     const qualifiedUserIds = waitingRegistrations.map((registration) => registration.userId);
 
-    waitingRegistrations.forEach((registration) => {
+    for (const registration of waitingRegistrations) {
       batch.update(db.collection('qualifierRegistrations').doc(registration.id), {
         bracketStatus: 'qualified',
         currentRound,
@@ -136,7 +137,10 @@ export async function advanceQualifierRound(
         },
         { merge: true },
       );
-      batch.update(db.collection('users').doc(registration.userId), {
+      const userRef = db.collection('users').doc(registration.userId);
+      const userDoc = await userRef.get();
+      const user = userDoc.data() ?? {};
+      batch.update(userRef, {
         points: FieldValue.increment(SEASON_SCORING.qualifier.qualifyForRegional),
         xp: FieldValue.increment(SEASON_SCORING.qualifier.qualifyForRegional),
         [`seasonPoints.2026.points`]: FieldValue.increment(
@@ -153,6 +157,16 @@ export async function advanceQualifierRound(
         [`seasonCategoryPoints.2026.${category}.updatedAt`]: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
       });
+      batch.set(
+        db.doc(getSeasonRankingPath('2026', registration.userId)),
+        buildSeasonRankingIncrement({
+          user,
+          seasonId: '2026',
+          category,
+          points: SEASON_SCORING.qualifier.qualifyForRegional,
+        }),
+        { merge: true },
+      );
       const pointActivity = buildPointActivity({
         userId: registration.userId,
         points: SEASON_SCORING.qualifier.qualifyForRegional,
@@ -165,7 +179,7 @@ export async function advanceQualifierRound(
         seasonId: '2026',
       });
       batch.set(db.collection('pointActivities').doc(pointActivity.id), pointActivity);
-    });
+    }
 
     batch.set(
       db.collection('championships').doc(qualifiedChampionshipId),

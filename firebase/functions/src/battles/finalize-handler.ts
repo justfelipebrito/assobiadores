@@ -1,4 +1,5 @@
 import { calculateRank, getBattleWinPoints } from '../domain/ranking';
+import { buildSeasonRankingIncrement, getSeasonRankingPath } from '../domain/season-ranking';
 
 export interface FinalizeBattleFieldValue {
   increment(value: number): unknown;
@@ -10,6 +11,7 @@ export interface FinalizeBattleLogger {
 }
 
 export interface FinalizeBattleFirestore {
+  doc(path: string): unknown;
   collection(name: string): {
     doc(id?: string): {
       get(): Promise<{ exists: boolean; data(): Record<string, any> | undefined }>;
@@ -17,7 +19,7 @@ export interface FinalizeBattleFirestore {
     where(field: string, operator: string, value: unknown): any;
   };
   batch(): {
-    set(ref: unknown, data: Record<string, unknown>): void;
+    set(ref: unknown, data: Record<string, unknown>, options?: Record<string, unknown>): void;
     update(ref: unknown, data: Record<string, unknown>): void;
     commit(): Promise<unknown>;
   };
@@ -310,6 +312,16 @@ export async function finalizeBattleHandler({
       });
 
       if (pointsAwarded > 0) {
+        batch.set(
+          db.doc(getSeasonRankingPath(seasonId, userId)),
+          buildSeasonRankingIncrement({
+            user,
+            seasonId,
+            category,
+            points: pointsAwarded,
+          }),
+          { merge: true },
+        );
         const activityId = buildPointActivityId({
           userId,
           reason: 'battle_win',

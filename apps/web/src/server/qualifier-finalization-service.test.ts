@@ -70,6 +70,7 @@ function createDb({
     set: vi.fn(),
   };
   const db = {
+    doc: vi.fn((path: string) => ref(path)),
     collection: vi.fn((name: string) => {
       if (name === 'users') return { doc: vi.fn((id: string) => ref(id)) };
       if (name === 'qualifierMatches') return { doc: vi.fn(() => ref('match-1')) };

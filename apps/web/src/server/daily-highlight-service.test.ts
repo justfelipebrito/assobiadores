@@ -43,6 +43,7 @@ function createDb({
   };
 
   const db = {
+    doc: vi.fn((path: string) => ({ id: path.split('/').at(-1) ?? path, path })),
     collection: vi.fn((name: string) => {
       if (name === 'users') return { doc: vi.fn(() => userRef) };
       if (name === 'dailyHighlights') {

@@ -55,6 +55,12 @@ function createDb({
       if (target === matchRef) return { exists: true, data: () => match };
       if (target === submissionsQuery) return submissionsQuery.get();
       if (target === votesQuery) return votesQuery.get();
+      if (typeof target === 'object' && target !== null && 'id' in target) {
+        return {
+          exists: true,
+          data: () => ({ points: 0, displayName: String((target as { id: string }).id) }),
+        };
+      }
       throw new Error('Unexpected transaction get target');
     }),
     update: vi.fn(),
@@ -62,6 +68,7 @@ function createDb({
   };
   const db = {
     runTransaction: vi.fn(async (callback) => callback(transaction)),
+    doc: vi.fn((path: string) => ref(path)),
     collection: vi.fn((name: string) => {
       if (name === 'qualifierMatches') {
         return { doc: vi.fn(() => matchRef), where: dueQuery.where };

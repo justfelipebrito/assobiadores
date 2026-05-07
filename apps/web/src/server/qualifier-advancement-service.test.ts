@@ -76,6 +76,7 @@ function createDb({
 
   const db = {
     batch: vi.fn(() => batch),
+    doc: vi.fn((path: string) => ({ id: path.split('/').at(-1) ?? path, path })),
     collection: vi.fn((name: string) => {
       if (name === 'users') {
         return {

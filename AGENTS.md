@@ -31,7 +31,8 @@ Do not collapse standalone battles and structured official competitions into one
 - Standalone Battles, Daily Highlights, Qualifiers, and Championship results may feed the unified season/category ranking when they have a documented scoring rule and are finalized by trusted server code.
 - A `Season` document scopes rankings in time so mid-tier users have a realistic path each season.
 - Official competition categories are globally limited to Freestyle, Melodia, and Pássaros. Do not add extra official categories without an explicit product decision.
-- Season ranking points are category-scoped; use trusted server writes to `seasonCategoryPoints`, not client-writable profile fields.
+- The official public ranking is a unified season total across all categories. Use trusted server writes to the `seasonRankings/{seasonId}/users/{userId}` read model for leaderboard display, backed by append-only `pointActivities` ledger entries.
+- Keep category-level scoring as breakdown/audit data only (`seasonCategoryPoints` and `pointActivities.category`), not as the main public ranking split.
 - Qualifier Battles (community `Battle` docs) can grant registration slots in a Championship, bridging community participation to official competition.
 - When building new features that touch rankings, leaderboards, or official scoring — check whether the feature belongs to the `Battle` layer, the `Championship` layer, or both, before writing code.
 
@@ -71,7 +72,7 @@ Assobiadores.com is intended to become the official ranking and competition plat
 - Regional category prize pools pay 50% to 1st place, 30% to 2nd place, and 20% to 3rd place.
 - Official async matches use Brazil-time deadlines: submissions close at 13:00, voting runs 13:00-23:59, one missed submission loses by W.O., and two missed submissions disqualify both contestants.
 - Regional competitions should support flexible brackets per state/category: minimum 16, preferred/full 64, accepted sizes 16/32/64. Regional-to-National qualification is top 10 for 64, top 6 for 32, and top 4 for 16.
-- Competitions need exactly three category tracks: Freestyle, Melodia, and Pássaros. Rankings and championship shells should be scoped by category.
+- Competitions need exactly three category tracks: Freestyle, Melodia, and Pássaros. Championship/qualifier/battle entries remain category-scoped, but the main public ranking is unified across categories.
 - `Destaques Diários` is a separate daily highlights feature, not a Battle/Championship reuse. Submitting a daily highlight and finishing in the daily top 3 award low-weight season/category points through trusted server code.
 - Battles and `Destaques Diários` must use on-platform recorded audio only: maximum 2 minutes, uploaded through trusted APIs to Firebase Storage, with media metadata stored on the entity. Do not add YouTube/external URL submission paths for these product flows.
 - Official battles/championships need richer schedule and bracket modeling than a simple battle:

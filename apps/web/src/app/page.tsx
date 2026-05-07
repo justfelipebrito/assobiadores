@@ -34,8 +34,10 @@ import {
   type DailyHighlight,
   type QualifierTrack,
   type Season,
+  type SeasonRanking,
   type User,
 } from '@batalha/types';
+import type { RankingEntry } from '@/lib/ranking-view';
 import { SubmitDailyHighlightButton } from '@/components/daily-highlights/submit-daily-highlight-button';
 import { SubmitDailyHighlightModal } from '@/components/daily-highlights/submit-daily-highlight-modal';
 import {
@@ -89,13 +91,11 @@ function RankingList({
   loading,
   emptyLabel,
   seasonId,
-  category,
 }: {
-  users: User[];
+  users: RankingEntry[];
   loading: boolean;
   emptyLabel: string;
   seasonId: string | null;
-  category: CompetitionCategory;
 }) {
   if (loading) {
     return (
@@ -120,14 +120,17 @@ function RankingList({
   return (
     <div className="divide-y divide-white/5">
       {users.map((user, index) => {
-        const categoryPoints = seasonId ? user.seasonCategoryPoints?.[seasonId]?.[category] : null;
-        const points = categoryPoints?.points ?? (seasonId ? 0 : user.points);
-        const rank = categoryPoints?.rank ?? (seasonId ? 'Iniciante' : user.rank);
+        const seasonPoints =
+          seasonId && !('totalPoints' in user) ? user.seasonPoints?.[seasonId] : null;
+        const points =
+          'totalPoints' in user ? user.totalPoints : seasonPoints?.points ?? (seasonId ? 0 : user.points);
+        const rank =
+          'totalPoints' in user ? user.rank : seasonPoints?.rank ?? (seasonId ? 'Iniciante' : user.rank);
 
         return (
           <Link
             key={user.id}
-            href={`/perfil/${user.id}`}
+            href={`/perfil/${'userId' in user ? user.userId : user.id}`}
             className="group flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-white/[0.03]"
           >
             <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center">
@@ -137,7 +140,7 @@ function RankingList({
                 <span className="text-sm font-bold text-surface-600">{index + 1}</span>
               )}
             </div>
-            <Avatar src={user.photoURL} name={user.displayName} size="sm" />
+            <Avatar src={'photoURL' in user ? user.photoURL : null} name={user.displayName} size="sm" />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-white transition-colors group-hover:text-brand-400">
                 {user.displayName}
@@ -160,8 +163,6 @@ function RankingList({
 
 export default function HomePage() {
   const [selectedRegionalState, setSelectedRegionalState] = useState<BrazilState>('SP');
-  const [selectedRankingCategory, setSelectedRankingCategory] =
-    useState<CompetitionCategory>('freestyle');
   const [submitDailyOpen, setSubmitDailyOpen] = useState(false);
   const [platformStats, setPlatformStats] = useState<PlatformStats | null>(null);
   const todayDailyHighlightKey = useMemo(() => getBrazilDayKey(), []);
@@ -192,6 +193,14 @@ export default function HomePage() {
     orderBy('points', 'desc'),
     limit(500),
   ]);
+  const seasonRankingCollection = rankingSeasonId
+    ? `seasonRankings/${rankingSeasonId}/users`
+    : undefined;
+  const { data: seasonRankingUsers, loading: seasonRankingUsersLoading } =
+    useCollection<SeasonRanking>(
+      seasonRankingCollection,
+      seasonRankingCollection ? [orderBy('totalPoints', 'desc'), limit(500)] : [],
+    );
   const { data: highlightUsers } = useCollection<User>('users', [limit(100)]);
 
   const { data: highlightedSubmissions, loading: highlightsLoading } =
@@ -254,18 +263,14 @@ export default function HomePage() {
   );
   const sortedRankingUsers = useMemo(
     () =>
-      [...rankingUsers].sort((a, b) => {
-        const aPoints = rankingSeasonId
-          ? (a.seasonCategoryPoints?.[rankingSeasonId]?.[selectedRankingCategory]?.points ?? 0)
-          : a.points;
-        const bPoints = rankingSeasonId
-          ? (b.seasonCategoryPoints?.[rankingSeasonId]?.[selectedRankingCategory]?.points ?? 0)
-          : b.points;
+      [...(rankingSeasonId ? seasonRankingUsers : rankingUsers)].sort((a, b) => {
+        const aPoints = 'totalPoints' in a ? a.totalPoints : a.points;
+        const bPoints = 'totalPoints' in b ? b.totalPoints : b.points;
         const diff = bPoints - aPoints;
         if (diff !== 0) return diff;
         return a.displayName.localeCompare(b.displayName);
       }),
-    [rankingUsers, rankingSeasonId, selectedRankingCategory],
+    [rankingUsers, rankingSeasonId, seasonRankingUsers],
   );
   const nationalUsers = useMemo(() => sortedRankingUsers.slice(0, 20), [sortedRankingUsers]);
   const regionalUsers = useMemo(
@@ -277,7 +282,6 @@ export default function HomePage() {
   );
   const selectedRegionalStateLabel =
     BRAZIL_STATES.find((state) => state.value === selectedRegionalState)?.label ?? 'Sao Paulo';
-  const selectedRankingCategoryLabel = COMPETITION_CATEGORY_LABELS[selectedRankingCategory];
   const getHighlightNaturalidade = (highlight: DailyHighlight) => {
     const userProfile = highlightUsersById.get(highlight.userId);
     const state = highlight.userBirthState ?? userProfile?.birthState ?? userProfile?.state ?? null;
@@ -685,23 +689,6 @@ export default function HomePage() {
             </Link>
           </div>
 
-          <div className="relative">
-            <select
-              value={selectedRankingCategory}
-              onChange={(event) =>
-                setSelectedRankingCategory(event.target.value as CompetitionCategory)
-              }
-              className="h-10 w-full appearance-none rounded-xl border border-white/10 bg-surface-900 px-3 pr-9 text-sm font-medium text-white outline-none transition-colors focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/50"
-            >
-              {COMPETITION_CATEGORIES.map((category) => (
-                <option key={category.value} value={category.value}>
-                  {category.label}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-surface-500" />
-          </div>
-
           <Card>
             <CardContent className="p-0">
               <div className="border-b border-white/5 px-4 py-3">
@@ -710,15 +697,14 @@ export default function HomePage() {
                   <h3 className="font-semibold text-white">Ranking Nacional</h3>
                 </div>
                 <p className="mt-1 text-xs text-surface-500">
-                  Top 20 do Brasil em {selectedRankingCategoryLabel}
+                  Top 20 do Brasil na temporada
                 </p>
               </div>
               <RankingList
                 users={nationalUsers}
-                loading={rankingUsersLoading}
+                loading={rankingSeasonId ? seasonRankingUsersLoading : rankingUsersLoading}
                 emptyLabel="O ranking nacional aparecera apos as primeiras batalhas."
                 seasonId={rankingSeasonId}
-                category={selectedRankingCategory}
               />
             </CardContent>
           </Card>
@@ -731,7 +717,7 @@ export default function HomePage() {
                   <h3 className="font-semibold text-white">Ranking Regional</h3>
                 </div>
                 <p className="mt-1 text-xs text-surface-500">
-                  Top 20 de {selectedRegionalStateLabel} em {selectedRankingCategoryLabel}
+                  Top 20 de {selectedRegionalStateLabel} na temporada
                 </p>
                 <div className="relative mt-3">
                   <select
@@ -752,10 +738,9 @@ export default function HomePage() {
               </div>
               <RankingList
                 users={regionalUsers}
-                loading={rankingUsersLoading}
+                loading={rankingSeasonId ? seasonRankingUsersLoading : rankingUsersLoading}
                 emptyLabel={`O ranking regional de ${selectedRegionalStateLabel} ainda nao tem participantes.`}
                 seasonId={rankingSeasonId}
-                category={selectedRankingCategory}
               />
             </CardContent>
           </Card>

@@ -7,15 +7,14 @@ import { useCollection, orderBy, limit, where } from '@batalha/firebase';
 import { Badge, Skeleton, EmptyState } from '@batalha/ui';
 import { formatNumber, getRankTier } from '@batalha/utils';
 import {
-  COMPETITION_CATEGORIES,
-  COMPETITION_CATEGORY_LABELS,
   type User,
   type BrazilState,
   type Season,
-  type CompetitionCategory,
+  type SeasonRanking,
 } from '@batalha/types';
 import {
   getRankingUsers,
+  type RankingEntry,
   getUserRankingPoints,
   getUserRankingRank,
   paginateRankingUsers,
@@ -90,21 +89,19 @@ function RankingRow({
   user,
   index,
   seasonId,
-  category,
 }: {
-  user: User;
+  user: RankingEntry;
   index: number;
   seasonId: string | null;
-  category: CompetitionCategory;
 }) {
   const isTop3 = index < 3;
   const placeStyle = PLACE_STYLES[index];
-  const points = getUserRankingPoints(user, seasonId, category);
-  const rank = getUserRankingRank(user, seasonId, category);
+  const points = getUserRankingPoints(user, seasonId);
+  const rank = getUserRankingRank(user, seasonId);
   const tier = getRankTier(points);
 
   return (
-    <Link href={`/perfil/${user.id}`}>
+    <Link href={`/perfil/${'userId' in user ? user.userId : user.id}`}>
       <div
         className={`group flex items-center gap-4 rounded-2xl border p-4 transition-all duration-200 ${
           isTop3 && placeStyle
@@ -153,7 +150,6 @@ export default function RankingPage() {
   const [scope, setScope] = useState<Scope>('regional');
   const [selectedState, setSelectedState] = useState<BrazilState | ''>('SP');
   const [rankingMode, setRankingMode] = useState<RankingMode>('season');
-  const [selectedCategory, setSelectedCategory] = useState<CompetitionCategory>('freestyle');
   const [page, setPage] = useState(1);
 
   const { data: activeSeasons } = useCollection<Season>('seasons', [
@@ -164,7 +160,16 @@ export default function RankingPage() {
   const activeSeason = activeSeasons[0] ?? null;
   const seasonId = rankingMode === 'season' && activeSeason ? activeSeason.id : null;
 
-  const { data: rankingUsers, loading } = useCollection<User>('users', [orderBy('points', 'desc')]);
+  const seasonRankingCollection = seasonId ? `seasonRankings/${seasonId}/users` : undefined;
+  const { data: seasonRankingUsers, loading: seasonRankingLoading } = useCollection<SeasonRanking>(
+    seasonRankingCollection,
+    seasonRankingCollection ? [orderBy('totalPoints', 'desc')] : [],
+  );
+  const { data: allTimeUsers, loading: allTimeLoading } = useCollection<User>('users', [
+    orderBy('points', 'desc'),
+  ]);
+  const rankingUsers = seasonId ? seasonRankingUsers : allTimeUsers;
+  const loading = seasonId ? seasonRankingLoading : allTimeLoading;
 
   const users = useMemo(() => {
     return getRankingUsers({
@@ -172,9 +177,8 @@ export default function RankingPage() {
       scope,
       selectedState,
       seasonId,
-      category: selectedCategory,
     });
-  }, [rankingUsers, scope, seasonId, selectedCategory, selectedState]);
+  }, [rankingUsers, scope, seasonId, selectedState]);
   const paginatedUsers = useMemo(
     () =>
       paginateRankingUsers({
@@ -187,18 +191,17 @@ export default function RankingPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [scope, selectedState, rankingMode, selectedCategory]);
+  }, [scope, selectedState, rankingMode]);
 
   const selectedStateLabel = BRAZIL_STATES.find((s) => s.value === selectedState)?.label;
-  const selectedCategoryLabel = COMPETITION_CATEGORY_LABELS[selectedCategory];
   const rankingDescription =
     scope === 'nacional'
       ? seasonId
-        ? `Ranking Oficial de ${selectedCategoryLabel} na ${activeSeason?.name}`
+        ? `Ranking Oficial na ${activeSeason?.name}`
         : 'Ranking Oficial do Brasil'
       : selectedStateLabel
         ? seasonId
-          ? `Ranking Regional de ${selectedStateLabel} em ${selectedCategoryLabel} na ${activeSeason?.name}`
+          ? `Ranking Regional de ${selectedStateLabel} na ${activeSeason?.name}`
           : `Ranking Regional de ${selectedStateLabel}`
         : 'Escolha um estado para ver o Ranking Regional';
 
@@ -281,30 +284,7 @@ export default function RankingPage() {
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <div>
-              <FilterLabel>Categoria</FilterLabel>
-              <div className="relative">
-                <select
-                  value={rankingMode === 'season' ? selectedCategory : 'all'}
-                  onChange={(e) => setSelectedCategory(e.target.value as CompetitionCategory)}
-                  disabled={rankingMode !== 'season'}
-                  className="h-11 w-full appearance-none rounded-xl border border-white/10 bg-surface-900 px-3 pr-10 text-sm font-medium text-white outline-none transition-colors focus:border-brand-500/50 focus:ring-1 focus:ring-brand-500/50 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {rankingMode === 'season' ? (
-                    COMPETITION_CATEGORIES.map((category) => (
-                      <option key={category.value} value={category.value}>
-                        {category.label}
-                      </option>
-                    ))
-                  ) : (
-                    <option value="all">Todas as categorias</option>
-                  )}
-                </select>
-                <SelectChevron />
-              </div>
-            </div>
-
+          <div className="grid gap-4">
             <div>
               <FilterLabel>Regiao</FilterLabel>
               <div className="relative">
@@ -355,7 +335,6 @@ export default function RankingPage() {
               user={user}
               index={(paginatedUsers.page - 1) * paginatedUsers.pageSize + index}
               seasonId={seasonId}
-              category={selectedCategory}
             />
           ))
         )}

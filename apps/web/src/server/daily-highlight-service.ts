@@ -8,6 +8,7 @@ import {
 import { calculateRank } from '@batalha/utils';
 import { ApiError } from './api-errors';
 import { buildPointActivity } from './point-activity-service';
+import { buildSeasonRankingIncrement, getSeasonRankingPath } from './season-ranking-service';
 
 export interface CreateDailyHighlightInput {
   userId: string;
@@ -204,6 +205,16 @@ export async function createDailyHighlightFromAudio(
         category,
         points: DAILY_HIGHLIGHT_SUBMISSION_POINTS,
       }),
+    );
+    transaction.set(
+      db.doc(getSeasonRankingPath(seasonId, userId)),
+      buildSeasonRankingIncrement({
+        user,
+        seasonId,
+        category,
+        points: DAILY_HIGHLIGHT_SUBMISSION_POINTS,
+      }),
+      { merge: true },
     );
 
     return {

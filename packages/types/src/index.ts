@@ -8,4 +8,5 @@ export * from './vote';
 export * from './championship';
 export * from './daily-highlight';
 export * from './season-scoring';
+export * from './season-ranking';
 export * from './point-activity';

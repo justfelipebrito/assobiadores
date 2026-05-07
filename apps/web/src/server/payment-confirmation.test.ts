@@ -18,6 +18,7 @@ function createDb({
   };
   const db = {
     batch: vi.fn(() => batch),
+    doc: vi.fn((path: string) => ({ ...ref(path), path })),
     collection: vi.fn((name: string) => ({
       doc: vi.fn((id: string) => ({
         ...ref(`${name}/${id}`),

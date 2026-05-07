@@ -3,6 +3,7 @@ import { getBattleWinPoints, type CompetitionCategory } from '@batalha/types';
 import { calculateRank } from '@batalha/utils';
 import { ApiError } from './api-errors';
 import { buildPointActivity } from './point-activity-service';
+import { buildSeasonRankingIncrement, getSeasonRankingPath } from './season-ranking-service';
 
 export interface FinalizeBattleInput {
   battleId: string;
@@ -228,6 +229,16 @@ export async function finalizeBattle(
       });
 
       if (pointsAwarded > 0) {
+        batch.set(
+          db.doc(getSeasonRankingPath(seasonId, String(userId))),
+          buildSeasonRankingIncrement({
+            user,
+            seasonId,
+            category,
+            points: pointsAwarded,
+          }),
+          { merge: true },
+        );
         const pointActivity = buildPointActivity({
           userId: String(userId),
           points: pointsAwarded,

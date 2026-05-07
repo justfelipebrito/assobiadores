@@ -418,6 +418,19 @@ describe('server-owned collections rules', () => {
       occurredAt: serverTimestamp(),
       createdAt: serverTimestamp(),
     });
+    await seed('seasonRankings/2026/users/user-1', {
+      id: 'user-1',
+      userId: 'user-1',
+      seasonId: '2026',
+      displayName: 'User One',
+      username: 'userone',
+      state: 'SP',
+      totalPoints: 20,
+      rank: 'Iniciante',
+      byCategory: { freestyle: 10, melodia: 10 },
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
     await seed('qualifierRegistrations/qualifier-registration-1', {
       userId: 'user-1',
       seasonId: '2026',
@@ -486,6 +499,7 @@ describe('server-owned collections rules', () => {
     await assertSucceeds(getDoc(doc(unauthDb(), 'dailyHighlights/daily-1')));
     await assertSucceeds(getDoc(doc(unauthDb(), 'dailyHighlightLikes/like-1')));
     await assertSucceeds(getDoc(doc(unauthDb(), 'pointActivities/activity-1')));
+    await assertSucceeds(getDoc(doc(unauthDb(), 'seasonRankings/2026/users/user-1')));
     await assertSucceeds(getDoc(doc(unauthDb(), 'qualifierMatches/qualifier-match-1')));
     await assertSucceeds(getDoc(doc(unauthDb(), 'qualifierSubmissions/qualifier-submission-1')));
     await assertSucceeds(getDoc(doc(unauthDb(), 'qualifierTracks/qualifier-sp-2026-freestyle')));
@@ -605,6 +619,21 @@ describe('server-owned collections rules', () => {
       }),
     );
     await assertFails(deleteDoc(doc(authedDb('admin-1'), 'pointActivities/activity-1')));
+  });
+
+  it('prevents direct client writes to season ranking aggregates', async () => {
+    await assertFails(
+      setDoc(doc(authedDb('user-1'), 'seasonRankings/2026/users/user-1'), {
+        userId: 'user-1',
+        totalPoints: 999,
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(authedDb('user-1'), 'seasonRankings/2026/users/user-1'), {
+        totalPoints: 999,
+      }),
+    );
+    await assertFails(deleteDoc(doc(authedDb('admin-1'), 'seasonRankings/2026/users/user-1')));
   });
 
   it('prevents direct client writes to qualifier registrations', async () => {

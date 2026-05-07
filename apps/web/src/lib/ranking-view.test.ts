@@ -33,7 +33,6 @@ describe('getRankingUsers', () => {
       scope: 'regional',
       selectedState: 'SP',
       seasonId: 'season_2026',
-      category: 'freestyle',
     });
 
     expect(result).toHaveLength(80);
@@ -47,7 +46,6 @@ describe('getRankingUsers', () => {
       scope: 'regional',
       selectedState: 'SP',
       seasonId: 'season_2026',
-      category: 'freestyle',
     });
 
     expect(result.map((rankingUser) => rankingUser.id)).toEqual(['sp-high', 'sp-low']);
@@ -66,5 +64,31 @@ describe('getRankingUsers', () => {
     expect(page.totalPages).toBe(3);
     expect(page.items).toHaveLength(23);
     expect(page.items[0]?.id).toBe('user-101');
+  });
+
+  it('uses unified season totals across categories', () => {
+    const result = getRankingUsers({
+      users: [
+        {
+          ...user('split-category', 'SP', 0),
+          seasonPoints: { season_2026: { points: 20, xp: 0, casualPoints: 0, rank: 'Iniciante' } },
+          seasonCategoryPoints: {
+            season_2026: {
+              melodia: { points: 10, xp: 0, casualPoints: 0, rank: 'Iniciante' },
+              passaros: { points: 10, xp: 0, casualPoints: 0, rank: 'Iniciante' },
+            },
+          },
+        } as User,
+        user('single-category', 'SP', 15),
+      ],
+      scope: 'nacional',
+      selectedState: '',
+      seasonId: 'season_2026',
+    });
+
+    expect(result.map((rankingUser) => rankingUser.id)).toEqual([
+      'split-category',
+      'single-category',
+    ]);
   });
 });
