@@ -398,6 +398,31 @@ describe('POST /api/payments/create', () => {
     errorSpy.mockRestore();
   });
 
+  it('logs Mercado Pago rejected order response details server-side', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    getAdminFirestore.mockReturnValue(createDb({ battle: paidBattle }).db);
+    mpFetch.mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: async () => ({ message: 'Invalid payer', error: 'bad_request' }),
+    });
+
+    const res = await post();
+
+    await expect(res.json()).resolves.toEqual({
+      error: 'Erro ao criar pagamento. Tente novamente.',
+    });
+    expect(res.status).toBe(500);
+    expect(errorSpy).toHaveBeenCalledWith(
+      'Payment creation error:',
+      expect.objectContaining({
+        status: 400,
+        responseBody: { message: 'Invalid payer', error: 'bad_request' },
+      }),
+    );
+    errorSpy.mockRestore();
+  });
+
   it('masks missing Mercado Pago credentials', async () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     delete process.env.MP_ACCESS_TOKEN;

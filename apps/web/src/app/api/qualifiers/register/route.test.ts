@@ -304,4 +304,29 @@ describe('POST /api/qualifiers/register', () => {
     await expect(res.json()).resolves.toEqual({ error: 'Nao autorizado' });
     expect(res.status).toBe(401);
   });
+
+  it('logs Mercado Pago rejected order response details server-side', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    getAdminFirestore.mockReturnValue(createDb().db);
+    mpFetch.mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: async () => ({ message: 'Invalid payer', error: 'bad_request' }),
+    });
+
+    const res = await post();
+
+    await expect(res.json()).resolves.toEqual({
+      error: 'Erro ao criar pagamento da classificatoria',
+    });
+    expect(res.status).toBe(500);
+    expect(errorSpy).toHaveBeenCalledWith(
+      'Qualifier registration payment error:',
+      expect.objectContaining({
+        status: 400,
+        responseBody: { message: 'Invalid payer', error: 'bad_request' },
+      }),
+    );
+    errorSpy.mockRestore();
+  });
 });

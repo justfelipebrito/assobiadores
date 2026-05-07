@@ -6,6 +6,15 @@ function getMercadoPagoAccessToken() {
   return token;
 }
 
+export class MercadoPagoOrderError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly responseBody: unknown,
+  ) {
+    super(`Mercado Pago order creation failed with status ${status}`);
+  }
+}
+
 export function formatOrderAmount(amountInCents: number) {
   return (amountInCents / 100).toFixed(2);
 }
@@ -77,7 +86,7 @@ export async function createMercadoPagoPixOrder({
 
   const result = await response.json();
   if (!response.ok) {
-    throw new Error(`Mercado Pago order creation failed with status ${response.status}`);
+    throw new MercadoPagoOrderError(response.status, result);
   }
 
   const payment = result.transactions?.payments?.[0];
