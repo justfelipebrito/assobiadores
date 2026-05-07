@@ -175,17 +175,21 @@ describe('POST /api/payments/create', () => {
         method: 'POST',
         headers: expect.objectContaining({
           authorization: 'Bearer test-token',
-          'x-idempotency-key': expect.stringMatching(/^user-1_battle-1_/),
+          'x-idempotency-key': expect.stringMatching(/^user-1_battle_battle-1_/),
         }),
         body: expect.any(String),
       }),
     );
     const [, requestInit] = mpFetch.mock.calls[0] as [string, RequestInit];
+    const idempotencyKey = String(
+      (requestInit.headers as Record<string, string>)['x-idempotency-key'],
+    );
+    expect(idempotencyKey.length).toBeLessThanOrEqual(64);
     expect(JSON.parse(String(requestInit.body))).toMatchObject({
       type: 'online',
       total_amount: '5.00',
       processing_mode: 'automatic',
-      external_reference: expect.stringMatching(/^user-1_battle-1_/),
+      external_reference: idempotencyKey,
       payer: { email: 'user@example.com' },
       transactions: {
         payments: [

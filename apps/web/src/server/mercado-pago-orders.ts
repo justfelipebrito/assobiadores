@@ -1,3 +1,7 @@
+import { createHash } from 'crypto';
+
+export const MERCADO_PAGO_REFERENCE_MAX_LENGTH = 64;
+
 function getMercadoPagoAccessToken() {
   const token = process.env.MP_ACCESS_TOKEN;
   if (!token) {
@@ -17,6 +21,24 @@ export class MercadoPagoOrderError extends Error {
 
 export function formatOrderAmount(amountInCents: number) {
   return (amountInCents / 100).toFixed(2);
+}
+
+export function createMercadoPagoReference(parts: Array<string | number>) {
+  const reference = parts
+    .map((part) => String(part).trim().toLowerCase())
+    .filter(Boolean)
+    .join('_')
+    .replace(/[^a-z0-9_-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/_+/g, '_');
+
+  if (reference.length <= MERCADO_PAGO_REFERENCE_MAX_LENGTH) {
+    return reference;
+  }
+
+  const hash = createHash('sha256').update(reference).digest('hex').slice(0, 12);
+  const prefixLength = MERCADO_PAGO_REFERENCE_MAX_LENGTH - hash.length - 1;
+  return `${reference.slice(0, prefixLength).replace(/[_-]+$/g, '')}_${hash}`;
 }
 
 export function getMercadoPagoPayerEmail(email: string, idempotencyKey: string) {

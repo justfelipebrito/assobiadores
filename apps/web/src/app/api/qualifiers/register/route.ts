@@ -9,6 +9,7 @@ import {
 import { ApiError, getErrorResponse } from '../../../../server/api-errors';
 import { requireDecodedToken } from '../../../../server/auth';
 import {
+  createMercadoPagoReference,
   createMercadoPagoPixOrder,
   MercadoPagoOrderError,
 } from '../../../../server/mercado-pago-orders';
@@ -123,7 +124,14 @@ export async function POST(req: NextRequest) {
     const userEmail = userData.email || decodedToken.email || '';
     const registrationRef = db.collection('qualifierRegistrations').doc();
     const paymentRef = db.collection('payments').doc();
-    const idempotencyKey = `${userId}_qualifier_${QUALIFIER_SEASON_ID}_${region}_${category}_${Date.now()}`;
+    const idempotencyKey = createMercadoPagoReference([
+      userId,
+      'qualifier',
+      QUALIFIER_SEASON_ID,
+      region,
+      category,
+      Date.now(),
+    ]);
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
 
     const mpResult = await createMercadoPagoPixOrder({

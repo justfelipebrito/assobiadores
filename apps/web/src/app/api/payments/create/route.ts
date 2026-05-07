@@ -5,6 +5,7 @@ import { checkBattleEntryEligibility } from '@batalha/utils';
 import { ApiError, getErrorResponse } from '../../../../server/api-errors';
 import { requireDecodedToken } from '../../../../server/auth';
 import {
+  createMercadoPagoReference,
   createMercadoPagoPixOrder,
   MercadoPagoOrderError,
 } from '../../../../server/mercado-pago-orders';
@@ -132,7 +133,7 @@ export async function POST(req: NextRequest) {
 
     // Create battle entry
     const entryRef = db.collection('battleEntries').doc();
-    const idempotencyKey = `${userId}_${battleId}_${Date.now()}`;
+    const idempotencyKey = createMercadoPagoReference([userId, 'battle', battleId, Date.now()]);
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
 
     const mpResult = await createMercadoPagoPixOrder({

@@ -164,10 +164,18 @@ describe('POST /api/qualifiers/register', () => {
         method: 'POST',
         headers: expect.objectContaining({
           authorization: 'Bearer test-token',
-          'x-idempotency-key': expect.stringMatching(/^user-1_qualifier_season-2026_SP_freestyle_/),
+          'x-idempotency-key': expect.stringMatching(/^user-1_qualifier_season-2026_sp_freestyle_/),
         }),
       }),
     );
+    const [, requestInit] = mpFetch.mock.calls[0] as [string, RequestInit];
+    const idempotencyKey = String(
+      (requestInit.headers as Record<string, string>)['x-idempotency-key'],
+    );
+    expect(idempotencyKey.length).toBeLessThanOrEqual(64);
+    expect(JSON.parse(String(requestInit.body))).toMatchObject({
+      external_reference: idempotencyKey,
+    });
     expect(batch.set).toHaveBeenCalledWith(
       registrationRef,
       expect.objectContaining({
