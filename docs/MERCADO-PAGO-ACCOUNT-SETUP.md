@@ -29,14 +29,17 @@ The app uses Mercado Pago Orders API for Pix creation. Keep the public key avail
 
 1. Open the `Assobiadores` application.
 2. Go to **Testing** or **Test credentials**.
-3. Copy the seller test user **Access Token** used for Orders API validation.
-4. It should look like `APP_USR-...` when you are logged in as the Mercado Pago seller test user.
+3. Copy the test/sandbox **Access Token** used for Orders API validation.
+4. If Mercado Pago directs you to use a generated test seller account for this Orders API flow, use that seller test credential instead.
 
 This maps to:
 
 ```bash
-MP_ACCESS_TOKEN=APP_USR-your-seller-test-user-token
+MP_ACCESS_TOKEN=your-sandbox-capable-access-token
 ```
+
+Do not rely on the token prefix alone. Run `pnpm validate:mp:order` after setting it. Browser Pix QA
+is not ready unless the validator reports both `hasQr: true` and `hasCopyPaste: true`.
 
 ## Configure Sandbox Webhook
 
@@ -54,7 +57,7 @@ MP_ACCESS_TOKEN=APP_USR-your-seller-test-user-token
 
 3. In the Mercado Pago application, open **Webhooks** or **Notifications**.
 4. Add the deployed function URL.
-5. Enable payment notifications.
+5. Enable **Order (Mercado Pago)** notifications for the Orders API Pix flow.
 6. Reveal/copy the webhook secret.
 
 This maps to:
@@ -68,7 +71,7 @@ MP_WEBHOOK_SECRET=your-webhook-secret
 Provide only these values:
 
 ```bash
-MP_ACCESS_TOKEN=APP_USR-...
+MP_ACCESS_TOKEN=...
 MP_WEBHOOK_SECRET=...
 ```
 

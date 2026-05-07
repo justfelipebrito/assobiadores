@@ -153,6 +153,7 @@ describe('POST /api/payments/create', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    delete process.env.MP_SANDBOX_AUTO_APPROVE;
   });
 
   it('creates a Pix payment and pending battle entry for eligible paid battles', async () => {
@@ -233,6 +234,21 @@ describe('POST /api/payments/create', () => {
     expect(JSON.parse(String(requestInit.body)).payer.email).toMatch(
       /^payer-[a-z0-9]+@testuser\.com$/,
     );
+  });
+
+  it('uses Mercado Pago sandbox auto-approval payer only when explicitly enabled', async () => {
+    process.env.MP_SANDBOX_AUTO_APPROVE = 'true';
+    const { db } = createDb({ battle: paidBattle, userEmail: 'user@example.com' });
+    getAdminFirestore.mockReturnValue(db);
+
+    const res = await post();
+
+    expect(res.status).toBe(200);
+    const [, requestInit] = mpFetch.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(requestInit.body)).payer).toEqual({
+      email: 'test@testuser.com',
+      first_name: 'APRO',
+    });
   });
 
   it('returns 401 when auth verification fails', async () => {

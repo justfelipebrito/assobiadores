@@ -110,7 +110,10 @@ async function main() {
   });
 
   const payment = order.body.transactions?.payments?.[0];
-  const orderOk = order.status === 201 && Boolean(order.body.id) && Boolean(payment?.id);
+  const hasQr = Boolean(payment?.payment_method?.qr_code_base64);
+  const hasCopyPaste = Boolean(payment?.payment_method?.qr_code);
+  const orderOk =
+    order.status === 201 && Boolean(order.body.id) && Boolean(payment?.id) && hasQr && hasCopyPaste;
   console.log(
     JSON.stringify({
       createPixOrder: {
@@ -118,8 +121,12 @@ async function main() {
         status: order.status,
         hasOrderId: Boolean(order.body.id),
         hasPaymentId: Boolean(payment?.id),
-        hasQr: Boolean(payment?.payment_method?.qr_code_base64),
-        hasCopyPaste: Boolean(payment?.payment_method?.qr_code),
+        mercadoPagoStatus: order.body.status || null,
+        mercadoPagoStatusDetail: order.body.status_detail || null,
+        paymentStatus: payment?.status || null,
+        paymentStatusDetail: payment?.status_detail || null,
+        hasQr,
+        hasCopyPaste,
       },
     }),
   );

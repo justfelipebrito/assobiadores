@@ -140,6 +140,7 @@ describe('POST /api/qualifiers/register', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    delete process.env.MP_SANDBOX_AUTO_APPROVE;
   });
 
   it('creates a qualifier registration payment', async () => {
@@ -204,6 +205,21 @@ describe('POST /api/qualifiers/register', () => {
       { merge: true },
     );
     expect(batch.commit).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses Mercado Pago sandbox auto-approval payer when explicitly enabled', async () => {
+    process.env.MP_SANDBOX_AUTO_APPROVE = 'true';
+    const { db } = createDb({ userEmail: 'user@example.com' });
+    getAdminFirestore.mockReturnValue(db);
+
+    const res = await post();
+
+    expect(res.status).toBe(200);
+    const [, requestInit] = mpFetch.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(requestInit.body)).payer).toEqual({
+      email: 'test@testuser.com',
+      first_name: 'APRO',
+    });
   });
 
   it('reuses an existing non-expired pending qualifier Pix', async () => {

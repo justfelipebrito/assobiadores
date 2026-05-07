@@ -27,6 +27,10 @@ export function getMercadoPagoPayerEmail(email: string, idempotencyKey: string) 
   return `payer-${safeReference}@testuser.com`;
 }
 
+export function shouldUseMercadoPagoSandboxAutoApproval(env = process.env) {
+  return env.MP_SANDBOX_AUTO_APPROVE === 'true';
+}
+
 export async function createMercadoPagoPixOrder({
   amountInCents,
   payerEmail,
@@ -38,6 +42,7 @@ export async function createMercadoPagoPixOrder({
 }) {
   const amount = formatOrderAmount(amountInCents);
   const safePayerEmail = getMercadoPagoPayerEmail(payerEmail, idempotencyKey);
+  const useSandboxAutoApproval = shouldUseMercadoPagoSandboxAutoApproval();
   const response = await fetch('https://api.mercadopago.com/v1/orders', {
     method: 'POST',
     headers: {
@@ -51,7 +56,10 @@ export async function createMercadoPagoPixOrder({
       total_amount: amount,
       external_reference: idempotencyKey,
       processing_mode: 'automatic',
-      payer: { email: safePayerEmail },
+      payer: {
+        email: useSandboxAutoApproval ? 'test@testuser.com' : safePayerEmail,
+        ...(useSandboxAutoApproval ? { first_name: 'APRO' } : {}),
+      },
       transactions: {
         payments: [
           {

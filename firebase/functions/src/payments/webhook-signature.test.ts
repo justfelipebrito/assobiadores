@@ -2,6 +2,7 @@ import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import {
   buildMercadoPagoSignatureManifest,
+  getMercadoPagoWebhookDataId,
   verifyMercadoPagoWebhookSignature,
 } from './webhook-signature';
 
@@ -10,6 +11,21 @@ function sign(manifest: string, secret: string) {
 }
 
 describe('Mercado Pago webhook signature', () => {
+  it('uses query data.id first and falls back to body data.id for dashboard simulations', () => {
+    expect(
+      getMercadoPagoWebhookDataId({
+        queryDataId: 'PAY-QUERY',
+        body: { data: { id: 'ORD-BODY' } },
+      }),
+    ).toBe('PAY-QUERY');
+
+    expect(
+      getMercadoPagoWebhookDataId({
+        body: { data: { id: 'ORDTST01KR10SCABF64HVS1TJK5NXKVS' } },
+      }),
+    ).toBe('ORDTST01KR10SCABF64HVS1TJK5NXKVS');
+  });
+
   it('builds the official manifest from notification fields', () => {
     expect(
       buildMercadoPagoSignatureManifest({
@@ -33,6 +49,25 @@ describe('Mercado Pago webhook signature', () => {
         xSignature: `ts=1704908010,v1=${sign(manifest, secret)}`,
         xRequestId: 'request-1',
         dataId: '999999999',
+        secret,
+      }),
+    ).toBe(true);
+  });
+
+  it('accepts Mercado Pago order signatures that preserve raw uppercase order ids', () => {
+    const secret = 'webhook-secret';
+    const manifest = buildMercadoPagoSignatureManifest({
+      dataId: 'ORDTST01KR14N2RVMX956E5SZT6B8WNV',
+      requestId: 'request-1',
+      timestamp: '1704908010',
+      normalizeDataId: false,
+    });
+
+    expect(
+      verifyMercadoPagoWebhookSignature({
+        xSignature: `ts=1704908010,v1=${sign(manifest, secret)}`,
+        xRequestId: 'request-1',
+        dataId: 'ORDTST01KR14N2RVMX956E5SZT6B8WNV',
         secret,
       }),
     ).toBe(true);

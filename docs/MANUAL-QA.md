@@ -125,7 +125,7 @@ NEXT_PUBLIC_USE_FIREBASE_EMULATORS=true
 For paid Pix sandbox QA, also set the Mercado Pago sandbox access token in `apps/web/.env.local`:
 
 ```bash
-MP_ACCESS_TOKEN=APP_USR-your-seller-test-user-token
+MP_ACCESS_TOKEN=your-sandbox-capable-access-token
 ```
 
 Validate the token and Orders API Pix creation without printing secrets:
@@ -135,9 +135,22 @@ pnpm validate:mp
 pnpm validate:mp:order
 ```
 
+The Orders API validator must report `hasQr: true` and `hasCopyPaste: true`. If it creates an order
+without those fields, the browser Pix modal cannot be tested with that credential.
+
+For Mercado Pago's sandbox auto-approval path, set this only in local/sandbox env:
+
+```bash
+MP_SANDBOX_AUTO_APPROVE=true
+```
+
 For deployed webhook QA, also follow `docs/MERCADO-PAGO-SANDBOX.md` and configure:
 
 ```bash
 firebase functions:secrets:set MP_ACCESS_TOKEN
 firebase functions:secrets:set MP_WEBHOOK_SECRET
 ```
+
+In the Mercado Pago dashboard, the webhook event must include **Order (Mercado Pago)**. The Pix
+implementation uses Orders API, so payment-only notifications will not dispatch the event that the
+deployed webhook expects.

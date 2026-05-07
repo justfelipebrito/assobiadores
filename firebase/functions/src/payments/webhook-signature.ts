@@ -11,6 +11,33 @@ function firstHeaderValue(value?: string | string[]) {
   return Array.isArray(value) ? value[0] : value;
 }
 
+export function getMercadoPagoWebhookDataId({
+  queryDataId,
+  body,
+}: {
+  queryDataId?: string | string[];
+  body?: unknown;
+}) {
+  const queryValue = firstHeaderValue(queryDataId);
+  if (queryValue) return queryValue;
+
+  if (
+    typeof body === 'object' &&
+    body !== null &&
+    'data' in body &&
+    typeof (body as { data?: unknown }).data === 'object' &&
+    (body as { data?: unknown }).data !== null &&
+    'id' in ((body as { data: Record<string, unknown> }).data)
+  ) {
+    const bodyDataId = (body as { data: { id?: unknown } }).data.id;
+    if (typeof bodyDataId === 'string' || typeof bodyDataId === 'number') {
+      return String(bodyDataId);
+    }
+  }
+
+  return undefined;
+}
+
 function parseSignatureHeader(xSignature: string) {
   return xSignature.split(',').reduce<Record<string, string>>((parts, part) => {
     const [key, value] = part.split('=');
@@ -25,15 +52,17 @@ export function buildMercadoPagoSignatureManifest({
   dataId,
   requestId,
   timestamp,
+  normalizeDataId = true,
 }: {
   dataId?: string;
   requestId?: string;
   timestamp: string;
+  normalizeDataId?: boolean;
 }) {
   const parts: string[] = [];
 
   if (dataId) {
-    parts.push(`id:${dataId.toLowerCase()}`);
+    parts.push(`id:${normalizeDataId ? dataId.toLowerCase() : dataId}`);
   }
   if (requestId) {
     parts.push(`request-id:${requestId}`);
@@ -65,15 +94,30 @@ export function verifyMercadoPagoWebhookSignature({
     return false;
   }
 
-  const manifest = buildMercadoPagoSignatureManifest({
+  const manifests = [
+    buildMercadoPagoSignatureManifest({
+      dataId: notificationDataId,
+      requestId,
+      timestamp,
+    }),
+  ];
+
+  const rawManifest = buildMercadoPagoSignatureManifest({
     dataId: notificationDataId,
     requestId,
     timestamp,
+    normalizeDataId: false,
   });
-  const actualSignature = createHmac('sha256', secret).update(manifest).digest('hex');
+  if (rawManifest !== manifests[0]) {
+    manifests.push(rawManifest);
+  }
 
   const expected = new Uint8Array(Buffer.from(expectedSignature, 'hex'));
-  const actual = new Uint8Array(Buffer.from(actualSignature, 'hex'));
 
-  return expected.length === actual.length && timingSafeEqual(expected, actual);
+  return manifests.some((manifest) => {
+    const actualSignature = createHmac('sha256', secret).update(manifest).digest('hex');
+    const actual = new Uint8Array(Buffer.from(actualSignature, 'hex'));
+
+    return expected.length === actual.length && timingSafeEqual(expected, actual);
+  });
 }
