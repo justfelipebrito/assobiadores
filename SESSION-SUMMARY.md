@@ -208,7 +208,11 @@
 - Production deploy workflow now deploys `functions:onPaymentWebhook` before App Hosting, so Mercado Pago secret rotations and webhook confirmation logic are applied by the GitHub Actions production job instead of depending on a separate manual function deploy.
 - Cloud Functions Node.js 22 runtime — done: all deployed functions are `v2` functions on Node.js 22. The obsolete `onUserCreate` `v1` Auth trigger was removed and replaced with the trusted web bootstrap route.
 - Local paid-route QA — done against `battle-paid-open`
-- Remaining external validation: real Mercado Pago sandbox-approved Pix payment and dashboard webhook event confirmation. Local emulator browser QA can use the test-only `Aprovar no teste` control to validate post-payment UX without polluting Mercado Pago/payment state.
+- Mercado Pago production validation is complete for MVP payment flows: a real Pix payment confirmed a Classificatórias registration through the production webhook, and a real Pix payment confirmed a paid battle entry through the same production webhook. Firestore side effects were verified for the paid battle: `payments.status = approved`, `battleEntries.status = confirmed`, participant count incremented, 20% platform fee recorded, and 80% prize pool/prize distribution updated.
+- Production QA data was sanitized after validation: synthetic `qa-mp-webhook-*` fixtures were deleted, the two QA paid battle smoke documents and their entries were removed from user-facing collections, and the two real approved smoke payment documents were retained only as archived QA payment records for reconciliation/audit.
+- Follow-up QA cleanup removed leftover `QA Webhook Qualifier` ranking/point remnants from production (`pointActivities` and `seasonRankings/2026/users`); verification found no remaining `qa-mp-webhook` user, qualifier, payment, point, or ranking records.
+- Production battle data cleanup: removed the user-created `Top 10 Assobiadores` battle and converted `Os Fundadores do Assobio` to a paid battle with `entryFee = 400`, zeroed prize pool/platform fee totals, and initialized prize distribution.
+- Platform stats API cache fix: `/api/platform/stats` now forces dynamic/no-store responses so production homepage counters reflect current Firestore counts after QA cleanup instead of stale cached `Assobiadores`/`Batalhas` totals.
 
 ### Phase 5: Submissions + Voting
 

@@ -29,6 +29,7 @@ describe('GET /api/platform/stats', () => {
 
     await expect(res.json()).resolves.toEqual({ users: 203, battles: 4 });
     expect(res.status).toBe(200);
+    expect(res.headers.get('Cache-Control')).toBe('no-store, max-age=0');
     expect(getPlatformStats).toHaveBeenCalledWith('db');
   });
 
@@ -41,5 +42,6 @@ describe('GET /api/platform/stats', () => {
       error: 'Nao foi possivel carregar os numeros da plataforma',
     });
     expect(res.status).toBe(500);
+    expect(res.headers.get('Cache-Control')).toBe('no-store, max-age=0');
   });
 });
