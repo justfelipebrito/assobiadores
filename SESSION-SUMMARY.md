@@ -788,6 +788,8 @@ Latest hardening/refactor:
   - deploy workflow clarification: `.github/workflows/ci.yml` only validates, while `.github/workflows/firebase-app-hosting.yml` performs the production App Hosting deploy on `main` pushes or manual `workflow_dispatch` after its own validation job.
   - remaining real Mercado Pago dispatch step: in the Mercado Pago webhook dashboard, enable **Order (Mercado Pago)** for the configured URL. Payment-only notifications do not dispatch the `order.*` event used by the Orders API Pix flow.
   - added `/agenda` as a simple unified upcoming-events page that lists Batalhas, Classificatórias, and scheduled Campeonatos sorted by the closest next relevant date/time; the header ticker CTA now points to this page and shares the same tested event-selection helper.
+  - added legal draft pages for `/termos-de-uso` and `/privacidade`, wired the footer Legal links to those routes, and covered the route/content contract with a focused unit test.
+  - configured production GA4 for App Hosting with `NEXT_PUBLIC_GA_MEASUREMENT_ID=G-5VF1RXJ1TW`; Analytics should start receiving page views after the next App Hosting deploy.
 
 Security/test work to do before expanding features:
 

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { LEGAL_PAGES } from '@/lib/legal-pages';
 
 export function Footer() {
   return (
@@ -77,10 +78,20 @@ export function Footer() {
             </h4>
             <ul className="mt-4 space-y-3">
               <li>
-                <span className="text-sm text-surface-600">Termos de uso</span>
+                <Link
+                  href={LEGAL_PAGES.terms.href}
+                  className="text-sm text-surface-500 transition-colors hover:text-white"
+                >
+                  Termos de uso
+                </Link>
               </li>
               <li>
-                <span className="text-sm text-surface-600">Privacidade</span>
+                <Link
+                  href={LEGAL_PAGES.privacy.href}
+                  className="text-sm text-surface-500 transition-colors hover:text-white"
+                >
+                  Privacidade
+                </Link>
               </li>
             </ul>
           </div>

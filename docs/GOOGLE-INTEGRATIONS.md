@@ -8,7 +8,7 @@ The web app has production-gated Google integrations. Nothing is loaded when
 Create a GA4 web data stream for `assobiador.com`, then set:
 
 ```bash
-NEXT_PUBLIC_GA_MEASUREMENT_ID=G-XXXXXXXXXX
+NEXT_PUBLIC_GA_MEASUREMENT_ID=G-5VF1RXJ1TW
 ```
 
 The app loads `gtag.js` once and sends page views on client-side navigation, including query-string
