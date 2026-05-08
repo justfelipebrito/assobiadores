@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { getRankingUsers, paginateRankingUsers } from './ranking-view';
+import {
+  getRankingUsers,
+  getUserRankingRank,
+  getUserRankingRegion,
+  paginateRankingUsers,
+} from './ranking-view';
 import type { User } from '@batalha/types';
 
 function user(id: string, state: string, points: number): User {
@@ -51,6 +56,21 @@ describe('getRankingUsers', () => {
     expect(result.map((rankingUser) => rankingUser.id)).toEqual(['sp-high', 'sp-low']);
   });
 
+  it('uses birthState as the regional ranking fallback', () => {
+    const result = getRankingUsers({
+      users: [
+        { ...user('birth-sp', '', 10), state: null, birthState: 'SP' } as User,
+        { ...user('birth-rj', '', 50), state: null, birthState: 'RJ' } as User,
+      ],
+      scope: 'regional',
+      selectedState: 'SP',
+      seasonId: 'season_2026',
+    });
+
+    expect(result.map((rankingUser) => rankingUser.id)).toEqual(['birth-sp']);
+    expect(getUserRankingRegion(result[0]!)).toBe('SP');
+  });
+
   it('paginates after filtering without removing items from the overall result', () => {
     const users = Array.from({ length: 123 }, (_, index) => user(`user-${index + 1}`, 'SP', index));
 
@@ -90,5 +110,18 @@ describe('getRankingUsers', () => {
       'split-category',
       'single-category',
     ]);
+  });
+
+  it('derives the visible rank label from points to avoid stale rank text', () => {
+    expect(
+      getUserRankingRank(
+        {
+          ...user('stale-rank', 'SP', 0),
+          rank: 'Iniciante',
+          totalPoints: 200,
+        } as unknown as User,
+        null,
+      ),
+    ).toBe('Assobiador');
   });
 });

@@ -7,7 +7,6 @@ import { useCollection, orderBy, limit, where } from '@batalha/firebase';
 import { Badge, Skeleton, EmptyState } from '@batalha/ui';
 import { formatNumber, getRankTier } from '@batalha/utils';
 import {
-  type User,
   type BrazilState,
   type Season,
   type SeasonRanking,
@@ -17,6 +16,7 @@ import {
   type RankingEntry,
   getUserRankingPoints,
   getUserRankingRank,
+  getUserRankingRegion,
   paginateRankingUsers,
 } from '@/lib/ranking-view';
 
@@ -98,6 +98,7 @@ function RankingRow({
   const placeStyle = PLACE_STYLES[index];
   const points = getUserRankingPoints(user, seasonId);
   const rank = getUserRankingRank(user, seasonId);
+  const region = getUserRankingRegion(user);
   const tier = getRankTier(points);
 
   return (
@@ -128,10 +129,10 @@ function RankingRow({
               >
                 {rank}
               </Badge>
-              {user.state && (
+              {region && (
                 <span className="flex items-center gap-0.5 text-[10px] text-surface-600">
                   <MapPin className="h-2.5 w-2.5" />
-                  {user.state}
+                  {region}
                 </span>
               )}
             </div>
@@ -147,9 +148,9 @@ function RankingRow({
 }
 
 export default function RankingPage() {
-  const [scope, setScope] = useState<Scope>('regional');
+  const [scope, setScope] = useState<Scope>('nacional');
   const [selectedState, setSelectedState] = useState<BrazilState | ''>('SP');
-  const [rankingMode, setRankingMode] = useState<RankingMode>('season');
+  const [rankingMode, setRankingMode] = useState<RankingMode>('allTime');
   const [page, setPage] = useState(1);
 
   const { data: activeSeasons } = useCollection<Season>('seasons', [
@@ -158,18 +159,15 @@ export default function RankingPage() {
     limit(1),
   ]);
   const activeSeason = activeSeasons[0] ?? null;
-  const seasonId = rankingMode === 'season' && activeSeason ? activeSeason.id : null;
+  const seasonId = activeSeason?.id ?? null;
 
   const seasonRankingCollection = seasonId ? `seasonRankings/${seasonId}/users` : undefined;
   const { data: seasonRankingUsers, loading: seasonRankingLoading } = useCollection<SeasonRanking>(
     seasonRankingCollection,
     seasonRankingCollection ? [orderBy('totalPoints', 'desc')] : [],
   );
-  const { data: allTimeUsers, loading: allTimeLoading } = useCollection<User>('users', [
-    orderBy('points', 'desc'),
-  ]);
-  const rankingUsers = seasonId ? seasonRankingUsers : allTimeUsers;
-  const loading = seasonId ? seasonRankingLoading : allTimeLoading;
+  const rankingUsers = seasonRankingUsers;
+  const loading = seasonRankingLoading;
 
   const users = useMemo(() => {
     return getRankingUsers({
@@ -196,13 +194,13 @@ export default function RankingPage() {
   const selectedStateLabel = BRAZIL_STATES.find((s) => s.value === selectedState)?.label;
   const rankingDescription =
     scope === 'nacional'
-      ? seasonId
-        ? `Ranking Oficial na ${activeSeason?.name}`
-        : 'Ranking Oficial do Brasil'
+      ? rankingMode === 'season' && activeSeason
+        ? `Ranking Oficial na ${activeSeason.name}`
+        : 'Ranking Oficial Geral'
       : selectedStateLabel
-        ? seasonId
-          ? `Ranking Regional de ${selectedStateLabel} na ${activeSeason?.name}`
-          : `Ranking Regional de ${selectedStateLabel}`
+        ? rankingMode === 'season' && activeSeason
+          ? `Ranking Regional de ${selectedStateLabel} na ${activeSeason.name}`
+          : `Ranking Regional Geral de ${selectedStateLabel}`
         : 'Escolha um estado para ver o Ranking Regional';
 
   return (
@@ -260,6 +258,16 @@ export default function RankingPage() {
               <FilterLabel>Periodo</FilterLabel>
               <div className="grid grid-cols-2 rounded-xl border border-white/10 bg-surface-950/60 p-1">
                 <button
+                  onClick={() => setRankingMode('allTime')}
+                  className={`h-10 rounded-lg px-3 text-sm font-medium transition-all ${
+                    rankingMode === 'allTime'
+                      ? 'bg-white/10 text-white shadow-sm'
+                      : 'text-surface-400 hover:text-surface-300'
+                  }`}
+                >
+                  Geral
+                </button>
+                <button
                   onClick={() => setRankingMode('season')}
                   disabled={!activeSeason}
                   className={`h-10 rounded-lg px-3 text-sm font-medium transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
@@ -269,16 +277,6 @@ export default function RankingPage() {
                   }`}
                 >
                   Temporada
-                </button>
-                <button
-                  onClick={() => setRankingMode('allTime')}
-                  className={`h-10 rounded-lg px-3 text-sm font-medium transition-all ${
-                    rankingMode === 'allTime'
-                      ? 'bg-white/10 text-white shadow-sm'
-                      : 'text-surface-400 hover:text-surface-300'
-                  }`}
-                >
-                  Geral
                 </button>
               </div>
             </div>

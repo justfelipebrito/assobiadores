@@ -153,6 +153,11 @@ async function clearCollection(name) {
   }
 }
 
+async function clearSeasonRankings() {
+  await clearCollection(`seasonRankings/${SEASON_ID}/users`);
+  await clearCollection('seasonRankings');
+}
+
 async function resetCollections() {
   const collections = [
     'battleEntries',
@@ -180,6 +185,8 @@ async function resetCollections() {
   for (const collectionName of collections) {
     await clearCollection(collectionName);
   }
+
+  await clearSeasonRankings();
 }
 
 async function upsertAuthUser({ uid, email, password, displayName }) {
@@ -250,6 +257,26 @@ async function seedUser({
       topThreeFinishes: 0,
     },
     badges: [],
+    createdAt: Timestamp.now(),
+    updatedAt: Timestamp.now(),
+  });
+
+  await db.doc(`seasonRankings/${SEASON_ID}/users/${uid}`).set({
+    id: uid,
+    userId: uid,
+    seasonId: SEASON_ID,
+    displayName,
+    username,
+    state,
+    birthState: state,
+    totalPoints: total,
+    xp: total,
+    rank: rankFor(total),
+    byCategory: {
+      freestyle: pointsByCategory.freestyle,
+      melodia: pointsByCategory.melodia,
+      passaros: pointsByCategory.passaros,
+    },
     createdAt: Timestamp.now(),
     updatedAt: Timestamp.now(),
   });

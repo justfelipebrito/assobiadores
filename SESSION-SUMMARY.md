@@ -155,7 +155,7 @@
   - Regional League by Brazilian state.
 - Season-based rankings should be first-class so users have a fresh, motivating path to stay near the top each season.
 - Homepage ranking summaries should present the active season (for example, `Temporada 2026`) rather than generic all-time copy.
-- Official ranking is category-scoped. The global competition categories are only `freestyle`, `melodia`, and `passaros` (`Pássaros` in UI copy).
+- Official public ranking is unified across categories. Category remains a scoring/breakdown dimension only; the visible leaderboard uses one total per user for the active season. The global competition categories are only `freestyle`, `melodia`, and `passaros` (`Pássaros` in UI copy).
 - Community users should have a pathway into official competitions through qualifiers.
 - Qualifiers bridge community participation into official competition slots and grant larger season point boosts for entry, phase advancement, and qualification.
 - Official competition participation should require the entry payment/subscription rules defined for that event. Open Qualifiers now have a concrete `R$ 4,00` entry-fee direction; broader subscription rules are still to be designed.
@@ -214,6 +214,10 @@
 - Production battle data cleanup: removed the user-created `Top 10 Assobiadores` battle and converted `Os Fundadores do Assobio` to a paid battle with `entryFee = 400`, zeroed prize pool/platform fee totals, and initialized prize distribution.
 - Platform stats API cache fix: `/api/platform/stats` now forces dynamic/no-store responses so production homepage counters reflect current Firestore counts after QA cleanup instead of stale cached `Assobiadores`/`Batalhas` totals.
 - Auth/onboarding polish: Google and Apple auth now fall back from popup to redirect for browser popup failures, and login/register pages bootstrap the user profile from auth state before routing so social redirect completions still create/backfill Firestore profile docs. The first registration screen no longer asks for Chave Pix; lightweight onboarding can save Naturalidade without Pix, while official/payout profile fields still require Pix on `/conta`.
+- Ranking consistency fix: `/ranking` now opens on `Nacional` + `Geral`, keeps `Geral` before `Temporada`, and uses the trusted `seasonRankings/{seasonId}/users` read model instead of mixing in legacy `users.points`. Visible rank labels are derived from points at render time to avoid stale labels, and Regional rankings filter by `state ?? birthState` so Naturalidade-backed users appear with the same unified points total. Homepage ranking previews now reuse the same helpers so the homepage and full ranking page do not diverge.
+- Local emulator seed fix: `seed:qa:v1` and `seed:emulator` now clear and repopulate `seasonRankings/2026/users` alongside `users`, so homepage platform counters and `/ranking` read-model rows stay aligned in QA. The current V1 emulator seed was refreshed and verified at `503` public users and `503` season ranking rows.
+- Header ticker adjustment: the global header strip is now a unified upcoming-event ticker. It merges active Battles, Classificatórias, and scheduled Campeonatos, then sorts them by the nearest next relevant date/time so the closest thing happening next appears first. Battle registration cards now use the submission deadline as the next date because users can submit immediately after joining/paying/invite confirmation.
+- Remaining ranking architecture note: if Assobiador later needs a true all-time leaderboard across seasons, add a separate trusted server-owned all-time ranking read model. Do not reintroduce legacy `users.points` as a public ranking source.
 
 ### Phase 5: Submissions + Voting
 
@@ -783,6 +787,7 @@ Latest hardening/refactor:
   - disabled `MP_SANDBOX_AUTO_APPROVE` in `apps/web/apphosting.yaml` so the next App Hosting deploy is ready for production Mercado Pago credential switching / real-money smoke tests; docs now state that the flag should only be enabled for explicit sandbox-domain QA.
   - deploy workflow clarification: `.github/workflows/ci.yml` only validates, while `.github/workflows/firebase-app-hosting.yml` performs the production App Hosting deploy on `main` pushes or manual `workflow_dispatch` after its own validation job.
   - remaining real Mercado Pago dispatch step: in the Mercado Pago webhook dashboard, enable **Order (Mercado Pago)** for the configured URL. Payment-only notifications do not dispatch the `order.*` event used by the Orders API Pix flow.
+  - added `/agenda` as a simple unified upcoming-events page that lists Batalhas, Classificatórias, and scheduled Campeonatos sorted by the closest next relevant date/time; the header ticker CTA now points to this page and shares the same tested event-selection helper.
 
 Security/test work to do before expanding features:
 

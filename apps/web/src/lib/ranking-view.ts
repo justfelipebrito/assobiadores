@@ -1,4 +1,5 @@
 import type { SeasonRanking, User } from '@batalha/types';
+import { calculateRank } from '@batalha/utils';
 
 export type RankingScope = 'nacional' | 'regional';
 export type RankingEntry = User | SeasonRanking;
@@ -9,8 +10,11 @@ export function getUserRankingPoints(user: RankingEntry, seasonId: string | null
 }
 
 export function getUserRankingRank(user: RankingEntry, seasonId: string | null) {
-  if ('totalPoints' in user) return user.rank;
-  return seasonId ? (user.seasonPoints?.[seasonId]?.rank ?? 'Iniciante') : user.rank;
+  return calculateRank(getUserRankingPoints(user, seasonId));
+}
+
+export function getUserRankingRegion(user: RankingEntry) {
+  return user.state ?? user.birthState ?? null;
 }
 
 export function getRankingUsers({
@@ -26,7 +30,7 @@ export function getRankingUsers({
 }) {
   return users
     .filter((user) =>
-      scope === 'regional' && selectedState ? user.state === selectedState : true,
+      scope === 'regional' && selectedState ? getUserRankingRegion(user) === selectedState : true,
     )
     .sort((a, b) => {
       const diff = getUserRankingPoints(b, seasonId) - getUserRankingPoints(a, seasonId);

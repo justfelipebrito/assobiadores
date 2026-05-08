@@ -5,94 +5,65 @@ import { useMemo, useState } from 'react';
 import { ArrowRight, Clock, Menu, User, LogOut, Plus } from 'lucide-react';
 import { orderBy, useAuth, useCollection, useDocument } from '@batalha/firebase';
 import { Avatar, Badge, Button } from '@batalha/ui';
-import { formatRelativeTime, toDate } from '@batalha/utils';
-import type { Battle, User as AppUser } from '@batalha/types';
+import { formatRelativeTime } from '@batalha/utils';
+import type { Battle, Championship, QualifierTrack, User as AppUser } from '@batalha/types';
 import { getVersionedAvatarUrl } from '../../lib/avatar-url';
+import { getHeaderTickerItems } from '../../lib/header-ticker';
 import { MobileNav } from './mobile-nav';
 
-const BATTLE_STATUS_LABEL: Record<string, string> = {
-  registration: 'Inscricoes',
-  active: 'Envios',
-  voting: 'Votacao',
-  finished: 'Resultado',
-};
-
-function getBattleAction(battle: Battle) {
-  if (battle.status === 'voting') {
-    return { href: `/batalhas/${battle.id}/votar`, label: 'Votar' };
-  }
-  if (battle.status === 'active') {
-    return { href: `/batalhas/${battle.id}`, label: 'Enviar' };
-  }
-  if (battle.status === 'registration') {
-    return { href: `/batalhas/${battle.id}`, label: 'Participar' };
-  }
-  return { href: `/batalhas/${battle.id}/resultado`, label: 'Ver' };
-}
-
-function BattleTicker() {
+function EventTicker() {
   const { data: battles } = useCollection<Battle>('battles', [orderBy('createdAt', 'desc')]);
-  const visibleBattles = useMemo(
-    () =>
-      battles
-        .filter((battle) => ['registration', 'active', 'voting'].includes(battle.status))
-        .slice(0, 8),
-    [battles],
+  const { data: qualifierTracks } = useCollection<QualifierTrack>('qualifierTracks', [
+    orderBy('registrationDeadline', 'asc'),
+  ]);
+  const { data: championships } = useCollection<Championship>('championships', [
+    orderBy('createdAt', 'desc'),
+  ]);
+  const tickerItems = useMemo(
+    () => getHeaderTickerItems({ battles, qualifierTracks, championships, limit: 8 }),
+    [battles, championships, qualifierTracks],
   );
 
-  if (visibleBattles.length === 0) return null;
+  if (tickerItems.length === 0) return null;
 
   return (
     <div className="border-t border-white/5 bg-surface-950/95">
       <div className="mx-auto flex max-w-6xl items-stretch overflow-x-auto px-4 [scrollbar-width:none]">
         <div className="flex min-w-[112px] flex-shrink-0 items-center border-l border-r border-white/5 px-3">
           <Link
-            href="/batalhas"
+            href="/agenda"
             className="inline-flex h-8 items-center gap-1 rounded-lg border border-white/10 px-3 text-xs font-semibold text-surface-300 transition-colors hover:border-brand-500/40 hover:text-white"
           >
-            Ver todas
+            Ver agenda
             <ArrowRight className="h-3.5 w-3.5" />
           </Link>
         </div>
-        {visibleBattles.map((battle) => {
-          const action = getBattleAction(battle);
-          const timeTarget =
-            battle.status === 'registration'
-              ? toDate(battle.registrationEnd)
-              : battle.status === 'active'
-                ? toDate(battle.submissionDeadline)
-                : toDate(battle.votingEnd);
-
+        {tickerItems.map((item) => {
           return (
             <div
-              key={battle.id}
+              key={item.id}
               className="flex min-w-[220px] max-w-[240px] flex-col justify-between gap-2 border-r border-white/5 px-3 py-3"
             >
-              <Link href={`/batalhas/${battle.id}`} className="min-w-0 flex-1">
+              <Link href={item.href} className="min-w-0 flex-1">
                 <div className="flex min-w-0 items-center gap-2">
-                  <Badge
-                    variant={battle.type === 'official' ? 'gold' : 'default'}
-                    className="text-[10px]"
-                  >
-                    {battle.type === 'official' ? 'Oficial' : 'Comunidade'}
+                  <Badge variant={item.badgeVariant} className="text-[10px]">
+                    {item.badgeLabel}
                   </Badge>
                   <span className="truncate text-xs font-medium text-brand-400">
-                    {BATTLE_STATUS_LABEL[battle.status] || battle.status}
+                    {item.statusLabel}
                   </span>
                 </div>
-                <p className="mt-1 truncate text-sm font-semibold text-white">{battle.title}</p>
-                {timeTarget && (
-                  <p className="mt-1 flex items-center gap-1 text-xs text-surface-500">
-                    <Clock className="h-3 w-3" />
-                    {formatRelativeTime(timeTarget)}
-                  </p>
-                )}
+                <p className="mt-1 truncate text-sm font-semibold text-white">{item.title}</p>
+                <p className="mt-1 flex items-center gap-1 text-xs text-surface-500">
+                  <Clock className="h-3 w-3" />
+                  {formatRelativeTime(item.nextAt)}
+                </p>
               </Link>
               <Link
-                href={action.href}
+                href={item.actionHref}
                 className="inline-flex h-7 w-fit flex-shrink-0 items-center gap-1 rounded-md border border-white/10 bg-white/[0.04] px-2.5 text-[11px] font-bold text-surface-200 transition-colors hover:border-brand-500/40 hover:bg-brand-500/10 hover:text-brand-300"
               >
-                {action.label}
+                {item.actionLabel}
                 <ArrowRight className="h-3 w-3" />
               </Link>
             </div>
@@ -201,7 +172,7 @@ export function Header() {
             </button>
           </div>
         </div>
-        <BattleTicker />
+        <EventTicker />
       </header>
 
       <MobileNav

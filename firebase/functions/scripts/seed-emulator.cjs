@@ -83,6 +83,14 @@ function buildSeasonCategoryPoints(points) {
   };
 }
 
+function rankLabelFor(points) {
+  if (points >= 25000) return 'Lenda do Assobio';
+  if (points >= 10000) return 'Mestre';
+  if (points >= 1000) return 'Profissional';
+  if (points >= 50) return 'Aprendiz';
+  return 'Iniciante';
+}
+
 function getBrazilDayKey(date = new Date()) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Sao_Paulo',
@@ -99,6 +107,11 @@ function getBrazilDayKey(date = new Date()) {
 async function clearCollection(name) {
   const snapshot = await db.collection(name).get();
   await Promise.all(snapshot.docs.map((doc) => doc.ref.delete()));
+}
+
+async function clearSeasonRankings() {
+  await clearCollection('seasonRankings/2026/users');
+  await clearCollection('seasonRankings');
 }
 
 const BRAZIL_STATES = [
@@ -203,7 +216,7 @@ async function upsertUser({
         points,
         xp: points,
         casualPoints,
-        rank: points >= 50 ? 'Aprendiz' : 'Iniciante',
+        rank: rankLabelFor(points),
         seasonPoints,
         seasonCategoryPoints,
         stats: {
@@ -218,6 +231,28 @@ async function upsertUser({
       },
       { merge: false },
     );
+
+  const seasonTotal = seasonPoints?.['2026']?.points ?? points;
+  await db.doc(`seasonRankings/2026/users/${uid}`).set({
+    id: uid,
+    userId: uid,
+    seasonId: '2026',
+    displayName,
+    username,
+    state,
+    birthState: state,
+    totalPoints: seasonTotal,
+    xp: seasonTotal,
+    rank: rankLabelFor(seasonTotal),
+    byCategory: Object.fromEntries(
+      Object.entries(seasonCategoryPoints?.['2026'] ?? {}).map(([category, entry]) => [
+        category,
+        entry.points ?? 0,
+      ]),
+    ),
+    createdAt: Timestamp.now(),
+    updatedAt: Timestamp.now(),
+  });
 
   await db.collection('usernames').doc(username).set({
     userId: uid,
@@ -1320,6 +1355,8 @@ async function seedDailyHighlights() {
 }
 
 async function main() {
+  await clearSeasonRankings();
+
   await upsertUser({
     uid: 'admin-local',
     email: 'admin@example.test',

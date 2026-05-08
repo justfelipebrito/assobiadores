@@ -37,7 +37,12 @@ import {
   type SeasonRanking,
   type User,
 } from '@batalha/types';
-import type { RankingEntry } from '@/lib/ranking-view';
+import {
+  getUserRankingPoints,
+  getUserRankingRank,
+  getUserRankingRegion,
+  type RankingEntry,
+} from '@/lib/ranking-view';
 import { SubmitDailyHighlightButton } from '@/components/daily-highlights/submit-daily-highlight-button';
 import { SubmitDailyHighlightModal } from '@/components/daily-highlights/submit-daily-highlight-modal';
 import {
@@ -120,12 +125,9 @@ function RankingList({
   return (
     <div className="divide-y divide-white/5">
       {users.map((user, index) => {
-        const seasonPoints =
-          seasonId && !('totalPoints' in user) ? user.seasonPoints?.[seasonId] : null;
-        const points =
-          'totalPoints' in user ? user.totalPoints : seasonPoints?.points ?? (seasonId ? 0 : user.points);
-        const rank =
-          'totalPoints' in user ? user.rank : seasonPoints?.rank ?? (seasonId ? 'Iniciante' : user.rank);
+        const points = getUserRankingPoints(user, seasonId);
+        const rank = getUserRankingRank(user, seasonId);
+        const region = getUserRankingRegion(user);
 
         return (
           <Link
@@ -147,7 +149,7 @@ function RankingList({
               </p>
               <p className="truncate text-xs text-surface-500">
                 {rank}
-                {user.state ? ` - ${user.state}` : ''}
+                {region ? ` - ${region}` : ''}
               </p>
             </div>
             <div className="flex-shrink-0 text-right">
@@ -264,8 +266,8 @@ export default function HomePage() {
   const sortedRankingUsers = useMemo(
     () =>
       [...(rankingSeasonId ? seasonRankingUsers : rankingUsers)].sort((a, b) => {
-        const aPoints = 'totalPoints' in a ? a.totalPoints : a.points;
-        const bPoints = 'totalPoints' in b ? b.totalPoints : b.points;
+        const aPoints = getUserRankingPoints(a, rankingSeasonId);
+        const bPoints = getUserRankingPoints(b, rankingSeasonId);
         const diff = bPoints - aPoints;
         if (diff !== 0) return diff;
         return a.displayName.localeCompare(b.displayName);
@@ -276,7 +278,7 @@ export default function HomePage() {
   const regionalUsers = useMemo(
     () =>
       sortedRankingUsers
-        .filter((regionalUser) => regionalUser.state === selectedRegionalState)
+        .filter((regionalUser) => getUserRankingRegion(regionalUser) === selectedRegionalState)
         .slice(0, 20),
     [selectedRegionalState, sortedRankingUsers],
   );
