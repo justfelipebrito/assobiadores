@@ -28,8 +28,8 @@ When enabled, the server sends Mercado Pago's documented sandbox payer marker
 `email = test@testuser.com` and `first_name = APRO`. Never enable this in production.
 
 For temporary `assobiador.com` sandbox-domain QA, `apps/web/apphosting.yaml` may set
-`MP_SANDBOX_AUTO_APPROVE=true` as a runtime variable. Remove it or set it to `false` before switching
-Firebase App Hosting to real production Mercado Pago credentials or running a real-money Pix test.
+`MP_SANDBOX_AUTO_APPROVE=true` as a runtime variable. Keep it `false` for production credentials
+and real-money Pix smoke tests.
 
 The Mercado Pago public key is not required by the current Pix flow because Pix creation happens
 server-side through the Orders API. Keep it available for a future client-side SDK or Brick flow.

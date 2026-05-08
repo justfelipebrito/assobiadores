@@ -49,8 +49,8 @@ env:
     secret: MP_WEBHOOK_SECRET
     availability:
       - RUNTIME
-  # Temporary sandbox-domain QA flag. Remove or set to "false" before real-money production tests.
+  # Keep disabled for production and real-money smoke tests. Enable only for sandbox-domain QA.
   - variable: MP_SANDBOX_AUTO_APPROVE
-    value: "true"
+    value: "false"
     availability:
       - RUNTIME

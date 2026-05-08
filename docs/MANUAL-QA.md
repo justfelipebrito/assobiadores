@@ -145,8 +145,8 @@ MP_SANDBOX_AUTO_APPROVE=true
 ```
 
 For temporary sandbox-domain QA on `assobiador.com`, App Hosting can expose the same flag through
-`apps/web/apphosting.yaml`. Remove that runtime variable before switching to real production Mercado
-Pago credentials or doing a real-money Pix smoke test.
+`apps/web/apphosting.yaml`. Keep that runtime variable set to `false` before switching to real
+production Mercado Pago credentials or doing a real-money Pix smoke test.
 
 For deployed webhook QA, also follow `docs/MERCADO-PAGO-SANDBOX.md` and configure:
 
