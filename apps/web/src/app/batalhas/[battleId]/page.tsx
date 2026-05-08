@@ -30,6 +30,7 @@ import {
   getBattleRuleCards,
   getBattleScheduleItems,
   getBattleSubmissionResultBreakdown,
+  sortBattleEntriesByCreatedAt,
   sortBattleEntriesForDisplay,
 } from '@/lib/battle-detail-view';
 import {
@@ -127,7 +128,6 @@ export default function BattleDetailPage({ params }: { params: { battleId: strin
   const { data: battle, loading: battleLoading } = useDocument<Battle>('battles', params.battleId);
   const { data: entries, loading: entriesLoading } = useCollection<BattleEntry>('battleEntries', [
     where('battleId', '==', params.battleId),
-    orderBy('createdAt', 'asc'),
   ]);
   const { data: submissions, loading: submissionsLoading } = useCollection<Submission>(
     'submissions',
@@ -155,7 +155,7 @@ export default function BattleDetailPage({ params }: { params: { battleId: strin
   );
 
   const confirmedEntries = useMemo(
-    () => entries.filter((entry) => entry.status === 'confirmed'),
+    () => sortBattleEntriesByCreatedAt(entries.filter((entry) => entry.status === 'confirmed')),
     [entries],
   );
   const submissionsByUserId = useMemo(() => {

@@ -65,6 +65,17 @@ export function canSubmitBattleEntry({
   return now.getTime() <= submissionDeadline.getTime();
 }
 
+function getEntryCreatedAtMillis(entry: Pick<BattleEntry, 'createdAt'>) {
+  const createdAt = toDate(entry.createdAt);
+  return createdAt?.getTime() ?? 0;
+}
+
+export function sortBattleEntriesByCreatedAt(entries: BattleEntry[]) {
+  return [...entries].sort(
+    (a, b) => getEntryCreatedAtMillis(a) - getEntryCreatedAtMillis(b),
+  );
+}
+
 type BattleWinnerSummary = Pick<Battle['winners'][number], 'userId' | 'place'>;
 type SubmissionResultFields = Pick<Submission, 'voteCount'> & {
   publicVoteCount?: number | null;

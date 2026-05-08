@@ -4,6 +4,7 @@ import {
   getBattleRuleCards,
   getBattleScheduleItems,
   getBattleSubmissionResultBreakdown,
+  sortBattleEntriesByCreatedAt,
   sortBattleSubmissionsForResult,
   sortBattleEntriesForDisplay,
 } from './battle-detail-view';
@@ -111,6 +112,20 @@ describe('battle detail view helpers', () => {
         ]) as never,
       }).map((entry) => entry.userId),
     ).toEqual(['user-1', 'user-4', 'user-2', 'user-3']);
+  });
+
+  it('orders battle participants by creation date without requiring Firestore orderBy', () => {
+    const entries = [
+      { id: 'entry-2', createdAt: new Date('2026-05-07T12:02:00.000Z') },
+      { id: 'entry-1', createdAt: new Date('2026-05-07T12:01:00.000Z') },
+      { id: 'entry-3', createdAt: new Date('2026-05-07T12:03:00.000Z') },
+    ] as never[];
+
+    expect(sortBattleEntriesByCreatedAt(entries).map((entry) => entry.id)).toEqual([
+      'entry-1',
+      'entry-2',
+      'entry-3',
+    ]);
   });
 
   it('orders finished battle submissions by winner first and community votes after', () => {
