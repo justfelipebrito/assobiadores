@@ -18,17 +18,10 @@ export default function RegisterPage() {
   const { signUp, signInWithGoogle, signInWithApple, loading, error, user } = useAuth();
   const [name, setName] = useState('');
   const [birthState, setBirthState] = useState<BrazilState | ''>('');
-  const [pixKey, setPixKey] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
   const [authActionLoading, setAuthActionLoading] = useState(false);
-
-  useEffect(() => {
-    if (user) {
-      router.push('/conta');
-    }
-  }, [router, user]);
 
   const bootstrapUser = async (authUser: Awaited<ReturnType<typeof signUp>>) => {
     if (!authUser) return false;
@@ -45,6 +38,30 @@ export default function RegisterPage() {
     if (!res.ok) throw new Error(data.error || 'Erro ao preparar perfil');
     return true;
   };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (user) {
+      setAuthActionLoading(true);
+      bootstrapUser(user)
+        .then(() => {
+          if (!cancelled) router.push('/conta');
+        })
+        .catch((err) => {
+          if (!cancelled) {
+            setLocalError(err instanceof Error ? err.message : 'Erro ao preparar perfil');
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setAuthActionLoading(false);
+        });
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router, user]);
 
   const handleSocialSignIn = async (provider: 'google' | 'apple') => {
     setLocalError(null);
@@ -71,10 +88,6 @@ export default function RegisterPage() {
         setLocalError('Selecione sua naturalidade para criar a conta.');
         return;
       }
-      if (!pixKey.trim()) {
-        setLocalError('Informe sua Chave Pix para criar a conta.');
-        return;
-      }
 
       const createdUser = await signUp(email, password, name);
       if (!createdUser) return;
@@ -88,7 +101,6 @@ export default function RegisterPage() {
           body: JSON.stringify({
             displayName: name,
             birthState,
-            pixKey,
           }),
         });
         const data = await res.json();
@@ -221,14 +233,6 @@ export default function RegisterPage() {
                   ))}
                 </select>
               </div>
-              <Input
-                label="Chave Pix"
-                type="text"
-                placeholder="CPF, CNPJ, email, telefone ou chave aleatoria"
-                value={pixKey}
-                onChange={(e) => setPixKey(e.target.value)}
-                required
-              />
               <Input
                 label="Senha"
                 type="password"

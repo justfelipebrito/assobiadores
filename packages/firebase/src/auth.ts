@@ -4,15 +4,18 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   onAuthStateChanged,
   signInWithPopup,
+  signInWithRedirect,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
+  getRedirectResult,
   GoogleAuthProvider,
   OAuthProvider,
   updateProfile,
   type User as FirebaseUser,
 } from 'firebase/auth';
 import { getClientAuth, shouldUseEmulators } from './client';
+import { shouldFallbackToRedirect } from './auth-errors';
 
 export interface AuthState {
   user: FirebaseUser | null;
@@ -29,6 +32,11 @@ export function useAuth() {
 
   useEffect(() => {
     const auth = getClientAuth();
+    void getRedirectResult(auth).catch((err) => {
+      const message = err instanceof Error ? err.message : 'Erro ao concluir login social';
+      setState((prev) => ({ ...prev, loading: false, error: message }));
+    });
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) {
         setState({ user: null, loading: false, error: null });
@@ -58,6 +66,12 @@ export function useAuth() {
       const { user } = await signInWithPopup(auth, provider);
       return user;
     } catch (err) {
+      if (shouldFallbackToRedirect(err)) {
+        const auth = getClientAuth();
+        const provider = new GoogleAuthProvider();
+        await signInWithRedirect(auth, provider);
+        return null;
+      }
       const message = err instanceof Error ? err.message : 'Erro ao entrar com Google';
       setState((prev) => ({ ...prev, error: message }));
       return null;
@@ -74,6 +88,14 @@ export function useAuth() {
       const { user } = await signInWithPopup(auth, provider);
       return user;
     } catch (err) {
+      if (shouldFallbackToRedirect(err)) {
+        const auth = getClientAuth();
+        const provider = new OAuthProvider('apple.com');
+        provider.addScope('email');
+        provider.addScope('name');
+        await signInWithRedirect(auth, provider);
+        return null;
+      }
       const message = err instanceof Error ? err.message : 'Erro ao entrar com Apple';
       setState((prev) => ({ ...prev, error: message }));
       return null;

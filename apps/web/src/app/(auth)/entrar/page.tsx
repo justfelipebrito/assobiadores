@@ -15,10 +15,44 @@ export default function LoginPage() {
   const [localError, setLocalError] = useState<string | null>(null);
   const [authActionLoading, setAuthActionLoading] = useState(false);
 
+  const bootstrapUser = async (authUser: Awaited<ReturnType<typeof signInWithEmail>>) => {
+    if (!authUser) return false;
+    const token = await authUser.getIdToken(true);
+    const res = await fetch('/api/auth/bootstrap', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        displayName: authUser.displayName,
+        photoURL: authUser.photoURL,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Erro ao preparar perfil');
+    return true;
+  };
+
   useEffect(() => {
+    let cancelled = false;
+
     if (user) {
-      router.push('/');
+      setAuthActionLoading(true);
+      bootstrapUser(user)
+        .then(() => {
+          if (!cancelled) router.push('/');
+        })
+        .catch((err) => {
+          if (!cancelled) {
+            setLocalError(err instanceof Error ? err.message : 'Erro ao preparar perfil');
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setAuthActionLoading(false);
+        });
     }
+
+    return () => {
+      cancelled = true;
+    };
   }, [router, user]);
 
   const handleEmailLogin = async (e: React.FormEvent) => {
@@ -35,22 +69,6 @@ export default function LoginPage() {
     } finally {
       setAuthActionLoading(false);
     }
-  };
-
-  const bootstrapUser = async (authUser: Awaited<ReturnType<typeof signInWithEmail>>) => {
-    if (!authUser) return false;
-    const token = await authUser.getIdToken(true);
-    const res = await fetch('/api/auth/bootstrap', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-      body: JSON.stringify({
-        displayName: authUser.displayName,
-        photoURL: authUser.photoURL,
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Erro ao preparar perfil');
-    return true;
   };
 
   const handleSocialSignIn = async (provider: 'google' | 'apple') => {

@@ -213,6 +213,7 @@
 - Follow-up QA cleanup removed leftover `QA Webhook Qualifier` ranking/point remnants from production (`pointActivities` and `seasonRankings/2026/users`); verification found no remaining `qa-mp-webhook` user, qualifier, payment, point, or ranking records.
 - Production battle data cleanup: removed the user-created `Top 10 Assobiadores` battle and converted `Os Fundadores do Assobio` to a paid battle with `entryFee = 400`, zeroed prize pool/platform fee totals, and initialized prize distribution.
 - Platform stats API cache fix: `/api/platform/stats` now forces dynamic/no-store responses so production homepage counters reflect current Firestore counts after QA cleanup instead of stale cached `Assobiadores`/`Batalhas` totals.
+- Auth/onboarding polish: Google and Apple auth now fall back from popup to redirect for browser popup failures, and login/register pages bootstrap the user profile from auth state before routing so social redirect completions still create/backfill Firestore profile docs. The first registration screen no longer asks for Chave Pix; lightweight onboarding can save Naturalidade without Pix, while official/payout profile fields still require Pix on `/conta`.
 
 ### Phase 5: Submissions + Voting
 

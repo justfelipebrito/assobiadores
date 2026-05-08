@@ -199,11 +199,21 @@ describe('profile service', () => {
     });
   });
 
-  it('requires Pix key before finishing the profile', async () => {
+  it('allows lightweight onboarding profile updates before Pix is provided', async () => {
     await expect(
       updateUserProfile(createDb().db as never, 'user-1', {
         displayName: 'User Local',
         birthState: 'SP',
+      }),
+    ).resolves.toEqual({ ok: true, username: undefined });
+  });
+
+  it('requires Pix key when official profile data is being completed', async () => {
+    await expect(
+      updateUserProfile(createDb().db as never, 'user-1', {
+        displayName: 'User Local',
+        birthState: 'SP',
+        phone: '11999999999',
       }),
     ).rejects.toMatchObject({
       status: 400,

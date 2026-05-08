@@ -45,6 +45,20 @@ function hasAnyAddressValue(address: Partial<UserAddress> | undefined) {
   return Object.values(normalizeAddress(address)).some(Boolean);
 }
 
+function hasOfficialProfileInput(input: {
+  cpf?: string;
+  phone?: string;
+  pixKey?: string;
+  address?: Partial<UserAddress>;
+}) {
+  return Boolean(
+    input.cpf?.trim() ||
+      input.phone?.trim() ||
+      input.pixKey?.trim() ||
+      hasAnyAddressValue(input.address),
+  );
+}
+
 function hasAddressChanged(
   currentAddress: Partial<UserAddress> | undefined,
   nextAddress: Partial<UserAddress> | undefined,
@@ -152,7 +166,7 @@ export async function updateUserProfile(db: Firestore, userId: string, body: unk
     }
     const currentPixKey = typeof privateData.pixKey === 'string' ? privateData.pixKey.trim() : '';
     const nextPixKey = typeof input.pixKey === 'string' ? normalizePixKey(input.pixKey) : '';
-    if (!currentPixKey && !nextPixKey) {
+    if (hasOfficialProfileInput(input) && !currentPixKey && !nextPixKey) {
       throw new ApiError(400, 'Chave Pix e obrigatoria para finalizar o perfil');
     }
 
