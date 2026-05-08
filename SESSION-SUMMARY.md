@@ -205,6 +205,7 @@
 - Mercado Pago local credential validation — done with `pnpm validate:mp`
 - Mercado Pago direct Orders API Pix validation — done with `pnpm validate:mp:order`
 - Firebase secrets/deployed webhook — done for `MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET`, and `onPaymentWebhook`
+- Production deploy workflow now deploys `functions:onPaymentWebhook` before App Hosting, so Mercado Pago secret rotations and webhook confirmation logic are applied by the GitHub Actions production job instead of depending on a separate manual function deploy.
 - Cloud Functions Node.js 22 runtime — done: all deployed functions are `v2` functions on Node.js 22. The obsolete `onUserCreate` `v1` Auth trigger was removed and replaced with the trusted web bootstrap route.
 - Local paid-route QA — done against `battle-paid-open`
 - Remaining external validation: real Mercado Pago sandbox-approved Pix payment and dashboard webhook event confirmation. Local emulator browser QA can use the test-only `Aprovar no teste` control to validate post-payment UX without polluting Mercado Pago/payment state.
