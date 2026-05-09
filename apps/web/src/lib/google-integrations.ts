@@ -1,4 +1,4 @@
-type GoogleEnv = {
+export type GoogleEnv = {
   NEXT_PUBLIC_GA_MEASUREMENT_ID?: string;
   NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT?: string;
   NEXT_PUBLIC_GOOGLE_ADSENSE_BOTTOM_SLOT?: string;

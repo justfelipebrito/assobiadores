@@ -1,0 +1,10 @@
+import type { GoogleEnv } from './google-integrations';
+
+export function getPublicGoogleEnv(): GoogleEnv {
+  return {
+    NEXT_PUBLIC_GA_MEASUREMENT_ID: process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID,
+    NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT: process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT,
+    NEXT_PUBLIC_GOOGLE_ADSENSE_BOTTOM_SLOT: process.env.NEXT_PUBLIC_GOOGLE_ADSENSE_BOTTOM_SLOT,
+    NEXT_PUBLIC_USE_FIREBASE_EMULATORS: process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS,
+  };
+}

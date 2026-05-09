@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { getGoogleAdsenseConfig } from '@/lib/google-integrations';
+import { getPublicGoogleEnv } from '@/lib/google-runtime-env';
 
 declare global {
   interface Window {
@@ -10,7 +11,7 @@ declare global {
 }
 
 export function BottomAdBanner() {
-  const config = getGoogleAdsenseConfig();
+  const config = getGoogleAdsenseConfig(getPublicGoogleEnv());
 
   useEffect(() => {
     if (!config) return;

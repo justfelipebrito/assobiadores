@@ -4,6 +4,7 @@ import { Suspense, useEffect } from 'react';
 import Script from 'next/script';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { buildPagePath, getGoogleAnalyticsConfig } from '@/lib/google-integrations';
+import { getPublicGoogleEnv } from '@/lib/google-runtime-env';
 
 declare global {
   interface Window {
@@ -31,7 +32,7 @@ function GoogleAnalyticsPageView({ measurementId }: { measurementId: string }) {
 }
 
 export function GoogleAnalytics() {
-  const config = getGoogleAnalyticsConfig();
+  const config = getGoogleAnalyticsConfig(getPublicGoogleEnv());
   if (!config) return null;
 
   return (
