@@ -47,6 +47,7 @@ import {
   QUALIFIER_VOTING_WINDOW_LABEL,
   sortQualifierTracksForDiscovery,
 } from '@/lib/qualifier-tracks';
+import { trackAuthCtaClick } from '@/lib/analytics-events';
 
 const TRACKS_PAGE_SIZE = 15;
 
@@ -409,10 +410,20 @@ export default function QualifiersPage() {
 
               {!user && !loading ? (
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <Link href="/entrar">
+                  <Link
+                    href="/entrar"
+                    onClick={() =>
+                      trackAuthCtaClick({ action: 'login', location: 'qualifiers_registration' })
+                    }
+                  >
                     <Button className="w-full">Entrar</Button>
                   </Link>
-                  <Link href="/cadastro">
+                  <Link
+                    href="/cadastro"
+                    onClick={() =>
+                      trackAuthCtaClick({ action: 'signup', location: 'qualifiers_registration' })
+                    }
+                  >
                     <Button variant="secondary" className="w-full">
                       Criar conta
                     </Button>

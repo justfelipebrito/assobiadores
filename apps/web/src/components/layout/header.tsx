@@ -9,6 +9,7 @@ import { formatRelativeTime } from '@batalha/utils';
 import type { Battle, Championship, QualifierTrack, User as AppUser } from '@batalha/types';
 import { getVersionedAvatarUrl } from '../../lib/avatar-url';
 import { getHeaderTickerItems } from '../../lib/header-ticker';
+import { trackAuthCtaClick } from '../../lib/analytics-events';
 import { MobileNav } from './mobile-nav';
 
 function EventTicker() {
@@ -152,12 +153,23 @@ export function Header() {
             ) : (
               <div className="hidden items-center gap-2 sm:flex">
                 <Link href="/entrar">
-                  <Button variant="ghost" size="sm">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => trackAuthCtaClick({ action: 'login', location: 'header_desktop' })}
+                  >
                     Entrar
                   </Button>
                 </Link>
                 <Link href="/cadastro">
-                  <Button size="sm">Criar conta</Button>
+                  <Button
+                    size="sm"
+                    onClick={() =>
+                      trackAuthCtaClick({ action: 'signup', location: 'header_desktop' })
+                    }
+                  >
+                    Criar conta
+                  </Button>
                 </Link>
               </div>
             )}

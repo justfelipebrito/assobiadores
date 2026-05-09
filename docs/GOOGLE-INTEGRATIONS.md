@@ -14,6 +14,13 @@ NEXT_PUBLIC_GA_MEASUREMENT_ID=G-5VF1RXJ1TW
 The app loads `gtag.js` once and sends page views on client-side navigation, including query-string
 changes.
 
+The app also tracks lightweight auth funnel events without sending personal data:
+
+| Event | Params | Meaning |
+| --- | --- | --- |
+| `auth_cta_click` | `auth_action`, `click_location` | User clicked an `Entrar` or `Criar conta` CTA before reaching/submitting auth. |
+| `auth_attempt` | `auth_action`, `method` | User attempted login/signup with `email`, `google`, or `apple`. |
+
 ## Google AdSense Site Review
 
 When the site is added in Google AdSense, set the publisher/client ID first:

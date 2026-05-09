@@ -64,6 +64,7 @@ import {
   getQualifierTracksForStates,
   QUALIFIER_REGISTRATION_DEADLINE_LABEL,
 } from '@/lib/qualifier-tracks';
+import { trackAuthCtaClick } from '@/lib/analytics-events';
 
 const STATUS_MAP: Record<
   string,
@@ -837,7 +838,10 @@ export default function HomePage() {
                 Crie sua conta gratis e participe de batalhas, campeonatos e muito mais.
               </p>
               <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:justify-center">
-                <Link href="/cadastro">
+                <Link
+                  href="/cadastro"
+                  onClick={() => trackAuthCtaClick({ action: 'signup', location: 'home_join_card' })}
+                >
                   <Button size="md" className="w-full sm:w-auto">
                     Criar conta gratis
                   </Button>

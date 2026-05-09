@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { X, User, LogOut, LogIn, UserPlus } from 'lucide-react';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { Avatar } from '@batalha/ui';
+import { trackAuthCtaClick } from '../../lib/analytics-events';
 
 interface MobileNavProps {
   open: boolean;
@@ -90,10 +91,24 @@ export function MobileNav({
               </button>
             ) : (
               <div className="space-y-1">
-                <NavLink href="/entrar" icon={<LogIn className="h-5 w-5" />} onClick={onClose}>
+                <NavLink
+                  href="/entrar"
+                  icon={<LogIn className="h-5 w-5" />}
+                  onClick={() => {
+                    trackAuthCtaClick({ action: 'login', location: 'mobile_nav' });
+                    onClose();
+                  }}
+                >
                   Entrar
                 </NavLink>
-                <NavLink href="/cadastro" icon={<UserPlus className="h-5 w-5" />} onClick={onClose}>
+                <NavLink
+                  href="/cadastro"
+                  icon={<UserPlus className="h-5 w-5" />}
+                  onClick={() => {
+                    trackAuthCtaClick({ action: 'signup', location: 'mobile_nav' });
+                    onClose();
+                  }}
+                >
                   Criar conta
                 </NavLink>
               </div>

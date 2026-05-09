@@ -1,5 +1,8 @@
+'use client';
+
 import Link from 'next/link';
 import { LEGAL_PAGES } from '@/lib/legal-pages';
+import { trackAuthCtaClick } from '@/lib/analytics-events';
 
 export function Footer() {
   return (
@@ -55,6 +58,7 @@ export function Footer() {
               <li>
                 <Link
                   href="/entrar"
+                  onClick={() => trackAuthCtaClick({ action: 'login', location: 'footer' })}
                   className="text-sm text-surface-500 transition-colors hover:text-white"
                 >
                   Entrar
@@ -63,6 +67,7 @@ export function Footer() {
               <li>
                 <Link
                   href="/cadastro"
+                  onClick={() => trackAuthCtaClick({ action: 'signup', location: 'footer' })}
                   className="text-sm text-surface-500 transition-colors hover:text-white"
                 >
                   Criar conta

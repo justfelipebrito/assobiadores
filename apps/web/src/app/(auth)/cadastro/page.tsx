@@ -7,6 +7,7 @@ import { Button, Input, Card, CardContent } from '@batalha/ui';
 import { useAuth } from '@batalha/firebase';
 import { BRAZIL_STATE_LABELS, type BrazilState } from '@batalha/types';
 import { Music, UserPlus } from 'lucide-react';
+import { trackAuthAttempt, trackAuthCtaClick } from '@/lib/analytics-events';
 
 const BRAZIL_STATES = Object.entries(BRAZIL_STATE_LABELS).map(([value, label]) => ({
   value: value as BrazilState,
@@ -64,6 +65,7 @@ export default function RegisterPage() {
   }, [router, user]);
 
   const handleSocialSignIn = async (provider: 'google' | 'apple') => {
+    trackAuthAttempt({ action: 'signup', method: provider });
     setLocalError(null);
     setAuthActionLoading(true);
     try {
@@ -80,6 +82,7 @@ export default function RegisterPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    trackAuthAttempt({ action: 'signup', method: 'email' });
     setLocalError(null);
     setAuthActionLoading(true);
 
@@ -266,6 +269,7 @@ export default function RegisterPage() {
           Ja tem uma conta?{' '}
           <Link
             href="/entrar"
+            onClick={() => trackAuthCtaClick({ action: 'login', location: 'signup_page' })}
             className="font-semibold text-brand-400 transition-colors hover:text-brand-300"
           >
             Entrar

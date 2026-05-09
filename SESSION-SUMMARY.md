@@ -791,6 +791,7 @@ Latest hardening/refactor:
   - added legal draft pages for `/termos-de-uso` and `/privacidade`, wired the footer Legal links to those routes, and covered the route/content contract with a focused unit test.
   - configured production GA4 for App Hosting with `NEXT_PUBLIC_GA_MEASUREMENT_ID=G-5VF1RXJ1TW`; Analytics should start receiving page views after the next App Hosting deploy.
   - fixed Google Analytics/AdSense runtime env loading for the Next client bundle: browser-facing Google integration components now pass explicit `NEXT_PUBLIC_*` env values through `getPublicGoogleEnv()` instead of relying on the whole `process.env` object, which can be empty/fragile in client bundles. Added regression coverage and the full web test suite passes.
+  - added GA4 auth-funnel events: `auth_cta_click` for visible `Entrar`/`Criar conta` CTA clicks and `auth_attempt` for email/Google/Apple login/signup attempts. Events include only action/method/location metadata and no personal data.
 
 Security/test work to do before expanding features:
 

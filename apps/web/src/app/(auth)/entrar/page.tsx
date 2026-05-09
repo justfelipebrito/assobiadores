@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Button, Input, Card, CardContent } from '@batalha/ui';
 import { useAuth } from '@batalha/firebase';
 import { Music, Mail } from 'lucide-react';
+import { trackAuthAttempt, trackAuthCtaClick } from '@/lib/analytics-events';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -57,6 +58,7 @@ export default function LoginPage() {
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    trackAuthAttempt({ action: 'login', method: 'email' });
     setLocalError(null);
     setAuthActionLoading(true);
     try {
@@ -72,6 +74,7 @@ export default function LoginPage() {
   };
 
   const handleSocialSignIn = async (provider: 'google' | 'apple') => {
+    trackAuthAttempt({ action: 'login', method: provider });
     setLocalError(null);
     setAuthActionLoading(true);
     try {
@@ -200,6 +203,7 @@ export default function LoginPage() {
           Nao tem uma conta?{' '}
           <Link
             href="/cadastro"
+            onClick={() => trackAuthCtaClick({ action: 'signup', location: 'login_page' })}
             className="font-semibold text-brand-400 transition-colors hover:text-brand-300"
           >
             Cadastre-se gratis
