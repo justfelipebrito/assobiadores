@@ -18,7 +18,7 @@ import {
   Vote,
   X,
 } from 'lucide-react';
-import { orderBy, useAuth, useCollection, useDocument, where } from '@batalha/firebase';
+import { useAuth, useCollection, useDocument, where } from '@batalha/firebase';
 import { Badge, Button, Card, CardContent, EmptyState, Input, Skeleton } from '@batalha/ui';
 import { formatCurrency, formatDateTime, formatRelativeTime, toDate } from '@batalha/utils';
 import type { Battle, BattleEntry, Payment, Submission, Vote as BattleVote } from '@batalha/types';
@@ -32,6 +32,7 @@ import {
   getBattleSubmissionResultBreakdown,
   sortBattleEntriesByCreatedAt,
   sortBattleEntriesForDisplay,
+  sortBattleSubmissionsByVoteCount,
 } from '@/lib/battle-detail-view';
 import {
   getBattleSubmissionVoteState,
@@ -134,7 +135,6 @@ export default function BattleDetailPage({ params }: { params: { battleId: strin
     [
       where('battleId', '==', params.battleId),
       where('status', '==', 'approved'),
-      orderBy('voteCount', 'desc'),
     ],
   );
   const { data: approvedPayments } = useCollection<Payment>(
@@ -160,7 +160,9 @@ export default function BattleDetailPage({ params }: { params: { battleId: strin
   );
   const submissionsByUserId = useMemo(() => {
     const map = new Map<string, Submission>();
-    submissions.forEach((submission) => map.set(submission.userId, submission));
+    sortBattleSubmissionsByVoteCount(submissions).forEach((submission) =>
+      map.set(submission.userId, submission),
+    );
     return map;
   }, [submissions]);
   const displayEntries = useMemo(

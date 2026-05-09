@@ -115,7 +115,7 @@ export async function createSubmission(
     .get();
 
   if (!existingSubmission.empty) {
-    throw new ApiError(409, 'Voce ja enviou um video para esta batalha');
+    throw new ApiError(409, 'Voce ja enviou um audio para esta batalha');
   }
 
   const userDoc = await db.collection('users').doc(userId).get();

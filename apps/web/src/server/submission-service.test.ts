@@ -212,7 +212,7 @@ describe('createSubmission', () => {
         ...audioInput,
         now: beforeSubmissionDeadline,
       }),
-    ).rejects.toMatchObject({ status: 409 });
+    ).rejects.toMatchObject({ status: 409, message: 'Voce ja enviou um audio para esta batalha' });
   });
 });
 

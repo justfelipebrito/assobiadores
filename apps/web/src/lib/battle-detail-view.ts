@@ -76,6 +76,10 @@ export function sortBattleEntriesByCreatedAt(entries: BattleEntry[]) {
   );
 }
 
+export function sortBattleSubmissionsByVoteCount(submissions: Submission[]) {
+  return [...submissions].sort((a, b) => b.voteCount - a.voteCount);
+}
+
 type BattleWinnerSummary = Pick<Battle['winners'][number], 'userId' | 'place'>;
 type SubmissionResultFields = Pick<Submission, 'voteCount'> & {
   publicVoteCount?: number | null;

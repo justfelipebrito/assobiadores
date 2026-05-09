@@ -5,6 +5,7 @@ import {
   getBattleScheduleItems,
   getBattleSubmissionResultBreakdown,
   sortBattleEntriesByCreatedAt,
+  sortBattleSubmissionsByVoteCount,
   sortBattleSubmissionsForResult,
   sortBattleEntriesForDisplay,
 } from './battle-detail-view';
@@ -125,6 +126,20 @@ describe('battle detail view helpers', () => {
       'entry-1',
       'entry-2',
       'entry-3',
+    ]);
+  });
+
+  it('orders battle submissions by vote count in memory so Firestore does not need a composite ordered query', () => {
+    const submissions = [
+      { id: 'sub-1', voteCount: 1 },
+      { id: 'sub-3', voteCount: 3 },
+      { id: 'sub-2', voteCount: 2 },
+    ] as never[];
+
+    expect(sortBattleSubmissionsByVoteCount(submissions).map((submission) => submission.id)).toEqual([
+      'sub-3',
+      'sub-2',
+      'sub-1',
     ]);
   });
 
