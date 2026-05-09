@@ -1,7 +1,7 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
-import { Pause, Play } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Loader2, Pause, Play } from 'lucide-react';
 import { Badge } from '@batalha/ui';
 import { COMPETITION_CATEGORY_LABELS, type CompetitionCategory } from '@batalha/types';
 
@@ -42,11 +42,22 @@ export function AudioHighlightPlayer({
 }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [playbackError, setPlaybackError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [loadedDuration, setLoadedDuration] = useState(durationSeconds ?? 0);
   const wave = useMemo(() => buildWave(`${src}-${username}`), [src, username]);
   const duration = loadedDuration || durationSeconds || 0;
   const progress = duration > 0 ? Math.min(1, currentTime / duration) : 0;
+
+  useEffect(() => {
+    setPlaying(false);
+    setLoading(false);
+    setPlaybackError(null);
+    setCurrentTime(0);
+    setLoadedDuration(durationSeconds ?? 0);
+    audioRef.current?.load();
+  }, [durationSeconds, src]);
 
   async function togglePlayback() {
     const audio = audioRef.current;
@@ -54,14 +65,23 @@ export function AudioHighlightPlayer({
 
     if (audio.paused) {
       try {
+        setPlaybackError(null);
+        setLoading(true);
+        if (audio.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+          audio.load();
+        }
         await audio.play();
         setPlaying(true);
-      } catch {
+      } catch (error) {
+        console.error('Audio playback failed', error);
         setPlaying(false);
+        setLoading(false);
+        setPlaybackError('Nao foi possivel tocar este audio. Tente novamente.');
       }
     } else {
       audio.pause();
       setPlaying(false);
+      setLoading(false);
     }
   }
 
@@ -75,9 +95,27 @@ export function AudioHighlightPlayer({
         ref={audioRef}
         src={src}
         preload="metadata"
-        onLoadedMetadata={(event) => setLoadedDuration(event.currentTarget.duration)}
+        onLoadedMetadata={(event) => {
+          setLoadedDuration(event.currentTarget.duration);
+          setLoading(false);
+        }}
+        onCanPlay={() => setLoading(false)}
+        onWaiting={() => setLoading(true)}
+        onPlaying={() => {
+          setLoading(false);
+          setPlaying(true);
+        }}
         onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
-        onEnded={() => setPlaying(false)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => {
+          setPlaying(false);
+          setLoading(false);
+        }}
+        onError={() => {
+          setPlaying(false);
+          setLoading(false);
+          setPlaybackError('Nao foi possivel carregar este audio.');
+        }}
       />
 
       {resultLabel && (
@@ -112,7 +150,13 @@ export function AudioHighlightPlayer({
           }`}
           aria-label={playing ? 'Pausar audio' : 'Tocar audio'}
         >
-          {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+          {loading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : playing ? (
+            <Pause className="h-4 w-4" />
+          ) : (
+            <Play className="h-4 w-4" />
+          )}
         </button>
 
         <div
@@ -138,6 +182,7 @@ export function AudioHighlightPlayer({
       <p className="text-xs tabular-nums text-surface-400">
         {formatTime(currentTime)} / {formatTime(duration)}
       </p>
+      {playbackError && <p className="text-xs text-red-300">{playbackError}</p>}
     </div>
   );
 }

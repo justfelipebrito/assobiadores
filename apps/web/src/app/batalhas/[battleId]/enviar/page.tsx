@@ -12,11 +12,13 @@ import {
 } from '@batalha/types';
 import { toast } from 'sonner';
 import { AudioHighlightPlayer } from '../../../../components/media/audio-highlight-player';
-
-function getRecorderMimeType() {
-  const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4'];
-  return candidates.find((candidate) => MediaRecorder.isTypeSupported(candidate)) ?? '';
-}
+import {
+  AUDIO_RECORDING_TIMESLICE_MS,
+  createAudioMediaRecorder,
+  createRecordedAudioBlob,
+  getRecordedAudioFileName,
+  getRecordingAudioStream,
+} from '../../../../lib/audio-recording';
 
 function formatTime(seconds: number) {
   const safe = Math.max(0, Math.floor(seconds));
@@ -82,9 +84,13 @@ export default function SubmitBattleAudioPage({ params }: { params: { battleId: 
         throw new Error('Gravacao de audio nao suportada neste navegador.');
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mimeType = getRecorderMimeType();
-      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      const stream = await getRecordingAudioStream(navigator.mediaDevices);
+      const recorder = createAudioMediaRecorder({
+        stream,
+        mediaRecorder: MediaRecorder,
+        isTypeSupported: MediaRecorder.isTypeSupported.bind(MediaRecorder),
+        userAgent: navigator.userAgent,
+      });
       streamRef.current = stream;
       recorderRef.current = recorder;
       chunksRef.current = [];
@@ -94,7 +100,7 @@ export default function SubmitBattleAudioPage({ params }: { params: { battleId: 
         if (event.data.size > 0) chunksRef.current.push(event.data);
       };
       recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'audio/webm' });
+        const blob = createRecordedAudioBlob(chunksRef.current, recorder.mimeType);
         setAudioBlob(blob);
         setDurationSeconds(Math.max(1, Math.round((Date.now() - startedAtRef.current) / 1000)));
         setRecordingSeconds(0);
@@ -102,7 +108,7 @@ export default function SubmitBattleAudioPage({ params }: { params: { battleId: 
         cleanupStream();
       };
 
-      recorder.start();
+      recorder.start(AUDIO_RECORDING_TIMESLICE_MS);
       setRecording(true);
       stopTimerRef.current = window.setTimeout(
         stopRecording,
@@ -139,7 +145,7 @@ export default function SubmitBattleAudioPage({ params }: { params: { battleId: 
       const token = await user.getIdToken();
       const formData = new FormData();
       formData.append('battleId', params.battleId);
-      formData.append('audio', audioBlob, 'assobio.webm');
+      formData.append('audio', audioBlob, getRecordedAudioFileName(audioBlob.type));
       formData.append('category', battle.category);
       formData.append('durationSeconds', String(durationSeconds));
 

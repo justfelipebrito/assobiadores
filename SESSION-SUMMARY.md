@@ -792,6 +792,7 @@ Latest hardening/refactor:
   - configured production GA4 for App Hosting with `NEXT_PUBLIC_GA_MEASUREMENT_ID=G-5VF1RXJ1TW`; Analytics should start receiving page views after the next App Hosting deploy.
   - fixed Google Analytics/AdSense runtime env loading for the Next client bundle: browser-facing Google integration components now pass explicit `NEXT_PUBLIC_*` env values through `getPublicGoogleEnv()` instead of relying on the whole `process.env` object, which can be empty/fragile in client bundles. Added regression coverage and the full web test suite passes.
   - added GA4 auth-funnel events: `auth_cta_click` for visible `Entrar`/`Criar conta` CTA clicks and `auth_attempt` for email/Google/Apple login/signup attempts. Events include only action/method/location metadata and no personal data.
+  - improved mobile audio recording and preview reliability across Daily Highlights, Battles, and Qualifiers: recording settings are now centralized, Apple/mobile browsers prefer MP4-compatible recording when supported, upload filenames match the real recorded MIME type, microphone capture requests avoid voice-call processing that can damage whistle quality, recordings flush in 1-second chunks, and the shared audio player now shows loading/error feedback instead of failing silently. Added focused recorder-helper coverage.
 
 Security/test work to do before expanding features:
 
