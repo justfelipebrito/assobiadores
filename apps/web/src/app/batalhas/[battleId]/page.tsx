@@ -25,6 +25,7 @@ import type { Battle, BattleEntry, Payment, Submission, Vote as BattleVote } fro
 import { PixPayment } from '@/components/payments/pix-payment';
 import { MediaPreview } from '@/components/media/media-preview';
 import { SubmitBattleAudioModal } from '@/components/battles/submit-battle-audio-modal';
+import { useBodyScrollLock } from '@/lib/use-body-scroll-lock';
 import {
   canSubmitBattleEntry,
   getBattleRuleCards,
@@ -125,6 +126,7 @@ export default function BattleDetailPage({ params }: { params: { battleId: strin
     pixCopiaECola: string;
     expiresAt: string;
   } | null>(null);
+  useBodyScrollLock(Boolean(payment) || Boolean(pendingVote));
 
   const { data: battle, loading: battleLoading } = useDocument<Battle>('battles', params.battleId);
   const { data: entries, loading: entriesLoading } = useCollection<BattleEntry>('battleEntries', [
@@ -649,7 +651,7 @@ export default function BattleDetailPage({ params }: { params: { battleId: strin
       </section>
 
       {payment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/70 px-3 py-3 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6">
           <div className="w-full max-w-md">
             <PixPayment
               title={battle.title}
@@ -687,8 +689,8 @@ export default function BattleDetailPage({ params }: { params: { battleId: strin
       />
 
       {pendingVote && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-surface-950 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/70 px-3 py-3 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6">
+          <div className="max-h-[calc(100dvh-1.5rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-white/10 bg-surface-950 shadow-2xl">
             <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
               <div>
                 <h2 className="text-lg font-semibold text-white">Confirmar voto</h2>

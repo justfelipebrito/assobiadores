@@ -319,21 +319,21 @@ export default function HomePage() {
     <>
       <section className="border-b border-white/5 bg-surface-950">
         <div className="mx-auto max-w-6xl px-4 py-8">
-          <div className="mb-5 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500/10 text-brand-400">
+          <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="mt-1 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-brand-500/10 text-brand-400 sm:h-10 sm:w-10">
                 <Flame className="h-5 w-5" />
               </div>
-              <div>
-                <h1 className="text-2xl font-bold text-white">
+              <div className="min-w-0">
+                <h1 className="text-xl font-bold leading-tight text-white sm:text-2xl">
                   Destaques Diários - {dailyHighlightDayLabel}
                 </h1>
-                <p className="text-sm text-surface-500">
+                <p className="mt-1 max-w-xl text-sm leading-5 text-surface-500">
                   Escolhidos e premiados pelos votos da comunidade, envie o seu e concorra!
                 </p>
               </div>
             </div>
-            <div className="flex flex-shrink-0 items-center gap-2">
+            <div className="flex flex-shrink-0 items-center gap-2 pl-12 sm:pl-0">
               <SubmitDailyHighlightButton
                 isAuthenticated={Boolean(user)}
                 hasSubmittedToday={hasSubmittedDailyHighlightToday}

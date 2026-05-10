@@ -17,6 +17,7 @@ import {
   getRecordedAudioFileName,
   getRecordingAudioStream,
 } from '@/lib/audio-recording';
+import { useBodyScrollLock } from '@/lib/use-body-scroll-lock';
 
 interface SubmitQualifierMatchModalProps {
   open: boolean;
@@ -42,6 +43,7 @@ export function SubmitQualifierMatchModal({
   onClose,
   onSubmitted,
 }: SubmitQualifierMatchModalProps) {
+  useBodyScrollLock(open);
   const { user } = useAuth();
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -200,8 +202,8 @@ export function SubmitQualifierMatchModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
-      <div className="w-full max-w-xl rounded-2xl border border-white/10 bg-surface-950 shadow-elevated">
+    <div className="fixed inset-0 z-[120] flex items-end justify-center overflow-y-auto bg-black/70 px-3 py-3 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6">
+      <div className="max-h-[calc(100dvh-1.5rem)] w-full max-w-xl overflow-y-auto rounded-2xl border border-white/10 bg-surface-950 shadow-elevated">
         <div className="flex items-center justify-between border-b border-white/5 px-5 py-4">
           <div>
             <h2 className="font-bold text-white">Enviar assobio</h2>
@@ -218,7 +220,7 @@ export function SubmitQualifierMatchModal({
           </button>
         </div>
 
-        <div className="space-y-4 p-5">
+        <div className="space-y-4 p-4 sm:p-5">
           {previewUrl ? (
             <AudioHighlightPlayer
               src={previewUrl}
@@ -227,7 +229,7 @@ export function SubmitQualifierMatchModal({
               durationSeconds={durationSeconds}
             />
           ) : (
-            <div className="flex aspect-video flex-col items-center justify-center rounded-xl border border-white/10 bg-surface-900 p-5 text-center">
+            <div className="flex min-h-[240px] flex-col items-center justify-center rounded-xl border border-white/10 bg-surface-900 p-5 text-center sm:aspect-video sm:min-h-0">
               <div
                 className={`flex h-14 w-14 items-center justify-center rounded-full ${
                   recording ? 'bg-red-500/15 text-red-300' : 'bg-brand-500/10 text-brand-400'

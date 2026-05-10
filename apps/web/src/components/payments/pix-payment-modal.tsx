@@ -1,6 +1,7 @@
 'use client';
 
 import { X } from 'lucide-react';
+import { useBodyScrollLock } from '@/lib/use-body-scroll-lock';
 import { PixPayment } from './pix-payment';
 
 interface PixPaymentModalProps {
@@ -42,10 +43,12 @@ export function PixPaymentModal({
   allowTestApproval,
   onApproved,
 }: PixPaymentModalProps) {
+  useBodyScrollLock(open);
+
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[120] flex items-end justify-center overflow-y-auto bg-black/70 px-3 py-3 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6">
       <div className="relative max-h-full w-full max-w-md overflow-y-auto">
         <button
           type="button"

@@ -5,6 +5,7 @@ import { X } from 'lucide-react';
 import { useAuth } from '@batalha/firebase';
 import { Button } from '@batalha/ui';
 import { type DailyHighlight } from '@batalha/types';
+import { useBodyScrollLock } from '@/lib/use-body-scroll-lock';
 
 interface LikeDailyHighlightModalProps {
   dailyHighlight: DailyHighlight | null;
@@ -12,6 +13,7 @@ interface LikeDailyHighlightModalProps {
 }
 
 export function LikeDailyHighlightModal({ dailyHighlight, onClose }: LikeDailyHighlightModalProps) {
+  useBodyScrollLock(Boolean(dailyHighlight));
   const { user } = useAuth();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,8 +53,8 @@ export function LikeDailyHighlightModal({ dailyHighlight, onClose }: LikeDailyHi
   }
 
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
-      <div className="w-full max-w-xl rounded-2xl border border-white/10 bg-surface-950 shadow-elevated">
+    <div className="fixed inset-0 z-[120] flex items-end justify-center overflow-y-auto bg-black/70 px-3 py-3 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6">
+      <div className="max-h-[calc(100dvh-1.5rem)] w-full max-w-xl overflow-y-auto rounded-2xl border border-white/10 bg-surface-950 shadow-elevated">
         <div className="flex items-center justify-between border-b border-white/5 px-5 py-4">
           <div>
             <h2 className="font-bold text-white">Votar</h2>

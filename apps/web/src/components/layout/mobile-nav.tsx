@@ -1,10 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { X, User, LogOut, LogIn, UserPlus } from 'lucide-react';
+import { X, LogOut, LogIn, UserPlus } from 'lucide-react';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { Avatar } from '@batalha/ui';
 import { trackAuthCtaClick } from '../../lib/analytics-events';
+import { getMobileNavigationItems } from '../../lib/mobile-navigation';
+import { useBodyScrollLock } from '../../lib/use-body-scroll-lock';
 
 interface MobileNavProps {
   open: boolean;
@@ -23,7 +25,10 @@ export function MobileNav({
   displayName,
   onSignOut,
 }: MobileNavProps) {
+  useBodyScrollLock(open);
+
   if (!open) return null;
+  const navItems = getMobileNavigationItems(Boolean(user));
 
   return (
     <div className="fixed inset-0 z-[100] md:hidden">
@@ -31,17 +36,17 @@ export function MobileNav({
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
       {/* Panel */}
-      <div className="absolute bottom-0 left-0 right-0 top-0 w-[280px] animate-slide-in-left border-r border-white/5 bg-surface-950">
+      <div className="absolute bottom-0 right-0 top-0 w-[min(320px,86vw)] animate-slide-in-right border-l border-white/5 bg-surface-950">
         <div className="flex h-full flex-col">
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-white/5 px-4 py-4">
+          <div className="flex items-center justify-between border-b border-white/5 px-4 py-3">
             <div className="flex items-center gap-2.5">
               <img
                 src="/logo.png"
                 alt="A casa do assobiador"
                 className="h-9 w-9 rounded-xl object-contain"
               />
-              <span className="text-lg font-bold text-white">assobiador.com</span>
+              <span className="text-base font-bold text-white">assobiador.com</span>
             </div>
             <button
               onClick={onClose}
@@ -54,9 +59,9 @@ export function MobileNav({
 
           {/* User section */}
           {user && (
-            <div className="border-b border-white/5 px-4 py-4">
+            <div className="border-b border-white/5 px-4 py-3">
               <div className="flex items-center gap-3">
-                <Avatar src={avatarSrc} name={displayName} size="md" ring />
+                <Avatar src={avatarSrc} name={displayName} size="sm" ring />
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-white">{displayName}</p>
                   <p className="truncate text-xs text-surface-500">{user.email}</p>
@@ -66,13 +71,22 @@ export function MobileNav({
           )}
 
           {/* Navigation */}
-          <nav className="flex-1 px-3 py-4">
+          <nav className="flex-1 overflow-y-auto px-3 py-3">
             <div className="space-y-1">
-              {user && (
-                <NavLink href="/conta" icon={<User className="h-5 w-5" />} onClick={onClose}>
-                  Minha Conta
-                </NavLink>
-              )}
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <NavLink
+                    key={item.href}
+                    href={item.href}
+                    icon={<Icon className="h-5 w-5" />}
+                    onClick={onClose}
+                    emphasis={item.emphasis}
+                  >
+                    {item.label}
+                  </NavLink>
+                );
+              })}
             </div>
           </nav>
 
@@ -125,17 +139,23 @@ function NavLink({
   icon,
   children,
   onClick,
+  emphasis,
 }: {
   href: string;
   icon: React.ReactNode;
   children: React.ReactNode;
   onClick?: () => void;
+  emphasis?: 'primary';
 }) {
   return (
     <Link
       href={href}
       onClick={onClick}
-      className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-surface-300 transition-colors hover:bg-white/5 hover:text-white"
+      className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-colors ${
+        emphasis === 'primary'
+          ? 'border border-brand-500/30 bg-brand-500/10 text-brand-300 hover:bg-brand-500/20 hover:text-white'
+          : 'text-surface-300 hover:bg-white/5 hover:text-white'
+      }`}
     >
       {icon}
       {children}
