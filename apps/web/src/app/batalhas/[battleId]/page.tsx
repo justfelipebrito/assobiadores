@@ -23,9 +23,11 @@ import { Badge, Button, Card, CardContent, EmptyState, Input, Skeleton } from '@
 import { formatCurrency, formatDateTime, formatRelativeTime, toDate } from '@batalha/utils';
 import type { Battle, BattleEntry, Payment, Submission, Vote as BattleVote } from '@batalha/types';
 import { PixPayment } from '@/components/payments/pix-payment';
+import { MercadoPagoSecurityScript } from '@/components/payments/mercado-pago-security-script';
 import { MediaPreview } from '@/components/media/media-preview';
 import { SubmitBattleAudioModal } from '@/components/battles/submit-battle-audio-modal';
 import { useBodyScrollLock } from '@/lib/use-body-scroll-lock';
+import { getMercadoPagoDeviceSessionId } from '@/lib/mercado-pago-device';
 import {
   canSubmitBattleEntry,
   getBattleRuleCards,
@@ -267,7 +269,10 @@ export default function BattleDetailPage({ params }: { params: { battleId: strin
       const res = await fetch(isPaid ? '/api/payments/create' : '/api/battle-entries/free', {
         method: 'POST',
         headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
-        body: JSON.stringify({ battleId: currentBattle.id }),
+        body: JSON.stringify({
+          battleId: currentBattle.id,
+          ...(isPaid ? { deviceSessionId: getMercadoPagoDeviceSessionId() } : {}),
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Nao foi possivel participar');
@@ -345,6 +350,7 @@ export default function BattleDetailPage({ params }: { params: { battleId: strin
 
   return (
     <div className="mx-auto max-w-5xl px-4 pb-8 pt-10">
+      {isPaid ? <MercadoPagoSecurityScript /> : null}
       <Link
         href="/batalhas"
         className="mb-6 inline-flex items-center gap-2 text-sm text-surface-400 transition-colors hover:text-white"

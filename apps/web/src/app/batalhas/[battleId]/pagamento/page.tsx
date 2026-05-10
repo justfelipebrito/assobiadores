@@ -9,6 +9,8 @@ import { Badge, Button, Card, CardContent, EmptyState, Skeleton } from '@batalha
 import { formatCurrency } from '@batalha/utils';
 import type { Battle } from '@batalha/types';
 import { PixPayment } from '../../../../components/payments/pix-payment';
+import { MercadoPagoSecurityScript } from '../../../../components/payments/mercado-pago-security-script';
+import { getMercadoPagoDeviceSessionId } from '../../../../lib/mercado-pago-device';
 
 interface PaymentResponse {
   paymentId: string;
@@ -47,7 +49,10 @@ export default function BattlePaymentPage({ params }: { params: { battleId: stri
             'content-type': 'application/json',
             authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ battleId: params.battleId }),
+          body: JSON.stringify({
+            battleId: params.battleId,
+            deviceSessionId: getMercadoPagoDeviceSessionId(),
+          }),
         });
         const data = await res.json();
 
@@ -160,6 +165,7 @@ export default function BattlePaymentPage({ params }: { params: { battleId: stri
 
   return (
     <div className="mx-auto max-w-lg px-4 py-8">
+      <MercadoPagoSecurityScript />
       <Link href={`/batalhas/${params.battleId}/participar`} className="mb-6 inline-flex items-center gap-2 text-sm text-surface-400 transition-colors hover:text-white">
         <ArrowLeft className="h-4 w-4" />
         Voltar

@@ -128,6 +128,13 @@ As of 2026-05-02:
 - A Mercado Pago sandbox seller/buyer test user pair has been created. Their passwords are intentionally not stored in this repository.
 - An authenticated `users/me` check against Mercado Pago succeeds when local credentials are present.
 - The app payment route now creates Pix payments through Mercado Pago Orders API, with idempotency and a 30-minute `expiration_time`.
+- Orders API Pix creation now sends approval-rate metadata required/recommended by Mercado Pago:
+  product item data with `items.quantity` and `items.unit_price`, a payment-method
+  `statement_descriptor`, and the optional `X-meli-session-id` Device ID header when Mercado Pago's
+  browser security script provides a safe session id.
+- Mercado Pago limits `items.external_code` to 30 characters. The app shortens long internal battle
+  or classificatória identifiers with a deterministic hash suffix before sending the Orders API
+  request.
 - The app payment status route can poll Mercado Pago Orders API and confirm the pending entry when the order is approved.
 - The Orders API credential is considered valid for browser QA only when `pnpm validate:mp:order` returns QR and copia-e-cola data. Do not rely on token prefix alone.
 - Added `MP_SANDBOX_AUTO_APPROVE=true` support for local/sandbox QA. With that flag, payment creation uses Mercado Pago's sandbox auto-approval payer values (`test@testuser.com` + `APRO`) while keeping production behavior unchanged.

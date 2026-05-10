@@ -96,12 +96,25 @@ async function main() {
       total_amount: amount,
       external_reference: idempotencyKey,
       processing_mode: 'automatic',
+      items: [
+        {
+          title: 'Classificatoria SP Freestyle',
+          description: 'Inscricao em classificatoria oficial Assobiador',
+          quantity: 1,
+          unit_price: amount,
+          external_code: 'validate-classificatoria-sp',
+        },
+      ],
       payer: { email: `test_user_${Date.now()}@testuser.com` },
       transactions: {
         payments: [
           {
             amount,
-            payment_method: { id: 'pix', type: 'bank_transfer' },
+            payment_method: {
+              id: 'pix',
+              type: 'bank_transfer',
+              statement_descriptor: 'ASSOBIADOR',
+            },
             expiration_time: 'PT30M',
           },
         ],
@@ -119,6 +132,7 @@ async function main() {
       createPixOrder: {
         ok: orderOk,
         status: order.status,
+        ...(orderOk ? {} : { responseBody: order.body }),
         hasOrderId: Boolean(order.body.id),
         hasPaymentId: Boolean(payment?.id),
         mercadoPagoStatus: order.body.status || null,

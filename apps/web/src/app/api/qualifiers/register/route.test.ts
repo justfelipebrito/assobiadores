@@ -147,7 +147,7 @@ describe('POST /api/qualifiers/register', () => {
     const { db, batch, registrationRef, paymentRef, registrationQuery } = createDb();
     getAdminFirestore.mockReturnValue(db);
 
-    const res = await post();
+    const res = await post({ category: 'freestyle', deviceSessionId: 'device-123456' });
 
     await expect(res.json()).resolves.toMatchObject({
       paymentId: paymentRef.id,
@@ -165,6 +165,7 @@ describe('POST /api/qualifiers/register', () => {
         headers: expect.objectContaining({
           authorization: 'Bearer test-token',
           'x-idempotency-key': expect.stringMatching(/^user-1_qualifier_season-2026_sp_freestyle_/),
+          'x-meli-session-id': 'device-123456',
         }),
       }),
     );
@@ -175,6 +176,24 @@ describe('POST /api/qualifiers/register', () => {
     expect(idempotencyKey.length).toBeLessThanOrEqual(64);
     expect(JSON.parse(String(requestInit.body))).toMatchObject({
       external_reference: idempotencyKey,
+      items: [
+        {
+          title: 'Classificatoria SP freestyle 2026',
+          description: 'Inscricao em classificatoria oficial Assobiador',
+          quantity: 1,
+          unit_price: '4.00',
+          external_code: 'qualifier-season-2026_959069e3',
+        },
+      ],
+      transactions: {
+        payments: [
+          {
+            payment_method: {
+              statement_descriptor: 'ASSOBIADOR',
+            },
+          },
+        ],
+      },
     });
     expect(batch.set).toHaveBeenCalledWith(
       registrationRef,

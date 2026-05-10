@@ -46,6 +46,7 @@ export async function POST(req: NextRequest) {
     const decodedToken = await requireDecodedToken(req);
     const userId = decodedToken.uid;
     const body = await readJsonObject(req);
+    const deviceSessionId = body.deviceSessionId;
 
     const categoryResult = competitionCategorySchema.safeParse(body.category);
 
@@ -138,6 +139,14 @@ export async function POST(req: NextRequest) {
       amountInCents: QUALIFIER_ENTRY_FEE_CENTS,
       payerEmail: userEmail,
       idempotencyKey,
+      deviceSessionId,
+      item: {
+        id: `qualifier-${QUALIFIER_SEASON_ID}-${region}-${category}`,
+        title: `Classificatoria ${region.toUpperCase()} ${category} ${QUALIFIER_SEASON_YEAR}`,
+        description: 'Inscricao em classificatoria oficial Assobiador',
+        quantity: 1,
+        unitPriceInCents: QUALIFIER_ENTRY_FEE_CENTS,
+      },
     });
 
     const batch = db.batch();

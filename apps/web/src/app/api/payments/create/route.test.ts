@@ -160,7 +160,7 @@ describe('POST /api/payments/create', () => {
     const { db, batch, entryRef, paymentRef } = createDb({ battle: paidBattle });
     getAdminFirestore.mockReturnValue(db);
 
-    const res = await post();
+    const res = await post({ battleId: 'battle-1', deviceSessionId: 'device-123456' });
 
     await expect(res.json()).resolves.toMatchObject({
       paymentId: paymentRef.id,
@@ -176,6 +176,7 @@ describe('POST /api/payments/create', () => {
         headers: expect.objectContaining({
           authorization: 'Bearer test-token',
           'x-idempotency-key': expect.stringMatching(/^user-1_battle_battle-1_/),
+          'x-meli-session-id': 'device-123456',
         }),
         body: expect.any(String),
       }),
@@ -190,12 +191,25 @@ describe('POST /api/payments/create', () => {
       total_amount: '5.00',
       processing_mode: 'automatic',
       external_reference: idempotencyKey,
+      items: [
+        {
+          title: 'Entrada - Batalha paga',
+          description: 'Inscricao em batalha de assobio',
+          quantity: 1,
+          unit_price: '5.00',
+          external_code: 'battle-battle-1',
+        },
+      ],
       payer: { email: 'user@example.com' },
       transactions: {
         payments: [
           {
             amount: '5.00',
-            payment_method: { id: 'pix', type: 'bank_transfer' },
+            payment_method: {
+              id: 'pix',
+              type: 'bank_transfer',
+              statement_descriptor: 'ASSOBIADOR',
+            },
             expiration_time: 'PT30M',
           },
         ],

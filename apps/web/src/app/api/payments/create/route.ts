@@ -30,6 +30,7 @@ export async function POST(req: NextRequest) {
 
     const body = await readJsonObject(req);
     const { battleId } = body;
+    const deviceSessionId = body.deviceSessionId;
 
     if (typeof battleId !== 'string' || !battleId) {
       throw new ApiError(400, 'battleId e obrigatorio');
@@ -140,6 +141,14 @@ export async function POST(req: NextRequest) {
       amountInCents: battle.entryFee,
       payerEmail: userEmail,
       idempotencyKey,
+      deviceSessionId,
+      item: {
+        id: `battle-${battleId}`,
+        title: `Entrada - ${battle.title ?? 'Batalha'}`,
+        description: 'Inscricao em batalha de assobio',
+        quantity: 1,
+        unitPriceInCents: battle.entryFee,
+      },
     });
 
     // Create payment document

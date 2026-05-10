@@ -27,10 +27,12 @@ import { Badge, Button, Card, CardContent } from '@batalha/ui';
 import { formatCurrency } from '@batalha/utils';
 import { toast } from 'sonner';
 import { PixPaymentModal } from '@/components/payments/pix-payment-modal';
+import { MercadoPagoSecurityScript } from '@/components/payments/mercado-pago-security-script';
 import {
   getQualifierRegistrationStateCopy,
   isActiveQualifierRegistration,
 } from '@/lib/qualifier-view';
+import { getMercadoPagoDeviceSessionId } from '@/lib/mercado-pago-device';
 import {
   DEFAULT_PUBLIC_QUALIFIER_STATES,
   getAllQualifierTracks,
@@ -201,7 +203,7 @@ export default function QualifiersPage() {
           'content-type': 'application/json',
           authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ category }),
+        body: JSON.stringify({ category, deviceSessionId: getMercadoPagoDeviceSessionId() }),
       });
       const data = await res.json();
 
@@ -221,6 +223,7 @@ export default function QualifiersPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
+      <MercadoPagoSecurityScript />
       <Link
         href="/"
         className="mb-6 inline-flex items-center gap-2 text-sm text-surface-400 transition-colors hover:text-white"

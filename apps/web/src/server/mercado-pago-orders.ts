@@ -1,6 +1,17 @@
 import { createHash } from 'crypto';
+import { sanitizeMercadoPagoDeviceSessionId } from '../lib/mercado-pago-device';
 
 export const MERCADO_PAGO_REFERENCE_MAX_LENGTH = 64;
+export const MERCADO_PAGO_ITEM_EXTERNAL_CODE_MAX_LENGTH = 30;
+export const MERCADO_PAGO_STATEMENT_DESCRIPTOR = 'ASSOBIADOR';
+
+type MercadoPagoPixOrderItem = {
+  id: string;
+  title: string;
+  description?: string;
+  quantity: number;
+  unitPriceInCents: number;
+};
 
 function getMercadoPagoAccessToken() {
   const token = process.env.MP_ACCESS_TOKEN;
@@ -62,18 +73,46 @@ export function shouldUseMercadoPagoSandboxAutoApproval(env = process.env) {
   return env.MP_SANDBOX_AUTO_APPROVE === 'true';
 }
 
+export function createMercadoPagoItemExternalCode(value: string) {
+  const code = createMercadoPagoReference([value]);
+  if (code.length <= MERCADO_PAGO_ITEM_EXTERNAL_CODE_MAX_LENGTH) {
+    return code;
+  }
+
+  const hash = createHash('sha256').update(code).digest('hex').slice(0, 8);
+  const prefixLength = MERCADO_PAGO_ITEM_EXTERNAL_CODE_MAX_LENGTH - hash.length - 1;
+  return `${code.slice(0, prefixLength).replace(/[_-]+$/g, '')}_${hash}`;
+}
+
+export function createMercadoPagoOrderItem(item: MercadoPagoPixOrderItem) {
+  return {
+    title: item.title.trim().slice(0, 120),
+    ...(item.description?.trim()
+      ? { description: item.description.trim().slice(0, 250) }
+      : {}),
+    quantity: item.quantity,
+    unit_price: formatOrderAmount(item.unitPriceInCents),
+    external_code: createMercadoPagoItemExternalCode(item.id),
+  };
+}
+
 export async function createMercadoPagoPixOrder({
   amountInCents,
   payerEmail,
   idempotencyKey,
+  item,
+  deviceSessionId,
 }: {
   amountInCents: number;
   payerEmail: string;
   idempotencyKey: string;
+  item: MercadoPagoPixOrderItem;
+  deviceSessionId?: unknown;
 }) {
   const amount = formatOrderAmount(amountInCents);
   const safePayerEmail = getMercadoPagoPayerEmail(payerEmail, idempotencyKey);
   const useSandboxAutoApproval = shouldUseMercadoPagoSandboxAutoApproval();
+  const safeDeviceSessionId = sanitizeMercadoPagoDeviceSessionId(deviceSessionId);
   const response = await fetch('https://api.mercadopago.com/v1/orders', {
     method: 'POST',
     headers: {
@@ -81,12 +120,14 @@ export async function createMercadoPagoPixOrder({
       'content-type': 'application/json',
       authorization: `Bearer ${getMercadoPagoAccessToken()}`,
       'x-idempotency-key': idempotencyKey,
+      ...(safeDeviceSessionId ? { 'x-meli-session-id': safeDeviceSessionId } : {}),
     },
     body: JSON.stringify({
       type: 'online',
       total_amount: amount,
       external_reference: idempotencyKey,
       processing_mode: 'automatic',
+      items: [createMercadoPagoOrderItem(item)],
       payer: {
         email: useSandboxAutoApproval ? 'test@testuser.com' : safePayerEmail,
         ...(useSandboxAutoApproval ? { first_name: 'APRO' } : {}),
@@ -98,6 +139,7 @@ export async function createMercadoPagoPixOrder({
             payment_method: {
               id: 'pix',
               type: 'bank_transfer',
+              statement_descriptor: MERCADO_PAGO_STATEMENT_DESCRIPTOR,
             },
             expiration_time: 'PT30M',
           },
