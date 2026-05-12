@@ -6,6 +6,10 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'Admin - A casa do assobiador',
   description: 'Painel administrativo da casa do assobiador',
+  robots: {
+    index: false,
+    follow: false,
+  },
   icons: {
     icon: '/favicon.png',
     shortcut: '/favicon.png',

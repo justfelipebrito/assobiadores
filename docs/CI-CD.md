@@ -29,6 +29,7 @@ Add these repository or environment variables:
 ```text
 FIREBASE_PROJECT_ID=assobiadores-3f0f6
 FIREBASE_APP_HOSTING_BACKEND_ID=assobiador-web
+FIREBASE_ADMIN_APP_HOSTING_BACKEND_ID=assobiador-admin
 FIREBASE_DEPLOY_STORAGE_RULES=false
 ```
 
@@ -117,9 +118,9 @@ firebase apphosting:secrets:grantaccess MP_ACCESS_TOKEN,MP_WEBHOOK_SECRET \
 Keep local emulator runs using `NEXT_PUBLIC_USE_FIREBASE_EMULATORS=true`; production deploys should
 not set that variable.
 
-## Current App Hosting Backend
+## Current App Hosting Backends
 
-Created on 2026-05-07:
+Public backend created on 2026-05-07:
 
 ```text
 Backend ID: assobiador-web
@@ -127,15 +128,28 @@ Primary region: us-east4
 Resource: projects/assobiadores-3f0f6/locations/us-east4/backends/assobiador-web
 ```
 
+Admin backend created for the production admin app:
+
+```text
+Backend ID: assobiador-admin
+Primary region: us-east4
+Root directory: apps/admin
+```
+
+Keep the admin app on its generated Firebase App Hosting URL unless a custom admin domain is
+explicitly needed. Do not mount admin routes inside `assobiador.com`; the admin app should remain a
+separate backend protected by Firebase Auth and admin-role checks.
+
 `southamerica-east1` is available for Cloud Functions in this project, but Firebase App Hosting does
 not currently offer it as a primary region. Use `us-east4` for the web app until App Hosting adds a
 Brazil/South America region.
 
-The backend was created without a connected GitHub repository in Firebase Console, so CI/CD deploys
+The backends were created without a connected GitHub repository in Firebase Console, so CI/CD deploys
 App Hosting from local source with:
 
 ```bash
 firebase deploy --config firebase.apphosting.json --project assobiadores-3f0f6 --only apphosting:assobiador-web
+firebase deploy --config firebase.apphosting.json --project assobiadores-3f0f6 --only apphosting:assobiador-admin
 ```
 
 Keep App Hosting config at the repo root in `firebase.apphosting.json`. Using `firebase/firebase.json`

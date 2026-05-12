@@ -75,6 +75,7 @@ jobs:
     env:
       FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID || 'assobiadores-3f0f6' }}
       FIREBASE_APP_HOSTING_BACKEND_ID: ${{ vars.FIREBASE_APP_HOSTING_BACKEND_ID || 'assobiador-web' }}
+      FIREBASE_ADMIN_APP_HOSTING_BACKEND_ID: ${{ vars.FIREBASE_ADMIN_APP_HOSTING_BACKEND_ID || 'assobiador-admin' }}
       FIREBASE_DEPLOY_STORAGE_RULES: ${{ vars.FIREBASE_DEPLOY_STORAGE_RULES || 'false' }}
 
     steps:
@@ -110,5 +111,8 @@ jobs:
       - name: Deploy Mercado Pago webhook function
         run: pnpm exec firebase deploy --config firebase/firebase.json --project "$FIREBASE_PROJECT_ID" --only functions:onPaymentWebhook --non-interactive
 
-      - name: Deploy App Hosting
+      - name: Deploy public App Hosting
         run: pnpm exec firebase deploy --config firebase.apphosting.json --project "$FIREBASE_PROJECT_ID" --only "apphosting:$FIREBASE_APP_HOSTING_BACKEND_ID" --non-interactive
+
+      - name: Deploy admin App Hosting
+        run: pnpm exec firebase deploy --config firebase.apphosting.json --project "$FIREBASE_PROJECT_ID" --only "apphosting:$FIREBASE_ADMIN_APP_HOSTING_BACKEND_ID" --non-interactive
