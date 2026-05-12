@@ -7,7 +7,15 @@ import { Button, Input, Card, CardContent } from '@batalha/ui';
 import { useAuth } from '@batalha/firebase';
 import { BRAZIL_STATE_LABELS, type BrazilState } from '@batalha/types';
 import { Music, UserPlus } from 'lucide-react';
-import { trackAuthAttempt, trackAuthCtaClick } from '@/lib/analytics-events';
+import {
+  trackAuthAttempt,
+  trackAuthCtaClick,
+  trackReferralBootstrap,
+} from '@/lib/analytics-events';
+import {
+  clearStoredReferralAttribution,
+  getStoredReferralAttribution,
+} from '@/lib/referral-attribution';
 
 const BRAZIL_STATES = Object.entries(BRAZIL_STATE_LABELS).map(([value, label]) => ({
   value: value as BrazilState,
@@ -27,16 +35,22 @@ export default function RegisterPage() {
   const bootstrapUser = async (authUser: Awaited<ReturnType<typeof signUp>>) => {
     if (!authUser) return false;
     const token = await authUser.getIdToken(true);
+    const referralAttribution = getStoredReferralAttribution();
     const res = await fetch('/api/auth/bootstrap', {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
       body: JSON.stringify({
         displayName: authUser.displayName,
         photoURL: authUser.photoURL,
+        referralAttribution,
       }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Erro ao preparar perfil');
+    if (referralAttribution) {
+      trackReferralBootstrap({ referral: referralAttribution, created: Boolean(data.created) });
+      clearStoredReferralAttribution();
+    }
     return true;
   };
 

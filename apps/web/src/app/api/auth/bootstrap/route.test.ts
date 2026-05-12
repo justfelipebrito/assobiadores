@@ -4,6 +4,7 @@ import { ApiError } from '../../../../server/api-errors';
 const getAdminFirestore = vi.fn();
 const requireDecodedToken = vi.fn();
 const bootstrapUserProfile = vi.fn();
+const parseReferralAttributionInput = vi.fn();
 
 vi.mock('@batalha/firebase/src/admin', () => ({
   getAdminFirestore,
@@ -15,6 +16,10 @@ vi.mock('../../../../server/auth', () => ({
 
 vi.mock('../../../../server/user-bootstrap-service', () => ({
   bootstrapUserProfile,
+}));
+
+vi.mock('../../../../server/referral-service', () => ({
+  parseReferralAttributionInput,
 }));
 
 async function post(
@@ -41,6 +46,7 @@ describe('POST /api/auth/bootstrap', () => {
       picture: 'https://avatar.test/token.jpg',
     });
     bootstrapUserProfile.mockResolvedValue({ created: true, username: 'anasilva' });
+    parseReferralAttributionInput.mockReturnValue(null);
   });
 
   it('bootstraps profile documents for the authenticated user', async () => {
@@ -53,6 +59,7 @@ describe('POST /api/auth/bootstrap', () => {
       email: 'ana@example.com',
       displayName: 'Ana Silva',
       photoURL: 'https://avatar.test/a.jpg',
+      referralAttribution: null,
     });
   });
 
@@ -65,7 +72,36 @@ describe('POST /api/auth/bootstrap', () => {
       email: 'ana@example.com',
       displayName: 'Token Name',
       photoURL: 'https://avatar.test/token.jpg',
+      referralAttribution: null,
     });
+  });
+
+  it('sanitizes and forwards partner referral attribution', async () => {
+    parseReferralAttributionInput.mockReturnValueOnce({
+      ref: 'tiktok',
+      partnerName: 'TikTok',
+      landingPath: '/?ref=tiktok',
+      capturedAt: '2026-05-12T00:00:00.000Z',
+      expiresAt: '2026-06-12T00:00:00.000Z',
+    });
+
+    const res = await post({
+      displayName: 'Ana Silva',
+      photoURL: 'https://avatar.test/a.jpg',
+      referralAttribution: { ref: 'tiktok' },
+    });
+
+    expect(res.status).toBe(200);
+    expect(parseReferralAttributionInput).toHaveBeenCalledWith({ ref: 'tiktok' });
+    expect(bootstrapUserProfile).toHaveBeenCalledWith(
+      'db',
+      expect.objectContaining({
+        referralAttribution: expect.objectContaining({
+          ref: 'tiktok',
+          partnerName: 'TikTok',
+        }),
+      }),
+    );
   });
 
   it('returns auth and service errors without bootstrapping', async () => {

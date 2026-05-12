@@ -109,6 +109,14 @@ export const userStatsSchema = z.object({
 });
 export type UserStats = z.infer<typeof userStatsSchema>;
 
+export const userReferralSchema = z.object({
+  partnerName: z.string().min(2).max(80),
+  refCode: z.string().min(2).max(80),
+  landingPath: z.string().max(500),
+  capturedAt: z.string().datetime(),
+});
+export type UserReferral = z.infer<typeof userReferralSchema>;
+
 export const seasonPointsEntrySchema = z.object({
   points: z.number().int().nonnegative().default(0),
   xp: z.number().int().nonnegative().default(0),
@@ -133,6 +141,9 @@ export const userSchema = z.object({
   photoVersion: z.number().int().nonnegative().default(0),
   photoUpdatedAt: timestampSchema.nullable().default(null),
   photoChangeAvailableAt: timestampSchema.nullable().default(null),
+  ref: z.string().min(2).max(80).nullable().default(null),
+  refCode: z.string().min(2).max(80).nullable().default(null),
+  referral: userReferralSchema.nullable().default(null),
   bio: z.string().max(280).default(''),
   role: userRoleSchema.default('user'),
   accountType: accountTypeSchema.default('free'),

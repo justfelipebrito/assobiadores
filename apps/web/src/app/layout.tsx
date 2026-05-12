@@ -3,6 +3,7 @@ import { Toaster } from 'sonner';
 import { AdsensePublisherScript } from '@/components/ads/adsense-publisher-script';
 import { BottomAdBanner } from '@/components/ads/bottom-ad-banner';
 import { GoogleAnalytics } from '@/components/analytics/google-analytics';
+import { ReferralAttributionCapture } from '@/components/analytics/referral-attribution-capture';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
 import { QualifierRegistrationNotice } from '@/components/qualifiers/qualifier-registration-notice';
@@ -36,6 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="flex min-h-screen flex-col">
         <GoogleAnalytics />
+        <ReferralAttributionCapture />
         <Header />
         <main className="flex-1">{children}</main>
         <Footer />

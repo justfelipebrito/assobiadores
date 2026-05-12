@@ -5,12 +5,17 @@ import {
   buildInitialSeasonRanking,
   getSeasonRankingPath,
 } from './season-ranking-service';
+import {
+  type TrustedReferralAttribution,
+  buildReferralProfileFields,
+} from './referral-service';
 
 export interface BootstrapUserInput {
   uid: string;
   email?: string | null;
   displayName?: string | null;
   photoURL?: string | null;
+  referralAttribution?: TrustedReferralAttribution | null;
 }
 
 export function normalizeBootstrapUsername(value: string) {
@@ -40,6 +45,10 @@ function getUsernameCandidates(user: BootstrapUserInput) {
 }
 
 function createPublicUserData(user: BootstrapUserInput, username: string) {
+  const referralFields = user.referralAttribution
+    ? buildReferralProfileFields(user.referralAttribution)
+    : { ref: null, refCode: null, referral: null };
+
   return {
     id: user.uid,
     schemaVersion: 1,
@@ -55,6 +64,7 @@ function createPublicUserData(user: BootstrapUserInput, username: string) {
     photoVersion: 0,
     photoUpdatedAt: null,
     photoChangeAvailableAt: null,
+    ...referralFields,
     bio: '',
     role: 'user',
     accountType: 'free',
@@ -118,12 +128,23 @@ export async function bootstrapUserProfile(db: Firestore, user: BootstrapUserInp
     const existingPrivate = await transaction.get(privateRef);
 
     if (existingUser.exists) {
+      const existingData = existingUser.data() ?? {};
+      if (user.referralAttribution && !existingData.ref) {
+        transaction.set(
+          userRef,
+          {
+            ...buildReferralProfileFields(user.referralAttribution),
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true },
+        );
+      }
       transaction.set(
         db.doc(getSeasonRankingPath(DEFAULT_SEASON_ID, user.uid)),
         buildInitialSeasonRanking({
           userId: user.uid,
           seasonId: DEFAULT_SEASON_ID,
-          user: existingUser.data() ?? {},
+          user: existingData,
         }),
         { merge: true },
       );

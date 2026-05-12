@@ -4,6 +4,7 @@ import { ApiError, getErrorResponse } from '../../../../server/api-errors';
 import { requireDecodedToken } from '../../../../server/auth';
 import { readJsonObject } from '../../../../server/request';
 import { bootstrapUserProfile } from '../../../../server/user-bootstrap-service';
+import { parseReferralAttributionInput } from '../../../../server/referral-service';
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,6 +25,7 @@ export async function POST(req: NextRequest) {
           : typeof decodedToken.picture === 'string'
             ? decodedToken.picture
             : null,
+      referralAttribution: parseReferralAttributionInput(body.referralAttribution),
     });
 
     return NextResponse.json(result);
