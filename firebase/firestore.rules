@@ -95,6 +95,33 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    function isValidHomepageSettings() {
+      return request.resource.data.keys().hasOnly([
+          'dailyHighlightBannerEnabled',
+          'dailyHighlightBannerText',
+          'dailyHighlightBannerEndDayKey',
+          'updatedAt',
+          'updatedBy'
+        ]) &&
+        request.resource.data.dailyHighlightBannerEnabled is bool &&
+        request.resource.data.dailyHighlightBannerText is string &&
+        request.resource.data.dailyHighlightBannerText.size() <= 160 &&
+        request.resource.data.dailyHighlightBannerEndDayKey is string &&
+        (
+          request.resource.data.dailyHighlightBannerEndDayKey == '' ||
+          request.resource.data.dailyHighlightBannerEndDayKey.matches('^\\d{4}-\\d{2}-\\d{2}$')
+        ) &&
+        request.resource.data.updatedBy == request.auth.uid;
+    }
+
+    match /platformSettings/{settingId} {
+      allow read: if true;
+      allow create, update: if isAdmin() &&
+        settingId == 'homepage' &&
+        isValidHomepageSettings();
+      allow delete: if false;
+    }
+
     // Battles
     match /battles/{battleId} {
       allow read: if true;

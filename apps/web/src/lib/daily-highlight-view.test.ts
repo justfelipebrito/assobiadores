@@ -5,6 +5,7 @@ import {
   getBrazilDayKey,
   getDailyHighlightDayKeys,
   getDailyHighlightPlacementLabel,
+  getDailyHighlightPromoText,
   getDailyHighlightsForDay,
   getVisibleDailyHighlights,
   shiftBrazilDayKey,
@@ -120,6 +121,29 @@ describe('daily highlight view helpers', () => {
 
   it('documents the earliest day available in the daily highlights archive', () => {
     expect(DAILY_HIGHLIGHTS_MIN_DAY_KEY).toBe('2026-05-01');
+  });
+
+  it('reads the daily prize promo from homepage settings and respects the end date', () => {
+    const settings = {
+      dailyHighlightBannerEnabled: true,
+      dailyHighlightBannerText:
+        'R$5 para o mais votado diariamente até o final de Maio, submissão grátis.',
+      dailyHighlightBannerEndDayKey: '2026-05-31',
+    };
+
+    expect(getDailyHighlightPromoText(settings, '2026-05-31')).toBe(
+      'R$5 para o mais votado diariamente até o final de Maio, submissão grátis.',
+    );
+    expect(getDailyHighlightPromoText(settings, '2026-06-01')).toBeNull();
+    expect(
+      getDailyHighlightPromoText(
+        { ...settings, dailyHighlightBannerEnabled: false },
+        '2026-05-31',
+      ),
+    ).toBeNull();
+    expect(
+      getDailyHighlightPromoText({ ...settings, dailyHighlightBannerText: '   ' }, '2026-05-31'),
+    ).toBeNull();
   });
 
   it('returns available day keys newest first without future days', () => {

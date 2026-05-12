@@ -32,6 +32,7 @@ import {
   type Championship,
   type CompetitionCategory,
   type DailyHighlight,
+  type HomepageSettings,
   type QualifierTrack,
   type Season,
   type SeasonRanking,
@@ -49,6 +50,7 @@ import {
   formatBrazilDayKey,
   getBrazilDayKey,
   getDailyHighlightPlacementLabel,
+  getDailyHighlightPromoText,
   getVisibleDailyHighlights,
 } from '@/lib/daily-highlight-view';
 import {
@@ -172,6 +174,11 @@ export default function HomePage() {
   const dailyHighlightDayLabel = useMemo(
     () => formatBrazilDayKey(todayDailyHighlightKey),
     [todayDailyHighlightKey],
+  );
+  const { data: homepageSettings } = useDocument<HomepageSettings>('platformSettings', 'homepage');
+  const dailyHighlightPromoText = useMemo(
+    () => getDailyHighlightPromoText(homepageSettings, todayDailyHighlightKey),
+    [homepageSettings, todayDailyHighlightKey],
   );
   const { user, loading: authLoading } = useAuth();
   const { data: profile } = useDocument<User>('users', user?.uid);
@@ -319,6 +326,12 @@ export default function HomePage() {
     <>
       <section className="border-b border-white/5 bg-surface-950">
         <div className="mx-auto max-w-6xl px-4 py-8">
+          {dailyHighlightPromoText ? (
+            <div className="mb-5 rounded-xl border border-yellow-500/25 bg-yellow-500/10 px-4 py-3 text-sm font-semibold leading-5 text-yellow-50 shadow-[0_12px_40px_rgba(234,179,8,0.08)]">
+              {dailyHighlightPromoText}
+            </div>
+          ) : null}
+
           <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-3">
               <div className="mt-1 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-brand-500/10 text-brand-400 sm:h-10 sm:w-10">

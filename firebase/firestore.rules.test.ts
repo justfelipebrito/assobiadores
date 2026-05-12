@@ -508,9 +508,15 @@ describe('server-owned collections rules', () => {
       rank: 'Iniciante',
       points: 25,
     });
+    await seed('platformSettings/homepage', {
+      dailyHighlightBannerEnabled: true,
+      dailyHighlightBannerText: 'R$5 para o mais votado diariamente ate o final de Maio.',
+      dailyHighlightBannerEndDayKey: '2026-05-31',
+      updatedBy: 'admin-1',
+    });
   });
 
-  it('allows public reads for entries, submissions, votes, daily highlights, and qualifier fixtures', async () => {
+  it('allows public reads for entries, submissions, votes, daily highlights, qualifier fixtures, and platform settings', async () => {
     await assertSucceeds(getDoc(doc(unauthDb(), 'battleEntries/entry-1')));
     await assertSucceeds(getDoc(doc(unauthDb(), 'submissions/submission-1')));
     await assertSucceeds(getDoc(doc(unauthDb(), 'votes/vote-1')));
@@ -522,6 +528,7 @@ describe('server-owned collections rules', () => {
     await assertSucceeds(getDoc(doc(unauthDb(), 'qualifierSubmissions/qualifier-submission-1')));
     await assertSucceeds(getDoc(doc(unauthDb(), 'qualifierTracks/qualifier-sp-2026-freestyle')));
     await assertSucceeds(getDoc(doc(unauthDb(), 'qualifierParticipants/qualifier-registration-1')));
+    await assertSucceeds(getDoc(doc(unauthDb(), 'platformSettings/homepage')));
   });
 
   it('allows only the voter or admin to read qualifier votes', async () => {
@@ -619,6 +626,44 @@ describe('server-owned collections rules', () => {
       setDoc(doc(authedDb('user-1'), 'dailyHighlightLikes/like-2'), {
         dailyHighlightId: 'daily-1',
         userId: 'user-1',
+      }),
+    );
+  });
+
+  it('allows only admins to update validated homepage platform settings', async () => {
+    await assertSucceeds(
+      setDoc(doc(authedDb('admin-1'), 'platformSettings/homepage'), {
+        dailyHighlightBannerEnabled: true,
+        dailyHighlightBannerText: 'Premiacao diaria ativa em Maio.',
+        dailyHighlightBannerEndDayKey: '2026-05-31',
+        updatedBy: 'admin-1',
+      }),
+    );
+
+    await assertFails(
+      setDoc(doc(authedDb('user-1'), 'platformSettings/homepage'), {
+        dailyHighlightBannerEnabled: true,
+        dailyHighlightBannerText: 'Texto alterado por usuario.',
+        dailyHighlightBannerEndDayKey: '2026-05-31',
+        updatedBy: 'user-1',
+      }),
+    );
+
+    await assertFails(
+      setDoc(doc(authedDb('admin-1'), 'platformSettings/homepage'), {
+        dailyHighlightBannerEnabled: true,
+        dailyHighlightBannerText: 'x'.repeat(161),
+        dailyHighlightBannerEndDayKey: '2026-05-31',
+        updatedBy: 'admin-1',
+      }),
+    );
+
+    await assertFails(
+      setDoc(doc(authedDb('admin-1'), 'platformSettings/footer'), {
+        dailyHighlightBannerEnabled: true,
+        dailyHighlightBannerText: 'Outro local.',
+        dailyHighlightBannerEndDayKey: '2026-05-31',
+        updatedBy: 'admin-1',
       }),
     );
   });

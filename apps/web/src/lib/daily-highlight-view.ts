@@ -1,4 +1,4 @@
-import type { DailyHighlight } from '@batalha/types';
+import type { DailyHighlight, HomepageSettings } from '@batalha/types';
 import { toDate } from '@batalha/utils';
 
 export const DAILY_HIGHLIGHTS_MIN_DAY_KEY = '2026-05-01';
@@ -41,6 +41,21 @@ export function formatBrazilDayKey(dayKey: string) {
   if (!year || !month || !day) return dayKey;
 
   return `${day}/${month}/${year}`;
+}
+
+export function getDailyHighlightPromoText(
+  settings: HomepageSettings | null | undefined,
+  dayKey = getBrazilDayKey(),
+) {
+  if (!settings?.dailyHighlightBannerEnabled) return null;
+
+  const text = settings.dailyHighlightBannerText?.trim();
+  if (!text) return null;
+
+  const endDayKey = settings.dailyHighlightBannerEndDayKey?.trim();
+  if (endDayKey && dayKey > endDayKey) return null;
+
+  return text;
 }
 
 export function getDailyHighlightPlacementLabel(highlight: Pick<DailyHighlight, 'placement'>) {

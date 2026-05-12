@@ -6,6 +6,7 @@ export const ADMIN_NAV_ITEMS = [
   { href: '/moderacao', label: 'Moderacao' },
   { href: '/usuarios', label: 'Usuarios' },
   { href: '/pagamentos', label: 'Pagamentos' },
+  { href: '/configuracoes', label: 'Configurações' },
 ] as const;
 
 export function isAdminNavItemActive(pathname: string, href: string) {

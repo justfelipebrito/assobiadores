@@ -60,6 +60,14 @@ export default function AdminDashboard() {
             </CardContent>
           </Card>
         </Link>
+        <Link href="/configuracoes">
+          <Card className="transition-shadow hover:shadow-md">
+            <CardContent>
+              <h3 className="font-semibold text-white">Configurações</h3>
+              <p className="mt-1 text-sm text-surface-400">Mensagens e avisos da homepage</p>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
     </main>
   );

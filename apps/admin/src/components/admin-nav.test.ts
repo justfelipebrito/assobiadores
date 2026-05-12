@@ -15,5 +15,6 @@ describe('admin navigation', () => {
       true,
     );
     expect(isAdminNavItemActive('/campeonatos', '/classificatorias')).toBe(false);
+    expect(isAdminNavItemActive('/configuracoes', '/configuracoes')).toBe(true);
   });
 });
