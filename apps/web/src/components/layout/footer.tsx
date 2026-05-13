@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { LEGAL_PAGES } from '@/lib/legal-pages';
 import { trackAuthCtaClick } from '@/lib/analytics-events';
+import { PUBLIC_BRAND_NAME } from '@/lib/public-brand';
 
 export function Footer() {
   return (
@@ -14,10 +15,10 @@ export function Footer() {
             <div className="flex items-center gap-2.5">
               <img
                 src="/logo.png"
-                alt="A casa do assobiador"
+                alt={PUBLIC_BRAND_NAME}
                 className="h-9 w-9 rounded-xl object-contain"
               />
-              <span className="text-lg font-bold text-white">Assobiador</span>
+              <span className="text-lg font-bold text-white">{PUBLIC_BRAND_NAME}</span>
             </div>
             <p className="mt-3 text-sm leading-relaxed text-surface-500">
               Competições, rankings e destaques de assobio no Brasil.

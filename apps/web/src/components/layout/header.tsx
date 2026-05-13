@@ -9,6 +9,7 @@ import { formatRelativeTime } from '@batalha/utils';
 import type { Battle, Championship, QualifierTrack, User as AppUser } from '@batalha/types';
 import { getVersionedAvatarUrl } from '../../lib/avatar-url';
 import { getHeaderTickerItems } from '../../lib/header-ticker';
+import { PUBLIC_BRAND_NAME } from '../../lib/public-brand';
 import { trackAuthCtaClick } from '../../lib/analytics-events';
 import { MobileNav } from './mobile-nav';
 
@@ -93,10 +94,10 @@ export function Header() {
           <Link href="/" className="flex items-center gap-2.5">
             <img
               src="/logo.png"
-              alt="A casa do assobiador"
+              alt={PUBLIC_BRAND_NAME}
               className="h-9 w-9 rounded-xl object-contain shadow-glow-sm"
             />
-            <span className="hidden text-lg font-bold text-white sm:block">assobiador.com</span>
+            <span className="hidden text-lg font-bold text-white sm:block">Absolute Assobio</span>
           </Link>
 
           {/* Right side */}

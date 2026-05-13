@@ -6,6 +6,7 @@ import type { User as FirebaseUser } from 'firebase/auth';
 import { Avatar } from '@batalha/ui';
 import { trackAuthCtaClick } from '../../lib/analytics-events';
 import { getMobileNavigationItems } from '../../lib/mobile-navigation';
+import { PUBLIC_BRAND_NAME } from '../../lib/public-brand';
 import { useBodyScrollLock } from '../../lib/use-body-scroll-lock';
 
 interface MobileNavProps {
@@ -43,7 +44,7 @@ export function MobileNav({
             <div className="flex items-center gap-2.5">
               <img
                 src="/logo.png"
-                alt="A casa do assobiador"
+                alt={PUBLIC_BRAND_NAME}
                 className="h-9 w-9 rounded-xl object-contain"
               />
               <span className="text-base font-bold text-white">assobiador.com</span>

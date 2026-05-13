@@ -7,6 +7,7 @@ export const PARTNER_REFERRALS = [
   { code: 'instagram', name: 'Instagram' },
   { code: 'tiktok', name: 'TikTok' },
   { code: 'matheus', name: 'Matheus' },
+  { code: 'absoluteassobio', name: 'AbsoluteAssobio' },
 ] as const satisfies ReadonlyArray<PartnerReferral>;
 
 export type PartnerReferralCode = (typeof PARTNER_REFERRALS)[number]['code'];
@@ -34,4 +35,3 @@ export function getPartnerReferral(value: unknown) {
   const code = normalizePartnerReferralCode(value);
   return code ? (PARTNER_REFERRALS_BY_CODE.get(code) ?? null) : null;
 }
-

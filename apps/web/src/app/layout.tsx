@@ -7,14 +7,15 @@ import { ReferralAttributionCapture } from '@/components/analytics/referral-attr
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
 import { QualifierRegistrationNotice } from '@/components/qualifiers/qualifier-registration-notice';
+import { PUBLIC_BRAND_DESCRIPTION, PUBLIC_BRAND_NAME } from '@/lib/public-brand';
 import './globals.css';
 
 export const metadata: Metadata = {
   title: {
-    default: 'A casa do assobiador',
-    template: '%s | A casa do assobiador',
+    default: PUBLIC_BRAND_NAME,
+    template: `%s | ${PUBLIC_BRAND_NAME}`,
   },
-  description: 'A casa do assobiador: competicoes, rankings e destaques de assobio no Brasil.',
+  description: PUBLIC_BRAND_DESCRIPTION,
   icons: {
     icon: '/favicon.png',
     shortcut: '/favicon.png',

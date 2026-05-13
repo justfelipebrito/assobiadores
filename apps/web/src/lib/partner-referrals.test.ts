@@ -11,7 +11,10 @@ describe('partner referrals registry', () => {
   it('only accepts registered partner codes', () => {
     expect(getPartnerReferral('instagram')).toEqual({ code: 'instagram', name: 'Instagram' });
     expect(getPartnerReferral('TikTok')).toEqual({ code: 'tiktok', name: 'TikTok' });
+    expect(getPartnerReferral('AbsoluteAssobio')).toEqual({
+      code: 'absoluteassobio',
+      name: 'AbsoluteAssobio',
+    });
     expect(getPartnerReferral('random-partner')).toBeNull();
   });
 });
-
