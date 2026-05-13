@@ -8,7 +8,7 @@ import { createSubmission } from '../../../../server/submission-service';
 
 export async function POST(req: NextRequest) {
   const bucket = getAdminStorageBucket();
-  let uploadedAudioPath: string | null = null;
+  let uploadedAudioPaths: string[] = [];
 
   try {
     const decodedToken = await requireDecodedToken(req);
@@ -33,26 +33,40 @@ export async function POST(req: NextRequest) {
       buffer,
       contentType: audioContentType,
     });
-    uploadedAudioPath = upload.audioPath;
+    uploadedAudioPaths = Array.from(
+      new Set(
+        [upload.audioPath, upload.originalAudioPath].filter((path): path is string =>
+          Boolean(path),
+        ),
+      ),
+    );
 
     const result = await createSubmission(getAdminFirestore(), {
       battleId: typeof formData.get('battleId') === 'string' ? String(formData.get('battleId')) : '',
       userId: decodedToken.uid,
       audioURL: upload.audioURL,
       audioPath: upload.audioPath,
-      contentType: audioContentType,
-      sizeBytes: buffer.length,
+      contentType: upload.contentType,
+      sizeBytes: upload.sizeBytes,
+      originalAudioURL: upload.originalAudioURL,
+      originalAudioPath: upload.originalAudioPath,
+      originalContentType: upload.originalContentType,
+      originalSizeBytes: upload.originalSizeBytes,
       durationSeconds,
       category: categoryResult.data,
     });
 
     return NextResponse.json(result);
   } catch (error) {
-    if (uploadedAudioPath) {
-      await bucket
-        .file(uploadedAudioPath)
-        .delete()
-        .catch(() => undefined);
+    if (uploadedAudioPaths.length > 0) {
+      await Promise.all(
+        uploadedAudioPaths.map((path) =>
+          bucket
+            .file(path)
+            .delete()
+            .catch(() => undefined),
+        ),
+      );
     }
     if (!(error instanceof ApiError)) {
       console.error('Submission creation error:', error);

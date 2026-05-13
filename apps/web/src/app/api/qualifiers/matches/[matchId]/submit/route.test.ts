@@ -49,8 +49,14 @@ describe('POST /api/qualifiers/matches/[matchId]/submit', () => {
     });
     requireDecodedToken.mockResolvedValue({ uid: 'user-1' });
     uploadQualifierSubmissionAudio.mockResolvedValue({
-      audioURL: 'https://storage.example/audio.webm',
-      audioPath: 'qualifier-submissions/match-1/user-1.webm',
+      audioURL: 'https://storage.example/audio-playback.m4a',
+      audioPath: 'qualifier-submissions/match-1/user-1-playback.m4a',
+      contentType: 'audio/mp4',
+      sizeBytes: 4,
+      originalAudioURL: 'https://storage.example/audio.webm',
+      originalAudioPath: 'qualifier-submissions/match-1/user-1.webm',
+      originalContentType: 'audio/webm',
+      originalSizeBytes: 5,
     });
     createQualifierSubmission.mockResolvedValue({
       qualifierSubmissionId: 'submission-1',
@@ -78,8 +84,14 @@ describe('POST /api/qualifiers/matches/[matchId]/submit', () => {
       expect.objectContaining({
         matchId: 'match-1',
         userId: 'user-1',
-        audioURL: 'https://storage.example/audio.webm',
-        audioPath: 'qualifier-submissions/match-1/user-1.webm',
+        audioURL: 'https://storage.example/audio-playback.m4a',
+        audioPath: 'qualifier-submissions/match-1/user-1-playback.m4a',
+        contentType: 'audio/mp4',
+        sizeBytes: 4,
+        originalAudioURL: 'https://storage.example/audio.webm',
+        originalAudioPath: 'qualifier-submissions/match-1/user-1.webm',
+        originalContentType: 'audio/webm',
+        originalSizeBytes: 5,
         durationSeconds: 12,
       }),
     );

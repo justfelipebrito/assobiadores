@@ -57,8 +57,14 @@ describe('POST /api/submissions/create', () => {
     getAdminStorageBucket.mockReturnValue(bucket);
     requireDecodedToken.mockResolvedValue({ uid: 'user-1' });
     uploadBattleSubmissionAudio.mockResolvedValue({
-      audioURL: 'https://storage.example/battle.webm',
-      audioPath: 'battle-submissions/battle-1/user-1.webm',
+      audioURL: 'https://storage.example/battle-playback.m4a',
+      audioPath: 'battle-submissions/battle-1/user-1-playback.m4a',
+      contentType: 'audio/mp4',
+      sizeBytes: 4,
+      originalAudioURL: 'https://storage.example/battle.webm',
+      originalAudioPath: 'battle-submissions/battle-1/user-1.webm',
+      originalContentType: 'audio/webm',
+      originalSizeBytes: 5,
     });
     createSubmission.mockResolvedValue({ submissionId: 'submission-1', status: 'approved' });
   });
@@ -82,10 +88,14 @@ describe('POST /api/submissions/create', () => {
     expect(createSubmission).toHaveBeenCalledWith('db', {
       battleId: 'battle-1',
       userId: 'user-1',
-      audioURL: 'https://storage.example/battle.webm',
-      audioPath: 'battle-submissions/battle-1/user-1.webm',
-      contentType: 'audio/webm',
-      sizeBytes: 5,
+      audioURL: 'https://storage.example/battle-playback.m4a',
+      audioPath: 'battle-submissions/battle-1/user-1-playback.m4a',
+      contentType: 'audio/mp4',
+      sizeBytes: 4,
+      originalAudioURL: 'https://storage.example/battle.webm',
+      originalAudioPath: 'battle-submissions/battle-1/user-1.webm',
+      originalContentType: 'audio/webm',
+      originalSizeBytes: 5,
       durationSeconds: 5,
       category: 'freestyle',
     });

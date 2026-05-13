@@ -18,9 +18,10 @@ function createBucket() {
 }
 
 describe('daily highlight audio upload service', () => {
-  it('stores compressed audio with immutable cache metadata', async () => {
+  it('stores original webm audio and an m4a playback copy with immutable cache metadata', async () => {
     process.env.FIREBASE_STORAGE_EMULATOR_HOST = '127.0.0.1:9199';
     const { bucket, file } = createBucket();
+    const transcode = vi.fn(async () => Buffer.from('m4a'));
 
     const result = await uploadDailyHighlightAudio({
       bucket,
@@ -28,9 +29,14 @@ describe('daily highlight audio upload service', () => {
       buffer: Buffer.from('audio'),
       contentType: 'audio/webm',
       category: 'freestyle',
+      transcode,
     });
 
     expect(bucket.file).toHaveBeenCalledWith(expect.stringMatching(/^daily-highlights\/user-1\//));
+    expect(bucket.file).toHaveBeenCalledWith(
+      expect.stringMatching(/^daily-highlights\/user-1\/.+-playback\.m4a$/),
+    );
+    expect(transcode).toHaveBeenCalledWith(Buffer.from('audio'), 'audio/webm');
     expect(file.save).toHaveBeenCalledWith(
       Buffer.from('audio'),
       expect.objectContaining({
@@ -41,9 +47,45 @@ describe('daily highlight audio upload service', () => {
         }),
       }),
     );
+    expect(file.save).toHaveBeenCalledWith(
+      Buffer.from('m4a'),
+      expect.objectContaining({
+        resumable: false,
+        metadata: expect.objectContaining({
+          contentType: 'audio/mp4',
+          cacheControl: 'public, max-age=31536000, immutable',
+        }),
+      }),
+    );
     expect(result.audioURL).toContain('http://127.0.0.1:9199/v0/b/demo-batalha.appspot.com/o/');
+    expect(result.audioPath).toMatch(/-playback\.m4a$/);
+    expect(result.contentType).toBe('audio/mp4');
+    expect(result.sizeBytes).toBe(3);
+    expect(result.originalAudioPath).toMatch(/\.webm$/);
+    expect(result.originalContentType).toBe('audio/webm');
+    expect(result.originalSizeBytes).toBe(5);
 
     delete process.env.FIREBASE_STORAGE_EMULATOR_HOST;
+  });
+
+  it('uses mp4 uploads directly as playback without transcoding', async () => {
+    const { bucket, file } = createBucket();
+    const transcode = vi.fn(async () => Buffer.from('m4a'));
+
+    const result = await uploadDailyHighlightAudio({
+      bucket,
+      userId: 'user-1',
+      buffer: Buffer.from('mp4'),
+      contentType: 'audio/mp4; codecs=mp4a.40.2',
+      category: 'freestyle',
+      transcode,
+    });
+
+    expect(transcode).not.toHaveBeenCalled();
+    expect(file.save).toHaveBeenCalledTimes(1);
+    expect(result.audioPath).toMatch(/\.m4a$/);
+    expect(result.audioPath).toBe(result.originalAudioPath);
+    expect(result.contentType).toBe('audio/mp4; codecs=mp4a.40.2');
   });
 
   it('rejects non-audio and oversized payloads', async () => {
@@ -78,7 +120,7 @@ describe('daily highlight audio upload service', () => {
       userId: 'user-1',
       matchId: 'match-1',
       buffer: Buffer.from('audio'),
-      contentType: 'audio/webm',
+      contentType: 'audio/mp4',
     });
 
     expect(bucket.file).toHaveBeenCalledWith(
@@ -88,7 +130,7 @@ describe('daily highlight audio upload service', () => {
       Buffer.from('audio'),
       expect.objectContaining({
         metadata: expect.objectContaining({
-          contentType: 'audio/webm',
+          contentType: 'audio/mp4',
           cacheControl: 'public, max-age=31536000, immutable',
         }),
       }),

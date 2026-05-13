@@ -34,6 +34,13 @@ export async function POST(req: NextRequest) {
         contentType: audioContentType,
         category: categoryResult.data,
       });
+      const uploadedAudioPaths = Array.from(
+        new Set(
+          [upload.audioPath, upload.originalAudioPath].filter((path): path is string =>
+            Boolean(path),
+          ),
+        ),
+      );
 
       let result;
       try {
@@ -41,16 +48,24 @@ export async function POST(req: NextRequest) {
           userId: decodedToken.uid,
           audioURL: upload.audioURL,
           audioPath: upload.audioPath,
-          contentType: audioContentType,
-          sizeBytes: buffer.length,
+          contentType: upload.contentType,
+          sizeBytes: upload.sizeBytes,
+          originalAudioURL: upload.originalAudioURL,
+          originalAudioPath: upload.originalAudioPath,
+          originalContentType: upload.originalContentType,
+          originalSizeBytes: upload.originalSizeBytes,
           durationSeconds,
           category: categoryResult.data,
         });
       } catch (error) {
-        await bucket
-          .file(upload.audioPath)
-          .delete()
-          .catch(() => undefined);
+        await Promise.all(
+          uploadedAudioPaths.map((path) =>
+            bucket
+              .file(path)
+              .delete()
+              .catch(() => undefined),
+          ),
+        );
         throw error;
       }
 

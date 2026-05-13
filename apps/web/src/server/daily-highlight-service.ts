@@ -22,6 +22,10 @@ export interface CreateDailyHighlightAudioInput {
   audioPath: string;
   contentType: string;
   sizeBytes: number;
+  originalAudioURL?: string;
+  originalAudioPath?: string;
+  originalContentType?: string;
+  originalSizeBytes?: number;
   durationSeconds: number;
   category: CompetitionCategory;
   now?: Date;
@@ -120,6 +124,10 @@ export async function createDailyHighlightFromAudio(
     audioPath,
     contentType,
     sizeBytes,
+    originalAudioURL,
+    originalAudioPath,
+    originalContentType,
+    originalSizeBytes,
     durationSeconds,
     category,
     now = new Date(),
@@ -175,6 +183,10 @@ export async function createDailyHighlightFromAudio(
       mediaURL: audioURL,
       mediaPath: audioPath,
       mediaContentType: contentType,
+      mediaOriginalURL: originalAudioURL ?? audioURL,
+      mediaOriginalPath: originalAudioPath ?? audioPath,
+      mediaOriginalContentType: originalContentType ?? contentType,
+      mediaOriginalSizeBytes: originalSizeBytes ?? sizeBytes,
       mediaDurationSeconds: Math.round(durationSeconds),
       mediaSizeBytes: sizeBytes,
       videoURL: audioURL,

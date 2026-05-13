@@ -14,6 +14,10 @@ export interface CreateSubmissionInput {
   audioPath: string;
   contentType: string;
   sizeBytes: number;
+  originalAudioURL?: string;
+  originalAudioPath?: string;
+  originalContentType?: string;
+  originalSizeBytes?: number;
   durationSeconds: number;
   category?: CompetitionCategory;
   title?: string;
@@ -59,6 +63,10 @@ export async function createSubmission(
     audioPath,
     contentType,
     sizeBytes,
+    originalAudioURL,
+    originalAudioPath,
+    originalContentType,
+    originalSizeBytes,
     durationSeconds,
     category = 'freestyle',
     title = 'Assobio enviado',
@@ -136,6 +144,10 @@ export async function createSubmission(
     mediaURL: audioURL,
     mediaPath: audioPath,
     mediaContentType: contentType,
+    mediaOriginalURL: originalAudioURL ?? audioURL,
+    mediaOriginalPath: originalAudioPath ?? audioPath,
+    mediaOriginalContentType: originalContentType ?? contentType,
+    mediaOriginalSizeBytes: originalSizeBytes ?? sizeBytes,
     mediaDurationSeconds: Math.round(durationSeconds),
     mediaSizeBytes: sizeBytes,
     videoURL: audioURL,

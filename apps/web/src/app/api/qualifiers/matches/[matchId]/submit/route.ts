@@ -11,7 +11,7 @@ interface RouteContext {
 
 export async function POST(req: NextRequest, { params }: RouteContext) {
   const bucket = getAdminStorageBucket();
-  let uploadedAudioPath: string | null = null;
+  let uploadedAudioPaths: string[] = [];
 
   try {
     const decodedToken = await requireDecodedToken(req);
@@ -32,25 +32,39 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       buffer,
       contentType: audioContentType,
     });
-    uploadedAudioPath = upload.audioPath;
+    uploadedAudioPaths = Array.from(
+      new Set(
+        [upload.audioPath, upload.originalAudioPath].filter((path): path is string =>
+          Boolean(path),
+        ),
+      ),
+    );
 
     const result = await createQualifierSubmission(getAdminFirestore(), {
       matchId: params.matchId,
       userId: decodedToken.uid,
       audioURL: upload.audioURL,
       audioPath: upload.audioPath,
-      contentType: audioContentType,
-      sizeBytes: buffer.length,
+      contentType: upload.contentType,
+      sizeBytes: upload.sizeBytes,
+      originalAudioURL: upload.originalAudioURL,
+      originalAudioPath: upload.originalAudioPath,
+      originalContentType: upload.originalContentType,
+      originalSizeBytes: upload.originalSizeBytes,
       durationSeconds,
     });
 
     return NextResponse.json(result);
   } catch (error) {
-    if (uploadedAudioPath) {
-      await bucket
-        .file(uploadedAudioPath)
-        .delete()
-        .catch(() => undefined);
+    if (uploadedAudioPaths.length > 0) {
+      await Promise.all(
+        uploadedAudioPaths.map((path) =>
+          bucket
+            .file(path)
+            .delete()
+            .catch(() => undefined),
+        ),
+      );
     }
     if (!(error instanceof ApiError)) {
       console.error('Qualifier submission error:', error);

@@ -13,6 +13,10 @@ export interface CreateQualifierSubmissionInput {
   audioPath: string;
   contentType: string;
   sizeBytes: number;
+  originalAudioURL?: string;
+  originalAudioPath?: string;
+  originalContentType?: string;
+  originalSizeBytes?: number;
   durationSeconds: number;
   now?: Date;
 }
@@ -47,6 +51,10 @@ export async function createQualifierSubmission(
     audioPath,
     contentType,
     sizeBytes,
+    originalAudioURL,
+    originalAudioPath,
+    originalContentType,
+    originalSizeBytes,
     durationSeconds,
     now = new Date(),
   }: CreateQualifierSubmissionInput,
@@ -122,6 +130,10 @@ export async function createQualifierSubmission(
       mediaURL: audioURL,
       mediaPath: audioPath,
       mediaContentType: contentType,
+      mediaOriginalURL: originalAudioURL ?? audioURL,
+      mediaOriginalPath: originalAudioPath ?? audioPath,
+      mediaOriginalContentType: originalContentType ?? contentType,
+      mediaOriginalSizeBytes: originalSizeBytes ?? sizeBytes,
       mediaDurationSeconds: Math.round(durationSeconds),
       mediaSizeBytes: sizeBytes,
       status: 'submitted',
