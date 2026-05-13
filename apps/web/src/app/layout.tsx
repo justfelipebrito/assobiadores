@@ -7,6 +7,7 @@ import { ReferralAttributionCapture } from '@/components/analytics/referral-attr
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
 import { QualifierRegistrationNotice } from '@/components/qualifiers/qualifier-registration-notice';
+import { PUBLIC_FAVICON_SRC, PUBLIC_LOGO_ICON_SRC } from '@/lib/public-assets';
 import { PUBLIC_BRAND_DESCRIPTION, PUBLIC_BRAND_NAME } from '@/lib/public-brand';
 import './globals.css';
 
@@ -17,9 +18,9 @@ export const metadata: Metadata = {
   },
   description: PUBLIC_BRAND_DESCRIPTION,
   icons: {
-    icon: '/favicon.png',
-    shortcut: '/favicon.png',
-    apple: '/logo.png',
+    icon: PUBLIC_FAVICON_SRC,
+    shortcut: PUBLIC_FAVICON_SRC,
+    apple: PUBLIC_LOGO_ICON_SRC,
   },
 };
 

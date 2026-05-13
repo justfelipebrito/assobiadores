@@ -6,6 +6,7 @@ import type { User as FirebaseUser } from 'firebase/auth';
 import { Avatar } from '@batalha/ui';
 import { trackAuthCtaClick } from '../../lib/analytics-events';
 import { getMobileNavigationItems } from '../../lib/mobile-navigation';
+import { PUBLIC_LOGO_ICON_SRC } from '../../lib/public-assets';
 import { PUBLIC_BRAND_NAME } from '../../lib/public-brand';
 import { useBodyScrollLock } from '../../lib/use-body-scroll-lock';
 
@@ -43,7 +44,7 @@ export function MobileNav({
           <div className="flex items-center justify-between border-b border-white/5 px-4 py-3">
             <div className="flex items-center gap-2.5">
               <img
-                src="/logo.png"
+                src={PUBLIC_LOGO_ICON_SRC}
                 alt={PUBLIC_BRAND_NAME}
                 className="h-9 w-9 rounded-xl object-contain"
               />

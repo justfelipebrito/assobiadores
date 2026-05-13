@@ -20,6 +20,7 @@ import {
   type QualifierRegistration,
   type QualifierTrack,
 } from '@batalha/types';
+import { getWebApiBaseUrl } from '../../lib/web-api';
 
 function SelectField({
   label,
@@ -89,7 +90,7 @@ function AdminQualifierActions() {
     }
 
     const token = await user.getIdToken();
-    const baseURL = process.env.NEXT_PUBLIC_WEB_APP_URL || 'http://localhost:3000';
+    const baseURL = getWebApiBaseUrl();
     const response = await fetch(`${baseURL}${path}`, {
       method: 'POST',
       headers: {
@@ -275,7 +276,7 @@ export default function AdminQualifiersPage() {
       }),
     [tracks],
   );
-  const publicBaseURL = process.env.NEXT_PUBLIC_WEB_APP_URL || 'http://localhost:3000';
+  const publicBaseURL = getWebApiBaseUrl();
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">

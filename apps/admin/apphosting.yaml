@@ -36,3 +36,8 @@ env:
     availability:
       - BUILD
       - RUNTIME
+  - variable: NEXT_PUBLIC_WEB_APP_URL
+    value: "https://assobiador.com"
+    availability:
+      - BUILD
+      - RUNTIME

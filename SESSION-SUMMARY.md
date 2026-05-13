@@ -813,6 +813,8 @@ Latest hardening/refactor:
   - added an admin-only user profile correction flow: admins can open users from the `Usuários` table in a modal and correct username, first name, surname, display name, and bio through a trusted web API. The API enforces admin role server-side, preserves username reservations, and does not expose edits for roles, points, payments, CPF, Pix, or ranking fields.
   - adjusted the admin battle form schedule inputs so date/time fields stay in a two-column layout instead of being squeezed into one five-column desktop row.
   - refined admin `datetime-local` inputs so the native calendar picker indicator renders white, remains at the end of the field, and has enough right-side spacing.
+  - fixed production admin API base URL handling: admin App Hosting now sets `NEXT_PUBLIC_WEB_APP_URL=https://assobiador.com`, and admin client calls use a shared `getWebApiBaseUrl()` helper that does not fall back to `localhost` in production. Deployed the `assobiador-admin` backend hotfix and verified the production admin URL plus the production web admin-user API CORS preflight.
+  - moved the public web app logo/favicon references off generic `/logo.png` and `/favicon.png` paths to versioned Absolute Assobio asset names (`/absolute-assobio-icon-v2.png`, `/absolute-assobio-favicon-v2.png`) to avoid stale CDN/browser cache showing the previous logo after refreshes.
 
 Security/test work to do before expanding features:
 

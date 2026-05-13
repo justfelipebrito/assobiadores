@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { LEGAL_PAGES } from '@/lib/legal-pages';
 import { trackAuthCtaClick } from '@/lib/analytics-events';
+import { PUBLIC_LOGO_ICON_SRC } from '@/lib/public-assets';
 import { PUBLIC_BRAND_NAME } from '@/lib/public-brand';
 
 export function Footer() {
@@ -14,7 +15,7 @@ export function Footer() {
           <div className="sm:col-span-2 lg:col-span-1">
             <div className="flex items-center gap-2.5">
               <img
-                src="/logo.png"
+                src={PUBLIC_LOGO_ICON_SRC}
                 alt={PUBLIC_BRAND_NAME}
                 className="h-9 w-9 rounded-xl object-contain"
               />

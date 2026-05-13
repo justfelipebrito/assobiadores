@@ -6,6 +6,7 @@ import { Badge, Button, Card, CardContent, EmptyState, Input, Skeleton, Textarea
 import { formatNumber } from '@batalha/utils';
 import type { User } from '@batalha/types';
 import { toast } from 'sonner';
+import { getWebApiBaseUrl } from '../../lib/web-api';
 import { SortableTableHeader } from '../../components/sortable-table-header';
 import { getNextSortState, sortRows, type SortState } from '../../components/sortable-table';
 
@@ -62,7 +63,7 @@ function UserEditModal({
     setSaving(true);
     try {
       const token = await adminUser.getIdToken();
-      const baseURL = process.env.NEXT_PUBLIC_WEB_APP_URL || 'http://localhost:3000';
+      const baseURL = getWebApiBaseUrl();
       const response = await fetch(`${baseURL}/api/admin/users/${user.id}/profile`, {
         method: 'POST',
         headers: {

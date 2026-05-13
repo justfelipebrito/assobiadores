@@ -5,6 +5,7 @@ import { useAuth, useCollection, where, orderBy } from '@batalha/firebase';
 import { Button, Card, CardContent, EmptyState, Skeleton, Badge } from '@batalha/ui';
 import { toast } from 'sonner';
 import type { Submission, SubmissionReport } from '@batalha/types';
+import { getWebApiBaseUrl } from '../../lib/web-api';
 
 const REPORT_REASON_LABEL: Record<string, string> = {
   spam: 'Spam',
@@ -22,18 +23,6 @@ const STATUS_LABEL: Record<string, string> = {
   rejected: 'Legado rejeitado',
   removed: 'Removido',
 };
-
-function getWebApiBaseUrl() {
-  if (process.env.NEXT_PUBLIC_WEB_APP_URL) {
-    return process.env.NEXT_PUBLIC_WEB_APP_URL.replace(/\/$/, '');
-  }
-
-  if (typeof window !== 'undefined' && window.location.port === '3001') {
-    return 'http://localhost:3000';
-  }
-
-  return '';
-}
 
 function formatDate(value: unknown) {
   if (!value) return 'Sem data';
