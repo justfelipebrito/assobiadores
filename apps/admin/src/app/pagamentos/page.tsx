@@ -1,9 +1,14 @@
 'use client';
 
+import { useMemo, useState } from 'react';
 import { orderBy, useCollection } from '@batalha/firebase';
 import { Badge, Card, CardContent, EmptyState, Skeleton } from '@batalha/ui';
 import { formatCurrency, formatDate, toDate } from '@batalha/utils';
 import type { Payment } from '@batalha/types';
+import { SortableTableHeader } from '../../components/sortable-table-header';
+import { getNextSortState, sortRows, type SortState } from '../../components/sortable-table';
+
+type PaymentSortKey = 'payment' | 'status' | 'target' | 'amount' | 'createdAt';
 
 const STATUS_LABELS: Record<string, string> = {
   pending: 'Pendente',
@@ -25,10 +30,26 @@ function getTargetLabel(payment: Payment) {
   return payment.targetType;
 }
 
+const PAYMENT_SORT_SELECTORS = {
+  payment: (payment: Payment) => payment.id,
+  status: (payment: Payment) => payment.status,
+  target: (payment: Payment) => getTargetLabel(payment),
+  amount: (payment: Payment) => payment.amount,
+  createdAt: (payment: Payment) => payment.createdAt,
+};
+
 export default function PaymentsPage() {
+  const [sort, setSort] = useState<SortState<PaymentSortKey>>({
+    key: 'createdAt',
+    direction: 'desc',
+  });
   const { data: payments, loading } = useCollection<Payment>('payments', [
     orderBy('createdAt', 'desc'),
   ]);
+  const sortedPayments = useMemo(
+    () => sortRows(payments, sort, PAYMENT_SORT_SELECTORS),
+    [payments, sort],
+  );
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">
@@ -61,25 +82,44 @@ export default function PaymentsPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-white/10 bg-white/[0.03]">
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-surface-500">
-                        Pagamento
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-surface-500">
-                        Status
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-surface-500">
-                        Destino
-                      </th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-surface-500">
-                        Valor
-                      </th>
-                      <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-surface-500">
-                        Criado
-                      </th>
+                      <SortableTableHeader
+                        label="Pagamento"
+                        active={sort.key === 'payment'}
+                        direction={sort.direction}
+                        onClick={() => setSort((current) => getNextSortState(current, 'payment'))}
+                      />
+                      <SortableTableHeader
+                        label="Status"
+                        active={sort.key === 'status'}
+                        direction={sort.direction}
+                        onClick={() => setSort((current) => getNextSortState(current, 'status'))}
+                      />
+                      <SortableTableHeader
+                        label="Destino"
+                        active={sort.key === 'target'}
+                        direction={sort.direction}
+                        onClick={() => setSort((current) => getNextSortState(current, 'target'))}
+                      />
+                      <SortableTableHeader
+                        label="Valor"
+                        active={sort.key === 'amount'}
+                        direction={sort.direction}
+                        align="right"
+                        onClick={() => setSort((current) => getNextSortState(current, 'amount'))}
+                      />
+                      <SortableTableHeader
+                        label="Criado"
+                        active={sort.key === 'createdAt'}
+                        direction={sort.direction}
+                        align="right"
+                        onClick={() =>
+                          setSort((current) => getNextSortState(current, 'createdAt'))
+                        }
+                      />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5">
-                    {payments.map((payment) => {
+                    {sortedPayments.map((payment) => {
                       const createdAt = toDate(payment.createdAt);
                       return (
                         <tr key={payment.id} className="transition-colors hover:bg-white/[0.02]">

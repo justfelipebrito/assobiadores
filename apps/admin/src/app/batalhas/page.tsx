@@ -1,6 +1,6 @@
 'use client';
 
-import { type FormEvent, useState } from 'react';
+import { type FormEvent, useMemo, useState } from 'react';
 import {
   addDoc,
   collection,
@@ -25,6 +25,8 @@ import {
 import { formatCurrency, formatRelativeTime, toDate } from '@batalha/utils';
 import { toast } from 'sonner';
 import type { Battle } from '@batalha/types';
+import { SortableTableHeader } from '../../components/sortable-table-header';
+import { getNextSortState, sortRows, type SortState } from '../../components/sortable-table';
 import {
   ADMIN_BATTLE_CATEGORY_OPTIONS,
   ADMIN_BATTLE_FORMAT_OPTIONS,
@@ -36,12 +38,21 @@ import {
   validateAdminBattleForm,
 } from './admin-battle-form';
 
+type BattleSortKey = 'battle' | 'status' | 'participants' | 'entryFee';
+
 const STATUS_MAP: Record<string, { label: string; color: string }> = {
   draft: { label: 'Rascunho', color: 'default' },
   registration: { label: 'Inscricoes', color: 'success' },
   active: { label: 'Em andamento', color: 'info' },
   voting: { label: 'Em votacao', color: 'purple' },
   finished: { label: 'Finalizada', color: 'default' },
+};
+
+const BATTLE_SORT_SELECTORS = {
+  battle: (battle: Battle) => battle.title,
+  status: (battle: Battle) => STATUS_MAP[battle.status]?.label ?? battle.status,
+  participants: (battle: Battle) => battle.currentParticipants ?? 0,
+  entryFee: (battle: Battle) => battle.entryFee ?? 0,
 };
 
 interface BattleFormProps {
@@ -239,7 +250,7 @@ function BattleForm({ battle, onCancel, onSaved }: BattleFormProps) {
             maxLength={2000}
           />
 
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+          <div className="grid gap-4 md:grid-cols-2">
             <Input
               label="Inicio inscricoes"
               type="datetime-local"
@@ -301,9 +312,17 @@ function BattleForm({ battle, onCancel, onSaved }: BattleFormProps) {
 export default function AdminBattlesPage() {
   const [editingBattle, setEditingBattle] = useState<Battle | null>(null);
   const [formVisible, setFormVisible] = useState(false);
+  const [sort, setSort] = useState<SortState<BattleSortKey>>({
+    key: 'battle',
+    direction: 'asc',
+  });
   const { data: battles, loading } = useCollection<Battle>('battles', [
     orderBy('createdAt', 'desc'),
   ]);
+  const sortedBattles = useMemo(
+    () => sortRows(battles, sort, BATTLE_SORT_SELECTORS),
+    [battles, sort],
+  );
 
   const openCreateForm = () => {
     setEditingBattle(null);
@@ -362,25 +381,41 @@ export default function AdminBattlesPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-white/10 bg-white/[0.03]">
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-surface-500">
-                    Batalha
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-surface-500">
-                    Status
-                  </th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-surface-500">
-                    Participantes
-                  </th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-surface-500">
-                    Inscricao
-                  </th>
+                  <SortableTableHeader
+                    label="Batalha"
+                    active={sort.key === 'battle'}
+                    direction={sort.direction}
+                    onClick={() => setSort((current) => getNextSortState(current, 'battle'))}
+                  />
+                  <SortableTableHeader
+                    label="Status"
+                    active={sort.key === 'status'}
+                    direction={sort.direction}
+                    onClick={() => setSort((current) => getNextSortState(current, 'status'))}
+                  />
+                  <SortableTableHeader
+                    label="Participantes"
+                    active={sort.key === 'participants'}
+                    direction={sort.direction}
+                    align="right"
+                    onClick={() =>
+                      setSort((current) => getNextSortState(current, 'participants'))
+                    }
+                  />
+                  <SortableTableHeader
+                    label="Inscricao"
+                    active={sort.key === 'entryFee'}
+                    direction={sort.direction}
+                    align="right"
+                    onClick={() => setSort((current) => getNextSortState(current, 'entryFee'))}
+                  />
                   <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-surface-500">
                     Acoes
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5">
-                {battles.map((battle) => {
+                {sortedBattles.map((battle) => {
                   const status = STATUS_MAP[battle.status] || STATUS_MAP.draft!;
                   const regEnd = toDate(battle.registrationEnd);
 

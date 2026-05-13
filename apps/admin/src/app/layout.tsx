@@ -4,8 +4,8 @@ import { AdminShell } from '../components/admin-shell';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Admin - A casa do assobiador',
-  description: 'Painel administrativo da casa do assobiador',
+  title: 'Admin ERP - Absolute Assobio',
+  description: 'Painel administrativo operacional do Absolute Assobio',
   robots: {
     index: false,
     follow: false,
