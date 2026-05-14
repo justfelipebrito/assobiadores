@@ -33,7 +33,7 @@ export type AdminReferralAnalytics = {
 };
 
 const GA_SCOPE = 'https://www.googleapis.com/auth/analytics.readonly';
-const ORGANIC_REFERRAL = { code: 'organic', name: 'Organico' } as const;
+const ORGANIC_REFERRAL = { code: 'organic', name: 'Orgânico' } as const;
 
 function base64Url(value: string | Buffer) {
   return Buffer.from(value)
@@ -144,7 +144,8 @@ async function runGaReferralReport({
   );
 
   if (!response.ok) {
-    throw new Error(`GA report request failed with ${response.status}`);
+    const body = await response.text();
+    throw new Error(`GA referral report request failed with ${response.status}: ${body}`);
   }
 
   return (await response.json()) as {
@@ -153,6 +154,56 @@ async function runGaReferralReport({
       metricValues?: Array<{ value?: string }>;
     }>;
   };
+}
+
+async function runGaReferralFallbackReport({
+  propertyId,
+  accessToken,
+  fetchImpl,
+}: {
+  propertyId: string;
+  accessToken: string;
+  fetchImpl: FetchLike;
+}) {
+  const response = await fetchImpl(
+    `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
+    {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }],
+        metrics: [{ name: 'eventCount' }, { name: 'activeUsers' }],
+        dimensionFilter: {
+          filter: {
+            fieldName: 'eventName',
+            stringFilter: { matchType: 'EXACT', value: 'partner_referral_captured' },
+          },
+        },
+      }),
+    },
+  );
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`GA referral fallback request failed with ${response.status}: ${body}`);
+  }
+
+  const body = (await response.json()) as {
+    rows?: Array<{ metricValues?: Array<{ value?: string }> }>;
+  };
+  const row = body.rows?.[0];
+  const partner = PARTNER_REFERRALS[0];
+  if (!row || !partner || PARTNER_REFERRALS.length !== 1) return [];
+
+  return [
+    {
+      dimensionValues: [{ value: partner.code }],
+      metricValues: row.metricValues,
+    },
+  ];
 }
 
 async function runGaTotalReport({
@@ -180,7 +231,8 @@ async function runGaTotalReport({
   );
 
   if (!response.ok) {
-    throw new Error(`GA total report request failed with ${response.status}`);
+    const body = await response.text();
+    throw new Error(`GA total report request failed with ${response.status}: ${body}`);
   }
 
   const body = (await response.json()) as {
@@ -241,6 +293,37 @@ function buildRows({
   ];
 }
 
+function getGaUnavailableReason(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return 'GA4 conectado, mas os dados de visitantes nao puderam ser carregados agora.';
+}
+
+function isMissingPartnerRefDimension(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes('customEvent:partner_ref') || message.includes('partner_ref');
+}
+
+function buildUnavailableResponse({
+  attributionCounts,
+  unavailableReason,
+}: {
+  attributionCounts: { totalUsers: number; byRef: Map<string, number> };
+  unavailableReason: string;
+}): AdminReferralAnalytics {
+  const byRef = buildRows({ attributionCounts });
+  return {
+    available: false,
+    rangeLabel: 'Ultimos 30 dias',
+    totals: {
+      visitors: 0,
+      referralCaptures: 0,
+      attributedUsers: byRef.reduce((sum, row) => sum + row.attributedUsers, 0),
+    },
+    byRef,
+    unavailableReason,
+  };
+}
+
 export async function getAdminReferralAnalytics({
   db,
   adminUserId,
@@ -256,28 +339,51 @@ export async function getAdminReferralAnalytics({
 
   const attributionCounts = await getAttributionCounts(db);
   const propertyId = env.GA_PROPERTY_ID?.trim();
-  const accessToken = propertyId ? await getAccessToken({ env, fetchImpl }) : null;
-
-  if (!propertyId || !accessToken) {
-    const byRef = buildRows({ attributionCounts });
-    return {
-      available: false,
-      rangeLabel: 'Ultimos 30 dias',
-      totals: {
-        visitors: 0,
-        referralCaptures: 0,
-        attributedUsers: byRef.reduce((sum, row) => sum + row.attributedUsers, 0),
-      },
-      byRef,
-      unavailableReason: 'Configure GA_PROPERTY_ID, GA_CLIENT_EMAIL e GA_PRIVATE_KEY.',
-    };
+  let accessToken: string | null = null;
+  if (propertyId) {
+    try {
+      accessToken = await getAccessToken({ env, fetchImpl });
+    } catch (error) {
+      return buildUnavailableResponse({
+        attributionCounts,
+        unavailableReason: getGaUnavailableReason(error),
+      });
+    }
   }
 
-  const [report, totalVisitors] = await Promise.all([
-    runGaReferralReport({ propertyId, accessToken, fetchImpl }),
-    runGaTotalReport({ propertyId, accessToken, fetchImpl }),
-  ]);
-  const byRef = buildRows({ attributionCounts, gaRows: report.rows, totalVisitors });
+  if (!propertyId || !accessToken) {
+    return buildUnavailableResponse({
+      attributionCounts,
+      unavailableReason: 'Configure GA_PROPERTY_ID, GA_CLIENT_EMAIL e GA_PRIVATE_KEY.',
+    });
+  }
+
+  let totalVisitors = 0;
+  try {
+    totalVisitors = await runGaTotalReport({ propertyId, accessToken, fetchImpl });
+  } catch (error) {
+    return buildUnavailableResponse({
+      attributionCounts,
+      unavailableReason: getGaUnavailableReason(error),
+    });
+  }
+
+  let unavailableReason: string | undefined;
+  let gaRows: Awaited<ReturnType<typeof runGaReferralReport>>['rows'] = [];
+  try {
+    const report = await runGaReferralReport({ propertyId, accessToken, fetchImpl });
+    gaRows = report.rows;
+  } catch (error) {
+    if (!isMissingPartnerRefDimension(error)) {
+      unavailableReason = getGaUnavailableReason(error);
+    }
+    try {
+      gaRows = await runGaReferralFallbackReport({ propertyId, accessToken, fetchImpl });
+    } catch {
+      gaRows = [];
+    }
+  }
+  const byRef = buildRows({ attributionCounts, gaRows, totalVisitors });
 
   return {
     available: true,
@@ -288,5 +394,6 @@ export async function getAdminReferralAnalytics({
       attributedUsers: byRef.reduce((sum, row) => sum + row.attributedUsers, 0),
     },
     byRef,
+    unavailableReason,
   };
 }

@@ -42,18 +42,18 @@ describe('getAdminReferralAnalytics', () => {
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
+          rows: [{ metricValues: [{ value: '30' }] }],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
           rows: [
             {
               dimensionValues: [{ value: 'absoluteassobio' }],
               metricValues: [{ value: '12' }, { value: '10' }],
             },
           ],
-        }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          rows: [{ metricValues: [{ value: '30' }] }],
         }),
       });
 
@@ -105,6 +105,66 @@ describe('getAdminReferralAnalytics', () => {
     expect(result.byRef.find((row) => row.ref === 'absoluteassobio')?.attributedUsers).toBe(2);
     expect(result.byRef.find((row) => row.ref === 'organic')?.attributedUsers).toBe(1);
     expect(result.unavailableReason).toContain('GA_PROPERTY_ID');
+  });
+
+  it('keeps the dashboard available when the GA partner_ref custom dimension is missing', async () => {
+    const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ access_token: 'token-1' }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          rows: [{ metricValues: [{ value: '30' }] }],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        text: async () =>
+          'Field customEvent:partner_ref is not a valid dimension',
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          rows: [
+            {
+              metricValues: [{ value: '12' }, { value: '10' }],
+            },
+          ],
+        }),
+      });
+
+    const result = await getAdminReferralAnalytics({
+      db: createDb() as never,
+      adminUserId: 'admin-1',
+      env: {
+        GA_PROPERTY_ID: '123',
+        GA_CLIENT_EMAIL: 'analytics@example.iam.gserviceaccount.com',
+        GA_PRIVATE_KEY: privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
+      },
+      fetchImpl: fetchImpl as never,
+    });
+
+    expect(result.available).toBe(true);
+    expect(result.totals).toEqual({
+      visitors: 30,
+      referralCaptures: 12,
+      attributedUsers: 3,
+    });
+    expect(result.byRef.find((row) => row.ref === 'absoluteassobio')).toMatchObject({
+      visitors: 10,
+      referralCaptures: 12,
+      attributedUsers: 2,
+    });
+    expect(result.byRef.find((row) => row.ref === 'organic')).toMatchObject({
+      visitors: 20,
+      attributedUsers: 1,
+    });
+    expect(result.unavailableReason).toBeUndefined();
   });
 
   it('rejects non-admin users', async () => {
