@@ -829,6 +829,7 @@ Latest hardening/refactor:
   - deployed the missing `finalizeDailyHighlights` scheduled Cloud Function, updated it to catch up overdue active days instead of only the current run day, and deployed Firestore indexes for finalized daily-highlight winners plus profile `pointActivities` history. Backfilled production daily highlights for 2026-05-07 through 2026-05-13: 24 highlights finalized and top-3 placement point activities created. Verified production winner and profile point-history queries after the backfill.
   - added a static public `robots.txt` for `assobiador.com` to reduce normal crawler 404 noise. Verified the web production build after adding the asset.
   - fixed production daily-highlight submit failures caused by App Hosting standalone builds resolving `ffmpeg-static` to a missing runtime path. The web config now asks Next file tracing to include the ffmpeg binary, and audio upload storage falls back to the original audio instead of returning 500 when transcoding is unavailable. Verified focused upload/transcoding/submit tests, web type-check, web production build, deployed the web hotfix, and checked recent submit logs after rollout.
+  - changed the `Destaques Diários` archive view so previous finalized days show only a top-3 podium summary instead of rendering playable media. Today's active day still shows the media player and voting controls. Added podium metadata coverage and verified focused tests plus web type-check.
 
 Security/test work to do before expanding features:
 

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Flame } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, ChevronLeft, ChevronRight, Flame, Trophy } from 'lucide-react';
 import { limit, orderBy, useAuth, useCollection, where } from '@batalha/firebase';
 import { Badge, Button, Skeleton } from '@batalha/ui';
 import { BRAZIL_STATE_LABELS, type DailyHighlight } from '@batalha/types';
@@ -15,6 +15,7 @@ import {
   formatBrazilDayKey,
   getBrazilDayKey,
   getDailyHighlightsForDay,
+  getDailyHighlightPodiumMeta,
   shiftBrazilDayKey,
 } from '@/lib/daily-highlight-view';
 import {
@@ -176,6 +177,56 @@ export default function DailyHighlightsPage() {
               highlightId: highlight.id,
               like: currentDailyVote,
             });
+
+            if (!isTodaySelected) {
+              const podium = getDailyHighlightPodiumMeta(highlight.placement ?? index + 1);
+              const naturalidade = highlight.userBirthState
+                ? BRAZIL_STATE_LABELS[highlight.userBirthState]
+                : null;
+              const toneClass =
+                podium?.tone === 'gold'
+                  ? 'border-yellow-400/30 bg-yellow-400/10 text-yellow-200'
+                  : podium?.tone === 'silver'
+                    ? 'border-surface-300/25 bg-surface-300/10 text-surface-100'
+                    : 'border-amber-700/30 bg-amber-700/10 text-amber-200';
+
+              return (
+                <div
+                  key={highlight.id}
+                  className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-3 rounded-2xl border border-white/10 bg-surface-900/70 p-4 sm:grid-cols-[5.5rem_minmax(0,1fr)_8rem] sm:items-center"
+                >
+                  <div
+                    className={`flex h-20 flex-col items-center justify-center rounded-2xl border ${toneClass}`}
+                  >
+                    <Trophy className="h-5 w-5" />
+                    <span className="mt-1 text-lg font-black tabular-nums">
+                      {podium?.shortLabel ?? `#${index + 1}`}
+                    </span>
+                  </div>
+
+                  <div className="min-w-0">
+                    <p className="truncate text-base font-bold text-white">
+                      {highlight.userDisplayName}
+                    </p>
+                    <p className="mt-1 text-sm text-surface-400">
+                      {naturalidade ? `${naturalidade} · ` : ''}
+                      {highlight.voteCount} {highlight.voteCount === 1 ? 'voto' : 'votos'}
+                    </p>
+                  </div>
+
+                  <div className="col-span-2 flex gap-2 sm:col-span-1 sm:flex-col sm:items-end">
+                    <Badge variant="default" className="justify-center py-2 sm:w-28">
+                      {podium?.label ?? `Top ${index + 1}`}
+                    </Badge>
+                    {(highlight.placementPointsAwarded ?? 0) > 0 && (
+                      <span className="inline-flex items-center justify-center rounded-lg border border-brand-400/20 bg-brand-500/10 px-3 py-2 text-xs font-bold text-brand-200 sm:w-28">
+                        +{highlight.placementPointsAwarded ?? 0} pts
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            }
 
             return (
               <div

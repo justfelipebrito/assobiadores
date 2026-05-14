@@ -65,6 +65,19 @@ export function getDailyHighlightPlacementLabel(highlight: Pick<DailyHighlight, 
   return null;
 }
 
+export function getDailyHighlightPodiumMeta(placement: number | null | undefined) {
+  if (placement === 1) {
+    return { label: '1º lugar', tone: 'gold' as const, shortLabel: '1º' };
+  }
+  if (placement === 2) {
+    return { label: '2º lugar', tone: 'silver' as const, shortLabel: '2º' };
+  }
+  if (placement === 3) {
+    return { label: '3º lugar', tone: 'bronze' as const, shortLabel: '3º' };
+  }
+  return null;
+}
+
 export function shiftBrazilDayKey(dayKey: string, days: number) {
   const [year, month, day] = dayKey.split('-').map(Number);
   if (!year || !month || !day) return dayKey;
