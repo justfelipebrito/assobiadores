@@ -5,6 +5,7 @@ import { BottomAdBanner } from '@/components/ads/bottom-ad-banner';
 import { GoogleAnalytics } from '@/components/analytics/google-analytics';
 import { ReferralAttributionCapture } from '@/components/analytics/referral-attribution-capture';
 import { Header } from '@/components/layout/header';
+import { Sidebar } from '@/components/layout/sidebar';
 import { Footer } from '@/components/layout/footer';
 import { QualifierRegistrationNotice } from '@/components/qualifiers/qualifier-registration-notice';
 import { PUBLIC_FAVICON_SRC, PUBLIC_LOGO_ICON_SRC } from '@/lib/public-assets';
@@ -37,12 +38,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <AdsensePublisherScript />
       </head>
-      <body className="flex min-h-screen flex-col">
+      <body className="min-h-screen">
         <GoogleAnalytics />
         <ReferralAttributionCapture />
         <Header />
-        <main className="flex-1">{children}</main>
-        <Footer />
+        <Sidebar />
+        <div className="flex min-h-screen flex-col lg:pl-56">
+          <main className="flex-1">{children}</main>
+          <Footer />
+        </div>
         <BottomAdBanner />
         <QualifierRegistrationNotice />
         <Toaster

@@ -2,19 +2,22 @@
 
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import { ArrowRight, Clock, Menu, User, LogOut, Plus } from 'lucide-react';
+import { ArrowRight, Clock, Menu } from 'lucide-react';
 import { orderBy, useAuth, useCollection, useDocument } from '@batalha/firebase';
-import { Avatar, Badge, Button } from '@batalha/ui';
+import { Badge } from '@batalha/ui';
 import { formatRelativeTime } from '@batalha/utils';
 import type { Battle, Championship, QualifierTrack, User as AppUser } from '@batalha/types';
 import { getVersionedAvatarUrl } from '../../lib/avatar-url';
 import { getHeaderTickerItems } from '../../lib/header-ticker';
-import { PUBLIC_LOGO_ICON_SRC } from '../../lib/public-assets';
-import { PUBLIC_BRAND_NAME } from '../../lib/public-brand';
-import { trackAuthCtaClick } from '../../lib/analytics-events';
 import { MobileNav } from './mobile-nav';
 
-function EventTicker({ preferredRegion }: { preferredRegion?: AppUser['birthState'] }) {
+function EventTicker({
+  preferredRegion,
+  onMobileOpen,
+}: {
+  preferredRegion?: AppUser['birthState'];
+  onMobileOpen: () => void;
+}) {
   const { data: battles } = useCollection<Battle>('battles', [orderBy('createdAt', 'desc')]);
   const { data: qualifierTracks } = useCollection<QualifierTrack>('qualifierTracks', [
     orderBy('registrationDeadline', 'asc'),
@@ -34,49 +37,55 @@ function EventTicker({ preferredRegion }: { preferredRegion?: AppUser['birthStat
     [battles, championships, preferredRegion, qualifierTracks],
   );
 
-  if (tickerItems.length === 0) return null;
-
   return (
-    <div className="border-t border-white/5 bg-surface-950/95">
-      <div className="mx-auto flex max-w-6xl snap-x items-stretch overflow-x-auto px-3 [scrollbar-width:none] sm:px-4">
-        <div className="flex min-w-[96px] flex-shrink-0 items-center border-l border-r border-white/5 px-2 sm:min-w-[112px] sm:px-3">
-          <Link
-            href="/agenda"
-            className="inline-flex h-8 items-center gap-1 rounded-lg border border-white/10 px-2.5 text-[11px] font-semibold text-surface-300 transition-colors hover:border-brand-500/40 hover:text-white sm:px-3 sm:text-xs"
-          >
-            Agenda
-            <ArrowRight className="h-3.5 w-3.5" />
-          </Link>
-        </div>
+    <div className="border-b border-white/5 bg-surface-950">
+      <div className="flex items-stretch overflow-x-auto [scrollbar-width:none]">
+        {/* Mobile hamburger — always present so nav is reachable without a header bar */}
+        <button
+          onClick={onMobileOpen}
+          className="flex min-w-[48px] flex-shrink-0 items-center justify-center border-r border-white/5 text-surface-400 transition-colors hover:bg-white/[0.04] hover:text-white lg:hidden"
+          aria-label="Menu"
+        >
+          <Menu className="h-[18px] w-[18px]" />
+        </button>
+
+        {/* Agenda CTA */}
+        <Link
+          href="/agenda"
+          className="flex min-w-[88px] flex-shrink-0 items-center justify-center gap-1.5 border-r border-white/5 px-3 text-[11px] font-semibold text-surface-300 transition-colors hover:bg-white/[0.04] hover:text-white sm:min-w-[104px] sm:px-4"
+        >
+          Agenda
+          <ArrowRight className="h-3 w-3" />
+        </Link>
+
         {tickerItems.map((item) => {
+          const isLive = item.badgeVariant === 'success' || item.badgeVariant === 'info';
           return (
             <div
               key={item.id}
-              className="flex min-w-[184px] max-w-[210px] snap-start flex-col justify-between gap-2 border-r border-white/5 px-3 py-2.5 sm:min-w-[220px] sm:max-w-[240px] sm:py-3"
+              className={`group flex min-w-[176px] max-w-[208px] snap-start flex-col justify-between gap-2 border-l-2 border-r border-white/5 px-3 py-2.5 transition-colors hover:bg-white/[0.03] sm:min-w-[208px] sm:max-w-[232px] sm:py-3 ${isLive ? 'border-l-brand-500/50' : 'border-l-transparent'}`}
             >
-              <Link href={item.href} className="min-w-0 flex-1">
-                <div className="flex min-w-0 items-center gap-2">
+              <Link href={item.href} className="min-w-0">
+                <div className="flex items-center gap-1.5">
                   <Badge variant={item.badgeVariant} className="text-[10px]">
                     {item.badgeLabel}
                   </Badge>
-                  <span className="truncate text-xs font-medium text-brand-400">
-                    {item.statusLabel}
-                  </span>
+                  <span className="truncate text-[11px] text-surface-500">{item.statusLabel}</span>
                 </div>
-                <p className="mt-1 truncate text-[13px] font-semibold text-white sm:text-sm">
+                <p className="mt-1 truncate text-[13px] font-semibold leading-tight text-white group-hover:text-brand-400 sm:text-sm">
                   {item.title}
                 </p>
-                <p className="mt-1 flex items-center gap-1 text-xs text-surface-500">
+                <p className="mt-1 flex items-center gap-1 text-[11px] text-surface-500">
                   <Clock className="h-3 w-3" />
                   {formatRelativeTime(item.nextAt)}
                 </p>
               </Link>
               <Link
                 href={item.actionHref}
-                className="inline-flex h-7 w-fit flex-shrink-0 items-center gap-1 rounded-md border border-white/10 bg-white/[0.04] px-2.5 text-[11px] font-bold text-surface-200 transition-colors hover:border-brand-500/40 hover:bg-brand-500/10 hover:text-brand-300"
+                className="inline-flex h-6 w-fit items-center gap-1 rounded-md bg-white/[0.05] px-2 text-[11px] font-semibold text-surface-400 transition-colors hover:bg-brand-500/15 hover:text-brand-300"
               >
                 {item.actionLabel}
-                <ArrowRight className="h-3 w-3" />
+                <ArrowRight className="h-2.5 w-2.5" />
               </Link>
             </div>
           );
@@ -87,124 +96,19 @@ function EventTicker({ preferredRegion }: { preferredRegion?: AppUser['birthStat
 }
 
 export function Header() {
-  const { user, loading, signOut } = useAuth();
+  const { user, signOut } = useAuth();
   const { data: profile } = useDocument<AppUser>('users', user?.uid);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
   const avatarSrc = getVersionedAvatarUrl(profile?.photoURL, profile?.photoVersion);
   const displayName = profile?.displayName || user?.displayName || 'U';
 
   return (
     <>
-      <header className="sticky top-0 z-50 border-b border-white/5 bg-surface-950/80 backdrop-blur-xl">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:h-16">
-          {/* Logo */}
-          <Link href="/" className="flex items-center gap-2.5">
-            <img
-              src={PUBLIC_LOGO_ICON_SRC}
-              alt={PUBLIC_BRAND_NAME}
-              className="h-9 w-9 rounded-xl object-contain shadow-glow-sm"
-            />
-            <span className="hidden text-lg font-bold text-white sm:block">Absolute Assobio</span>
-          </Link>
-
-          {/* Right side */}
-          <div className="flex items-center gap-3">
-            {user && (
-              <Link
-                href="/criar-batalha"
-                className="hidden items-center gap-1.5 rounded-xl border border-brand-500/30 bg-brand-500/10 px-3 py-2 text-sm font-medium text-brand-400 transition-colors hover:bg-brand-500/20 md:flex"
-              >
-                <Plus className="h-4 w-4" />
-                Criar batalha
-              </Link>
-            )}
-            {loading ? (
-              <div className="h-10 w-10 animate-pulse rounded-full bg-white/5" />
-            ) : user ? (
-              <div className="relative">
-                <Link
-                  href="/criar-batalha"
-                  className="mr-1 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-brand-500/30 bg-brand-500/10 text-brand-300 transition-colors hover:bg-brand-500/20 md:hidden"
-                  aria-label="Criar batalha"
-                >
-                  <Plus className="h-4 w-4" />
-                </Link>
-                <button
-                  onClick={() => setProfileOpen(!profileOpen)}
-                  className="hidden items-center gap-2 rounded-xl p-1.5 transition-colors hover:bg-white/5 md:flex"
-                >
-                  <Avatar src={avatarSrc} name={displayName} size="sm" />
-                  <span className="hidden text-sm font-medium text-surface-300 md:block">
-                    {displayName.split(' ')[0]}
-                  </span>
-                </button>
-
-                {/* Dropdown */}
-                {profileOpen && (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={() => setProfileOpen(false)} />
-                    <div className="absolute right-0 top-full z-50 mt-2 w-56 animate-scale-in rounded-xl border border-white/10 bg-surface-900 p-2 shadow-elevated">
-                      <Link
-                        href="/conta"
-                        onClick={() => setProfileOpen(false)}
-                        className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-surface-300 transition-colors hover:bg-white/5 hover:text-white"
-                      >
-                        <User className="h-4 w-4" />
-                        Minha Conta
-                      </Link>
-                      <div className="my-1 border-t border-white/5" />
-                      <button
-                        onClick={() => {
-                          setProfileOpen(false);
-                          signOut();
-                        }}
-                        className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-surface-300 transition-colors hover:bg-white/5 hover:text-red-400"
-                      >
-                        <LogOut className="h-4 w-4" />
-                        Sair
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            ) : (
-              <div className="hidden items-center gap-2 sm:flex">
-                <Link href="/entrar">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => trackAuthCtaClick({ action: 'login', location: 'header_desktop' })}
-                  >
-                    Entrar
-                  </Button>
-                </Link>
-                <Link href="/cadastro">
-                  <Button
-                    size="sm"
-                    onClick={() =>
-                      trackAuthCtaClick({ action: 'signup', location: 'header_desktop' })
-                    }
-                  >
-                    Criar conta
-                  </Button>
-                </Link>
-              </div>
-            )}
-
-            {/* Mobile hamburger */}
-            <button
-              onClick={() => setMobileOpen(true)}
-              className="flex h-11 w-11 items-center justify-center rounded-xl text-surface-400 transition-colors hover:bg-white/5 hover:text-white md:hidden"
-              aria-label="Abrir menu"
-            >
-              <Menu className="h-5 w-5" />
-            </button>
-          </div>
-        </div>
-      </header>
-      <div className="md:sticky md:top-16 md:z-40">
-        <EventTicker preferredRegion={user ? profile?.birthState : null} />
+      <div className="sticky top-0 z-40 lg:pl-56">
+        <EventTicker
+          preferredRegion={user ? profile?.birthState : undefined}
+          onMobileOpen={() => setMobileOpen(true)}
+        />
       </div>
 
       <MobileNav
