@@ -15,8 +15,8 @@ describe('referral attribution', () => {
   });
 
   it('sanitizes partner names and normalized analytics codes', () => {
-    expect(sanitizeReferralPartnerName(' TikTok ')).toBe('TikTok');
-    expect(normalizeReferralCode('Matheus')).toBe('matheus');
+    expect(sanitizeReferralPartnerName(' AbsoluteAssobio ')).toBe('AbsoluteAssobio');
+    expect(normalizeReferralCode('AbsoluteAssobio')).toBe('absoluteassobio');
     expect(sanitizeReferralPartnerName('random-source')).toBeNull();
     expect(normalizeReferralCode('random-source')).toBeNull();
   });
@@ -33,15 +33,15 @@ describe('referral attribution', () => {
 
   it('creates expiring attribution only for registered partner refs', () => {
     const attribution = createReferralAttribution({
-      ref: 'Instagram',
-      landingPath: '/classificatorias?ref=Instagram',
+      ref: 'AbsoluteAssobio',
+      landingPath: '/classificatorias?ref=AbsoluteAssobio',
       now: new Date('2026-05-12T00:00:00.000Z'),
     });
 
     expect(attribution).toEqual({
-      ref: 'instagram',
-      partnerName: 'Instagram',
-      landingPath: '/classificatorias?ref=Instagram',
+      ref: 'absoluteassobio',
+      partnerName: 'AbsoluteAssobio',
+      landingPath: '/classificatorias?ref=AbsoluteAssobio',
       capturedAt: '2026-05-12T00:00:00.000Z',
       expiresAt: '2026-06-11T00:00:00.000Z',
     });
@@ -64,7 +64,7 @@ describe('referral attribution', () => {
     });
 
     const attribution = createReferralAttribution({
-      ref: 'matheus',
+      ref: 'absoluteassobio',
       landingPath: '/',
       now: new Date('2026-05-12T00:00:00.000Z'),
     });
@@ -73,7 +73,7 @@ describe('referral attribution', () => {
 
     expect(localStorage.has(REFERRAL_STORAGE_KEY)).toBe(true);
     expect(sessionStorage.has(REFERRAL_STORAGE_KEY)).toBe(true);
-    expect(getStoredReferralAttribution(new Date('2026-05-13T00:00:00.000Z'))?.ref).toBe('matheus');
+    expect(getStoredReferralAttribution(new Date('2026-05-13T00:00:00.000Z'))?.ref).toBe('absoluteassobio');
     expect(getStoredReferralAttribution(new Date('2026-06-12T00:00:00.000Z'))).toBeNull();
   });
 

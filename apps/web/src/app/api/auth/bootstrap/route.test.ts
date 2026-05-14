@@ -78,9 +78,9 @@ describe('POST /api/auth/bootstrap', () => {
 
   it('sanitizes and forwards partner referral attribution', async () => {
     parseReferralAttributionInput.mockReturnValueOnce({
-      ref: 'tiktok',
-      partnerName: 'TikTok',
-      landingPath: '/?ref=tiktok',
+      ref: 'absoluteassobio',
+      partnerName: 'AbsoluteAssobio',
+      landingPath: '/?ref=absoluteassobio',
       capturedAt: '2026-05-12T00:00:00.000Z',
       expiresAt: '2026-06-12T00:00:00.000Z',
     });
@@ -88,17 +88,17 @@ describe('POST /api/auth/bootstrap', () => {
     const res = await post({
       displayName: 'Ana Silva',
       photoURL: 'https://avatar.test/a.jpg',
-      referralAttribution: { ref: 'tiktok' },
+      referralAttribution: { ref: 'absoluteassobio' },
     });
 
     expect(res.status).toBe(200);
-    expect(parseReferralAttributionInput).toHaveBeenCalledWith({ ref: 'tiktok' });
+    expect(parseReferralAttributionInput).toHaveBeenCalledWith({ ref: 'absoluteassobio' });
     expect(bootstrapUserProfile).toHaveBeenCalledWith(
       'db',
       expect.objectContaining({
         referralAttribution: expect.objectContaining({
-          ref: 'tiktok',
-          partnerName: 'TikTok',
+          ref: 'absoluteassobio',
+          partnerName: 'AbsoluteAssobio',
         }),
       }),
     );

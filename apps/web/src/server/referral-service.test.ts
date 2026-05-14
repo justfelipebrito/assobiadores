@@ -12,16 +12,16 @@ describe('referral service', () => {
 
     const referral = parseReferralAttributionInput({
       ref: 'TIKTOK',
-      partnerName: 'TikTok',
-      landingPath: '/?ref=TikTok',
+      partnerName: 'AbsoluteAssobio',
+      landingPath: '/?ref=AbsoluteAssobio',
       capturedAt: '2026-05-12T00:00:00.000Z',
       expiresAt: '2026-06-12T00:00:00.000Z',
     });
 
     expect(referral).toEqual({
-      ref: 'tiktok',
-      partnerName: 'TikTok',
-      landingPath: '/?ref=TikTok',
+      ref: 'absoluteassobio',
+      partnerName: 'AbsoluteAssobio',
+      landingPath: '/?ref=AbsoluteAssobio',
       capturedAt: '2026-05-12T00:00:00.000Z',
       expiresAt: '2026-06-12T00:00:00.000Z',
     });
@@ -43,7 +43,7 @@ describe('referral service', () => {
     ).toBeNull();
     expect(
       parseReferralAttributionInput({
-        ref: 'instagram',
+        ref: 'absoluteassobio',
         landingPath: '/',
         capturedAt: 'invalid',
         expiresAt: '2026-06-01T00:00:00.000Z',
@@ -51,7 +51,7 @@ describe('referral service', () => {
     ).toBeNull();
     expect(
       parseReferralAttributionInput({
-        ref: 'instagram',
+        ref: 'absoluteassobio',
         landingPath: '/',
         capturedAt: '2026-04-01T00:00:00.000Z',
         expiresAt: '2026-05-01T00:00:00.000Z',
@@ -62,18 +62,18 @@ describe('referral service', () => {
   it('builds public user profile fields without personal data', () => {
     expect(
       buildReferralProfileFields({
-        ref: 'instagram',
-        partnerName: 'Instagram',
+        ref: 'absoluteassobio',
+        partnerName: 'AbsoluteAssobio',
         landingPath: '/',
         capturedAt: '2026-05-12T00:00:00.000Z',
         expiresAt: '2026-06-12T00:00:00.000Z',
       }),
     ).toEqual({
-      ref: 'Instagram',
-      refCode: 'instagram',
+      ref: 'AbsoluteAssobio',
+      refCode: 'absoluteassobio',
       referral: {
-        partnerName: 'Instagram',
-        refCode: 'instagram',
+        partnerName: 'AbsoluteAssobio',
+        refCode: 'absoluteassobio',
         landingPath: '/',
         capturedAt: '2026-05-12T00:00:00.000Z',
       },

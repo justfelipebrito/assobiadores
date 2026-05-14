@@ -3,18 +3,16 @@ import { getPartnerReferral, normalizePartnerReferralCode } from './partner-refe
 
 describe('partner referrals registry', () => {
   it('normalizes partner referral codes', () => {
-    expect(normalizePartnerReferralCode(' TikTok ')).toBe('tiktok');
+    expect(normalizePartnerReferralCode(' AbsoluteAssobio ')).toBe('absoluteassobio');
     expect(normalizePartnerReferralCode('São Paulo')).toBe('sao-paulo');
     expect(normalizePartnerReferralCode('###')).toBeNull();
   });
 
   it('only accepts registered partner codes', () => {
-    expect(getPartnerReferral('instagram')).toEqual({ code: 'instagram', name: 'Instagram' });
-    expect(getPartnerReferral('TikTok')).toEqual({ code: 'tiktok', name: 'TikTok' });
-    expect(getPartnerReferral('AbsoluteAssobio')).toEqual({
-      code: 'absoluteassobio',
-      name: 'AbsoluteAssobio',
-    });
+    expect(getPartnerReferral('AbsoluteAssobio')).toEqual({ code: 'absoluteassobio', name: 'AbsoluteAssobio' });
+    expect(getPartnerReferral('instagram')).toBeNull();
+    expect(getPartnerReferral('tiktok')).toBeNull();
+    expect(getPartnerReferral('matheus')).toBeNull();
     expect(getPartnerReferral('random-partner')).toBeNull();
   });
 });

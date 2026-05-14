@@ -41,6 +41,18 @@ env:
     availability:
       - BUILD
       - RUNTIME
+  - variable: GA_PROPERTY_ID
+    secret: GA_PROPERTY_ID
+    availability:
+      - RUNTIME
+  - variable: GA_CLIENT_EMAIL
+    secret: GA_CLIENT_EMAIL
+    availability:
+      - RUNTIME
+  - variable: GA_PRIVATE_KEY
+    secret: GA_PRIVATE_KEY
+    availability:
+      - RUNTIME
   - variable: NEXT_PUBLIC_GOOGLE_ADSENSE_CLIENT
     value: "ca-pub-1405185920341102"
     availability:

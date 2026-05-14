@@ -54,9 +54,9 @@ describe('analytics events', () => {
   it('adds stored partner attribution to auth attempts', () => {
     const gtag = vi.fn();
     const stored = JSON.stringify({
-      ref: 'instagram',
-      partnerName: 'Instagram',
-      landingPath: '/?ref=instagram',
+      ref: 'absoluteassobio',
+      partnerName: 'AbsoluteAssobio',
+      landingPath: '/?ref=absoluteassobio',
       capturedAt: '2026-05-12T00:00:00.000Z',
       expiresAt: '2026-06-12T00:00:00.000Z',
     });
@@ -79,8 +79,8 @@ describe('analytics events', () => {
     expect(gtag).toHaveBeenCalledWith('event', 'auth_attempt', {
       auth_action: 'signup',
       method: 'email',
-      partner_ref: 'instagram',
-      partner_name: 'Instagram',
+      partner_ref: 'absoluteassobio',
+      partner_name: 'AbsoluteAssobio',
     });
   });
 
@@ -88,9 +88,9 @@ describe('analytics events', () => {
     const gtag = vi.fn();
     vi.stubGlobal('window', { gtag });
     const referral = {
-      ref: 'matheus',
-      partnerName: 'Matheus',
-      landingPath: '/classificatorias?ref=matheus',
+      ref: 'absoluteassobio',
+      partnerName: 'AbsoluteAssobio',
+      landingPath: '/classificatorias?ref=absoluteassobio',
       capturedAt: '2026-05-12T00:00:00.000Z',
       expiresAt: '2026-06-12T00:00:00.000Z',
     };
@@ -99,13 +99,13 @@ describe('analytics events', () => {
     trackReferralBootstrap({ referral, created: true });
 
     expect(gtag).toHaveBeenCalledWith('event', 'partner_referral_captured', {
-      partner_ref: 'matheus',
-      partner_name: 'Matheus',
-      landing_path: '/classificatorias?ref=matheus',
+      partner_ref: 'absoluteassobio',
+      partner_name: 'AbsoluteAssobio',
+      landing_path: '/classificatorias?ref=absoluteassobio',
     });
     expect(gtag).toHaveBeenCalledWith('event', 'partner_referral_bootstrap', {
-      partner_ref: 'matheus',
-      partner_name: 'Matheus',
+      partner_ref: 'absoluteassobio',
+      partner_name: 'AbsoluteAssobio',
       created_user: true,
     });
   });

@@ -4,9 +4,6 @@ export type PartnerReferral = {
 };
 
 export const PARTNER_REFERRALS = [
-  { code: 'instagram', name: 'Instagram' },
-  { code: 'tiktok', name: 'TikTok' },
-  { code: 'matheus', name: 'Matheus' },
   { code: 'absoluteassobio', name: 'AbsoluteAssobio' },
 ] as const satisfies ReadonlyArray<PartnerReferral>;
 

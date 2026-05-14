@@ -140,9 +140,9 @@ describe('user bootstrap service', () => {
       email: 'ref@example.com',
       displayName: 'Referral User',
       referralAttribution: {
-        ref: 'instagram',
-        partnerName: 'Instagram',
-        landingPath: '/?ref=instagram',
+        ref: 'absoluteassobio',
+        partnerName: 'AbsoluteAssobio',
+        landingPath: '/?ref=absoluteassobio',
         capturedAt: '2026-05-12T00:00:00.000Z',
         expiresAt: '2026-06-12T00:00:00.000Z',
       },
@@ -151,12 +151,12 @@ describe('user bootstrap service', () => {
     expect(tx.set).toHaveBeenCalledWith(
       expect.objectContaining({ path: 'users/user-referral' }),
       expect.objectContaining({
-        ref: 'Instagram',
-        refCode: 'instagram',
+        ref: 'AbsoluteAssobio',
+        refCode: 'absoluteassobio',
         referral: {
-          partnerName: 'Instagram',
-          refCode: 'instagram',
-          landingPath: '/?ref=instagram',
+          partnerName: 'AbsoluteAssobio',
+          refCode: 'absoluteassobio',
+          landingPath: '/?ref=absoluteassobio',
           capturedAt: '2026-05-12T00:00:00.000Z',
         },
       }),
@@ -174,8 +174,8 @@ describe('user bootstrap service', () => {
       uid: 'user-existing',
       email: 'user@example.com',
       referralAttribution: {
-        ref: 'tiktok',
-        partnerName: 'TikTok',
+        ref: 'absoluteassobio',
+        partnerName: 'AbsoluteAssobio',
         landingPath: '/',
         capturedAt: '2026-05-12T00:00:00.000Z',
         expiresAt: '2026-06-12T00:00:00.000Z',
@@ -185,8 +185,8 @@ describe('user bootstrap service', () => {
     expect(tx.set).toHaveBeenCalledWith(
       expect.objectContaining({ path: 'users/user-existing' }),
       expect.objectContaining({
-        ref: 'TikTok',
-        refCode: 'tiktok',
+        ref: 'AbsoluteAssobio',
+        refCode: 'absoluteassobio',
       }),
       { merge: true },
     );
@@ -203,8 +203,8 @@ describe('user bootstrap service', () => {
       uid: 'user-existing',
       email: 'user@example.com',
       referralAttribution: {
-        ref: 'matheus',
-        partnerName: 'Matheus',
+        ref: 'absoluteassobio',
+        partnerName: 'AbsoluteAssobio',
         landingPath: '/',
         capturedAt: '2026-05-12T00:00:00.000Z',
         expiresAt: '2026-06-12T00:00:00.000Z',
@@ -213,7 +213,7 @@ describe('user bootstrap service', () => {
 
     expect(tx.set).not.toHaveBeenCalledWith(
       expect.objectContaining({ path: 'users/user-existing' }),
-      expect.objectContaining({ ref: 'Matheus' }),
+      expect.objectContaining({ ref: 'AbsoluteAssobio' }),
       { merge: true },
     );
   });
