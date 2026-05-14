@@ -88,6 +88,36 @@ describe('daily highlight audio upload service', () => {
     expect(result.contentType).toBe('audio/mp4; codecs=mp4a.40.2');
   });
 
+  it('keeps the original audio when playback transcoding is unavailable', async () => {
+    const { bucket, file } = createBucket();
+    const transcodeError = Object.assign(new Error('spawn ffmpeg ENOENT'), { code: 'ENOENT' });
+    const transcode = vi.fn(async () => {
+      throw transcodeError;
+    });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    const result = await uploadDailyHighlightAudio({
+      bucket,
+      userId: 'user-1',
+      buffer: Buffer.from('audio'),
+      contentType: 'audio/webm',
+      category: 'freestyle',
+      transcode,
+    });
+
+    expect(transcode).toHaveBeenCalled();
+    expect(file.save).toHaveBeenCalledTimes(1);
+    expect(result.audioPath).toMatch(/\.webm$/);
+    expect(result.audioPath).toBe(result.originalAudioPath);
+    expect(result.contentType).toBe('audio/webm');
+    expect(warn).toHaveBeenCalledWith(
+      'Audio transcoding unavailable; using original audio as playback.',
+      transcodeError,
+    );
+
+    warn.mockRestore();
+  });
+
   it('rejects non-audio and oversized payloads', async () => {
     const { bucket } = createBucket();
 

@@ -18,6 +18,18 @@ type AudioBucket = {
 
 type AudioTranscoder = (buffer: Buffer, contentType: string) => Promise<Buffer>;
 
+function isTranscodeUnavailableError(error: unknown) {
+  if (!error || typeof error !== 'object') return false;
+  const { code, message } = error as { code?: unknown; message?: unknown };
+  return (
+    code === 'ENOENT' ||
+    (typeof message === 'string' &&
+      (message.includes('FFmpeg binary is not available') ||
+        message.includes('spawn') ||
+        message.includes('ENOENT')))
+  );
+}
+
 function getDownloadUrl(bucket: AudioBucket, path: string, token: string) {
   const encodedPath = encodeURIComponent(path);
   const emulatorHost = process.env.FIREBASE_STORAGE_EMULATOR_HOST;
@@ -106,7 +118,23 @@ async function uploadAudioWithPlayback({
     };
   }
 
-  const playbackBuffer = await (transcode ?? transcodeAudioToM4a)(buffer, contentType);
+  let playbackBuffer: Buffer;
+  try {
+    playbackBuffer = await (transcode ?? transcodeAudioToM4a)(buffer, contentType);
+  } catch (error) {
+    if (!isTranscodeUnavailableError(error)) throw error;
+    console.warn('Audio transcoding unavailable; using original audio as playback.', error);
+    return {
+      audioURL: original.url,
+      audioPath: original.path,
+      contentType: original.contentType,
+      sizeBytes: original.sizeBytes,
+      originalAudioURL: original.url,
+      originalAudioPath: original.path,
+      originalContentType: original.contentType,
+      originalSizeBytes: original.sizeBytes,
+    };
+  }
   const playback = await saveAudioObject({
     bucket,
     path: `${basePath}-playback.m4a`,

@@ -2,6 +2,11 @@
 const nextConfig = {
   reactStrictMode: true,
   transpilePackages: ['@batalha/ui', '@batalha/firebase', '@batalha/types', '@batalha/utils'],
+  experimental: {
+    outputFileTracingIncludes: {
+      '/*': ['./node_modules/ffmpeg-static/ffmpeg'],
+    },
+  },
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'lh3.googleusercontent.com' },
