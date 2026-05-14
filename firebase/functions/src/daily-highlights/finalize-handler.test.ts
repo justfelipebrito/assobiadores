@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import { finalizeDailyHighlightsForDay, getBrazilDayKey } from './finalize-handler';
+import {
+  finalizeDailyHighlightsForDay,
+  finalizeDueDailyHighlights,
+  getBrazilDayKey,
+  getLatestFinalizableDailyHighlightDayKey,
+} from './finalize-handler';
 import { getDailyHighlightPlacementPoints } from '../domain/ranking';
 
 function sortForDailyResult<T extends { id: string; voteCount: number; createdAt: Date }>(
@@ -16,6 +21,15 @@ describe('daily highlight finalization helpers', () => {
   it('uses the Brazil day key for scheduled daily closure', () => {
     expect(getBrazilDayKey(new Date('2026-05-05T02:59:00.000Z'))).toBe('2026-05-04');
     expect(getBrazilDayKey(new Date('2026-05-05T03:00:00.000Z'))).toBe('2026-05-05');
+  });
+
+  it('only considers today finalizable after the Brazil 22:00 daily close', () => {
+    expect(getLatestFinalizableDailyHighlightDayKey(new Date('2026-05-06T00:59:00.000Z'))).toBe(
+      '2026-05-04',
+    );
+    expect(getLatestFinalizableDailyHighlightDayKey(new Date('2026-05-06T01:00:00.000Z'))).toBe(
+      '2026-05-05',
+    );
   });
 
   it('selects top 3 by votes and first submission as tie-breaker', () => {
@@ -127,5 +141,99 @@ describe('daily highlight finalization helpers', () => {
         }),
       ]),
     );
+  });
+
+  it('backfills overdue active daily highlight days and leaves the current open day alone', async () => {
+    const activeDocs = [
+      { id: 'old-1', dayKey: '2026-05-04', status: 'active' },
+      { id: 'old-2', dayKey: '2026-05-05', status: 'active' },
+      { id: 'today-open', dayKey: '2026-05-06', status: 'active' },
+    ];
+    const finalizeDocsByDay: Record<string, Array<Record<string, unknown>>> = {
+      '2026-05-04': [
+        {
+          id: 'old-1',
+          userId: 'user-1',
+          category: 'freestyle',
+          voteCount: 2,
+          createdAt: new Date('2026-05-04T12:00:00.000Z'),
+        },
+      ],
+      '2026-05-05': [
+        {
+          id: 'old-2',
+          userId: 'user-2',
+          category: 'melodia',
+          voteCount: 1,
+          createdAt: new Date('2026-05-05T12:00:00.000Z'),
+        },
+      ],
+    };
+    const batch = {
+      update: vi.fn(),
+      set: vi.fn(),
+      commit: vi.fn(async () => undefined),
+    };
+    const activeQuery = {
+      where: vi.fn(() => activeQuery),
+      limit: vi.fn(() => activeQuery),
+      get: vi.fn(async () => ({
+        docs: activeDocs.map((doc) => ({
+          id: doc.id,
+          ref: { id: doc.id },
+          data: () => doc,
+        })),
+      })),
+    };
+    let finalizeDayKey: string | null = null;
+    const finalizeQuery = {
+      where: vi.fn((field: string, _operator: string, value: string) => {
+        if (field === 'dayKey') finalizeDayKey = value;
+        return finalizeQuery;
+      }),
+      get: vi.fn(async () => {
+        return {
+          docs: (finalizeDocsByDay[finalizeDayKey ?? ''] ?? []).map((doc) => ({
+            id: doc.id,
+            ref: { id: doc.id },
+            data: () => doc,
+          })),
+        };
+      }),
+    };
+    const db = {
+      batch: vi.fn(() => batch),
+      doc: vi.fn((path: string) => ({ id: path.split('/').at(-1) ?? path, path })),
+      collection: vi.fn((name: string) => {
+        if (name === 'dailyHighlights') {
+          return {
+            where: vi.fn((field: string, operator: string, value: string) => {
+              if (field === 'status' && value === 'active') return activeQuery;
+              return finalizeQuery.where(field, operator, value);
+            }),
+          };
+        }
+        if (name === 'users') {
+          return {
+            doc: vi.fn((id: string) => ({
+              id,
+              get: vi.fn(async () => ({ data: () => ({ points: 0 }) })),
+            })),
+          };
+        }
+        if (name === 'pointActivities') return { doc: vi.fn((id: string) => ({ id })) };
+        throw new Error(`Unexpected collection ${name}`);
+      }),
+    };
+
+    await expect(
+      finalizeDueDailyHighlights(db as never, {
+        now: new Date('2026-05-06T00:59:00.000Z'),
+      }),
+    ).resolves.toMatchObject({
+      latestFinalizableDayKey: '2026-05-04',
+      finalizedDays: 1,
+      finalized: 1,
+    });
   });
 });

@@ -14,7 +14,7 @@ import { PUBLIC_BRAND_NAME } from '../../lib/public-brand';
 import { trackAuthCtaClick } from '../../lib/analytics-events';
 import { MobileNav } from './mobile-nav';
 
-function EventTicker() {
+function EventTicker({ preferredRegion }: { preferredRegion?: AppUser['birthState'] }) {
   const { data: battles } = useCollection<Battle>('battles', [orderBy('createdAt', 'desc')]);
   const { data: qualifierTracks } = useCollection<QualifierTrack>('qualifierTracks', [
     orderBy('registrationDeadline', 'asc'),
@@ -23,8 +23,15 @@ function EventTicker() {
     orderBy('createdAt', 'desc'),
   ]);
   const tickerItems = useMemo(
-    () => getHeaderTickerItems({ battles, qualifierTracks, championships, limit: 8 }),
-    [battles, championships, qualifierTracks],
+    () =>
+      getHeaderTickerItems({
+        battles,
+        qualifierTracks,
+        championships,
+        limit: 8,
+        preferredRegion: preferredRegion ?? null,
+      }),
+    [battles, championships, preferredRegion, qualifierTracks],
   );
 
   if (tickerItems.length === 0) return null;
@@ -195,8 +202,10 @@ export function Header() {
             </button>
           </div>
         </div>
-        <EventTicker />
       </header>
+      <div className="md:sticky md:top-16 md:z-40">
+        <EventTicker preferredRegion={user ? profile?.birthState : null} />
+      </div>
 
       <MobileNav
         open={mobileOpen}

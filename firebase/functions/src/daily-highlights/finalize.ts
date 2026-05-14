@@ -1,6 +1,6 @@
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { getFirestore } from 'firebase-admin/firestore';
-import { finalizeDailyHighlightsForDay } from './finalize-handler';
+import { finalizeDueDailyHighlights } from './finalize-handler';
 
 export const finalizeDailyHighlights = onSchedule(
   {
@@ -9,6 +9,6 @@ export const finalizeDailyHighlights = onSchedule(
     timeZone: 'America/Sao_Paulo',
   },
   async () => {
-    await finalizeDailyHighlightsForDay(getFirestore());
+    await finalizeDueDailyHighlights(getFirestore());
   },
 );

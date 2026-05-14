@@ -125,6 +125,42 @@ describe('getHeaderTickerItems', () => {
     expect(items[0]?.nextAt.toISOString()).toBe('2026-05-10T12:00:00.000Z');
   });
 
+  it('puts the logged user birth-state qualifiers first, then sorts same-date items by participants', () => {
+    const items = getHeaderTickerItems({
+      now,
+      preferredRegion: 'RJ',
+      battles: [],
+      qualifierTracks: [
+        qualifier({
+          id: 'qualifier-sp-small',
+          slug: 'sp-freestyle-2026',
+          region: 'SP',
+          confirmedCount: 2,
+          pendingPaymentCount: 1,
+        }),
+        qualifier({
+          id: 'qualifier-rj-user-state',
+          slug: 'rj-freestyle-2026',
+          region: 'RJ',
+          confirmedCount: 1,
+        }),
+        qualifier({
+          id: 'qualifier-mg-large',
+          slug: 'mg-freestyle-2026',
+          region: 'MG',
+          confirmedCount: 9,
+        }),
+      ],
+      championships: [],
+    });
+
+    expect(items.map((item) => item.id)).toEqual([
+      'qualifier:qualifier-rj-user-state',
+      'qualifier:qualifier-mg-large',
+      'qualifier:qualifier-sp-small',
+    ]);
+  });
+
   it('skips undated national championships until they have a real schedule', () => {
     const items = getHeaderTickerItems({
       now,

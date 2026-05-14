@@ -1,5 +1,5 @@
 import type { Battle, Championship, QualifierTrack } from '@batalha/types';
-import { BRAZIL_STATE_LABELS, COMPETITION_CATEGORY_LABELS } from '@batalha/types';
+import { BRAZIL_STATE_LABELS, COMPETITION_CATEGORY_LABELS, type BrazilState } from '@batalha/types';
 import { toDate } from '@batalha/utils';
 
 type TickerVariant = 'default' | 'success' | 'warning' | 'info' | 'purple' | 'gold';
@@ -15,6 +15,8 @@ export type HeaderTickerItem = {
   statusLabel: string;
   title: string;
   nextAt: Date;
+  participantCount: number;
+  region: BrazilState | null;
 };
 
 const ACTIVE_BATTLE_STATUSES = ['registration', 'active', 'voting'] as const;
@@ -59,6 +61,8 @@ function battleTickerItem(battle: Battle, now: Date): HeaderTickerItem | null {
     statusLabel,
     title: battle.title,
     nextAt,
+    participantCount: battle.currentParticipants ?? 0,
+    region: null,
   };
 }
 
@@ -98,6 +102,8 @@ function qualifierTickerItem(track: QualifierTrack, now: Date): HeaderTickerItem
     statusLabel,
     title: `${BRAZIL_STATE_LABELS[track.region]} ${COMPETITION_CATEGORY_LABELS[track.category]}`,
     nextAt,
+    participantCount: track.confirmedCount + track.pendingPaymentCount || track.registeredCount,
+    region: track.region,
   };
 }
 
@@ -130,6 +136,8 @@ function championshipTickerItem(championship: Championship, now: Date): HeaderTi
     statusLabel: championship.status === 'active' ? 'Em andamento' : 'Início',
     title: championship.title,
     nextAt,
+    participantCount: championship.currentParticipants ?? championship.participantIds.length,
+    region: championship.region,
   };
 }
 
@@ -138,11 +146,13 @@ export function getUpcomingEventItems({
   qualifierTracks,
   championships,
   now = new Date(),
+  preferredRegion = null,
 }: {
   battles: Battle[];
   qualifierTracks: QualifierTrack[];
   championships: Championship[];
   now?: Date;
+  preferredRegion?: BrazilState | null;
 }) {
   return [
     ...battles.map((battle) => battleTickerItem(battle, now)),
@@ -151,8 +161,16 @@ export function getUpcomingEventItems({
   ]
     .filter((item): item is HeaderTickerItem => Boolean(item))
     .sort((a, b) => {
+      if (preferredRegion) {
+        const aPreferredQualifier = a.kind === 'qualifier' && a.region === preferredRegion;
+        const bPreferredQualifier = b.kind === 'qualifier' && b.region === preferredRegion;
+        if (aPreferredQualifier !== bPreferredQualifier) return aPreferredQualifier ? -1 : 1;
+      }
+
       const diff = a.nextAt.getTime() - b.nextAt.getTime();
       if (diff !== 0) return diff;
+      const participantDiff = b.participantCount - a.participantCount;
+      if (participantDiff !== 0) return participantDiff;
       return a.title.localeCompare(b.title);
     });
 }
@@ -163,12 +181,20 @@ export function getHeaderTickerItems({
   championships,
   now = new Date(),
   limit = 8,
+  preferredRegion = null,
 }: {
   battles: Battle[];
   qualifierTracks: QualifierTrack[];
   championships: Championship[];
   now?: Date;
   limit?: number;
+  preferredRegion?: BrazilState | null;
 }) {
-  return getUpcomingEventItems({ battles, qualifierTracks, championships, now }).slice(0, limit);
+  return getUpcomingEventItems({
+    battles,
+    qualifierTracks,
+    championships,
+    now,
+    preferredRegion,
+  }).slice(0, limit);
 }

@@ -34,7 +34,13 @@ export default function DailyHighlightsPage() {
     () =>
       isTodaySelected
         ? [where('dayKey', '==', selectedDayKey), orderBy('createdAt', 'desc'), limit(500)]
-        : [where('dayKey', '==', selectedDayKey), orderBy('placement', 'asc'), limit(3)],
+        : [
+            where('dayKey', '==', selectedDayKey),
+            where('status', '==', 'finalized'),
+            where('placement', '>=', 1),
+            orderBy('placement', 'asc'),
+            limit(3),
+          ],
     [isTodaySelected, selectedDayKey],
   );
   const { data: dailyHighlights, loading } = useCollection<DailyHighlight>(

@@ -6,6 +6,7 @@ import { buildSeasonRankingIncrement, getSeasonRankingPath } from '../domain/sea
 type DailyHighlightForFinalization = {
   ref: FirebaseFirestore.DocumentReference;
   id: string;
+  dayKey?: unknown;
   userId?: unknown;
   category?: unknown;
   voteCount?: number;
@@ -24,6 +25,29 @@ export function getBrazilDayKey(date = new Date()) {
   const day = parts.find((part) => part.type === 'day')?.value;
 
   return `${year}-${month}-${day}`;
+}
+
+function getBrazilHour(date = new Date()) {
+  const hour = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Sao_Paulo',
+    hour: '2-digit',
+    hour12: false,
+  }).format(date);
+
+  return Number(hour);
+}
+
+function shiftDayKey(dayKey: string, days: number) {
+  const [year, month, day] = dayKey.split('-').map(Number);
+  if (!year || !month || !day) return dayKey;
+
+  const date = new Date(Date.UTC(year, month - 1, day + days, 12, 0, 0));
+  return date.toISOString().slice(0, 10);
+}
+
+export function getLatestFinalizableDailyHighlightDayKey(now = new Date()) {
+  const todayKey = getBrazilDayKey(now);
+  return getBrazilHour(now) >= 22 ? todayKey : shiftDayKey(todayKey, -1);
 }
 
 function timestampMillis(value: any) {
@@ -196,4 +220,39 @@ export async function finalizeDailyHighlightsForDay(
   logger.info(`Finalized ${sorted.length} daily highlights for ${dayKey}`);
 
   return result;
+}
+
+export async function finalizeDueDailyHighlights(
+  db: Firestore,
+  { now = new Date() }: { now?: Date } = {},
+) {
+  const latestFinalizableDayKey = getLatestFinalizableDailyHighlightDayKey(now);
+  const highlightsSnapshot = await db
+    .collection('dailyHighlights')
+    .where('status', '==', 'active')
+    .limit(500)
+    .get();
+
+  const dueDayKeys = Array.from(
+    new Set(
+      highlightsSnapshot.docs
+        .map((doc) => doc.data().dayKey)
+        .filter(
+          (dayKey): dayKey is string =>
+            typeof dayKey === 'string' && dayKey <= latestFinalizableDayKey,
+        ),
+    ),
+  ).sort();
+
+  const results = [];
+  for (const dayKey of dueDayKeys) {
+    results.push(await finalizeDailyHighlightsForDay(db, { dayKey }));
+  }
+
+  return {
+    latestFinalizableDayKey,
+    finalizedDays: results.length,
+    finalized: results.reduce((sum, result) => sum + result.finalized, 0),
+    results,
+  };
 }
