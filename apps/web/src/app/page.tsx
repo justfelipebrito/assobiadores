@@ -55,9 +55,9 @@ import {
   getVisibleHomepageChampionships,
 } from '@/lib/championship-view';
 import {
-  DEFAULT_PUBLIC_QUALIFIER_STATES,
+  getHomepageHeroQualifierTracks,
+  getHomepageSectionQualifierTracks,
   getQualifierTrackStatusCopy,
-  getQualifierTracksForStates,
   QUALIFIER_REGISTRATION_DEADLINE_LABEL,
 } from '@/lib/qualifier-tracks';
 import { trackAuthCtaClick } from '@/lib/analytics-events';
@@ -78,6 +78,8 @@ const BATTLE_THUMBNAIL_BG: Record<string, string> = {
   registration: 'bg-[#13131a]',
   finished: 'bg-[#0f0f14]',
 };
+
+const HERO_QUALIFIER_ROTATION_MS = 10_000;
 
 const PODIUM_RING = ['ring-yellow-400/70', 'ring-surface-300/50', 'ring-amber-600/50'] as const;
 const PODIUM_BG = [
@@ -308,6 +310,67 @@ function HighlightPlaceholderCard() {
   );
 }
 
+function getQualifierTrackEntryCount(track: QualifierTrack) {
+  return track.confirmedCount + track.pendingPaymentCount || track.registeredCount;
+}
+
+function getQualifierTrackNextDate(track: QualifierTrack) {
+  if (track.status === 'registration_open') return toDate(track.registrationDeadline);
+  if (track.status === 'draw_pending') return toDate(track.bracketStart);
+  return toDate(track.bracketEnd);
+}
+
+function QualifierHeroMomentCard({
+  track,
+  active,
+  onSelect,
+}: {
+  track: QualifierTrack;
+  active: boolean;
+  onSelect: () => void;
+}) {
+  const entries = getQualifierTrackEntryCount(track);
+  const nextDate = getQualifierTrackNextDate(track);
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={active}
+      className="group block min-w-[220px] text-left sm:min-w-0"
+    >
+      <div
+        className={`relative h-24 overflow-hidden rounded-xl border bg-surface-950/80 transition-all duration-300 ${
+          active
+            ? 'border-brand-400/70 shadow-[0_0_0_1px_rgba(37,169,114,0.18),0_18px_60px_rgba(0,0,0,0.45)]'
+            : 'border-white/10 hover:border-brand-400/40'
+        }`}
+      >
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(37,169,114,0.22),transparent_32%),radial-gradient(circle_at_80%_20%,rgba(74,222,128,0.12),transparent_36%)]" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+        <div className="relative flex h-full flex-col justify-between p-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="rounded-md border border-brand-400/15 bg-black/30 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-brand-100">
+              {BRAZIL_STATE_LABELS[track.region]}
+            </span>
+            <span className="text-[10px] font-semibold text-surface-300">
+              {entries} {entries === 1 ? 'inscrito' : 'inscritos'}
+            </span>
+          </div>
+          <div>
+            <p className="text-sm font-black text-white">
+              {COMPETITION_CATEGORY_LABELS[track.category]}
+            </p>
+            <p className="mt-0.5 text-xs text-surface-400">
+              {nextDate ? formatRelativeTime(nextDate) : QUALIFIER_REGISTRATION_DEADLINE_LABEL}
+            </p>
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
 function SectionHeader({
   icon: Icon,
   title,
@@ -348,6 +411,8 @@ function SectionHeader({
 export default function HomePage() {
   const [submitDailyOpen, setSubmitDailyOpen] = useState(false);
   const [platformStats, setPlatformStats] = useState<PlatformStats | null>(null);
+  const [heroQualifierIndex, setHeroQualifierIndex] = useState(0);
+  const [heroRotationPaused, setHeroRotationPaused] = useState(false);
   const todayDailyHighlightKey = useMemo(() => getBrazilDayKey(), []);
   const dailyHighlightDayLabel = useMemo(
     () => formatBrazilDayKey(todayDailyHighlightKey),
@@ -426,13 +491,21 @@ export default function HomePage() {
   );
   const hasSubmittedDailyHighlightToday = todayUserHighlights.length > 0;
 
-  const qualifierStates = useMemo(
-    () => (user && profile?.birthState ? [profile.birthState] : DEFAULT_PUBLIC_QUALIFIER_STATES),
-    [profile?.birthState, user],
-  );
   const visibleQualifierTracks = useMemo(
-    () => getQualifierTracksForStates({ tracks: qualifierTracks, states: qualifierStates }),
-    [qualifierStates, qualifierTracks],
+    () =>
+      getHomepageSectionQualifierTracks({
+        tracks: qualifierTracks,
+        userBirthState: user ? profile?.birthState : null,
+      }),
+    [profile?.birthState, qualifierTracks, user],
+  );
+  const heroQualifierTracks = useMemo(
+    () =>
+      getHomepageHeroQualifierTracks({
+        tracks: qualifierTracks,
+        userBirthState: user ? profile?.birthState : null,
+      }),
+    [profile?.birthState, qualifierTracks, user],
   );
 
   const sortedRankingUsers = useMemo(
@@ -445,14 +518,9 @@ export default function HomePage() {
   );
   const topRankingUsers = useMemo(() => sortedRankingUsers.slice(0, 20), [sortedRankingUsers]);
 
-  const heroItem = useMemo(
-    () =>
-      activeBattles.find((b) => b.status === 'active') ??
-      activeBattles.find((b) => b.status === 'voting') ??
-      activeBattles[0] ??
-      null,
-    [activeBattles],
-  );
+  const heroQualifier = heroQualifierTracks[heroQualifierIndex] ?? heroQualifierTracks[0] ?? null;
+  const heroQualifierEntries = heroQualifier ? getQualifierTrackEntryCount(heroQualifier) : 0;
+  const heroQualifierNextDate = heroQualifier ? getQualifierTrackNextDate(heroQualifier) : null;
 
   const getHighlightNaturalidade = (highlight: DailyHighlight) => {
     const userProfile = highlightUsersById.get(highlight.userId);
@@ -473,54 +541,99 @@ export default function HomePage() {
     return () => { active = false; };
   }, []);
 
+  useEffect(() => {
+    setHeroQualifierIndex((current) =>
+      heroQualifierTracks.length > 0 ? current % heroQualifierTracks.length : 0,
+    );
+
+    if (heroRotationPaused || heroQualifierTracks.length <= 1) return undefined;
+
+    const intervalId = window.setInterval(() => {
+      setHeroQualifierIndex((current) => (current + 1) % heroQualifierTracks.length);
+    }, HERO_QUALIFIER_ROTATION_MS);
+
+    return () => window.clearInterval(intervalId);
+  }, [heroQualifierTracks, heroRotationPaused]);
+
   return (
     <>
       {/* ── HERO BANNER ───────────────────────────────────────── */}
-      {heroItem && (
-        <section className="relative overflow-hidden border-b border-white/5 bg-[#0e0e14]">
+      {heroQualifier && (
+        <section className="relative min-h-[430px] overflow-hidden border-b border-white/5 bg-[#0d0d14]">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_76%_18%,rgba(37,169,114,0.22),transparent_30%),radial-gradient(circle_at_64%_62%,rgba(74,222,128,0.12),transparent_38%),linear-gradient(115deg,rgba(11,11,18,0.98)_0%,rgba(11,11,18,0.86)_42%,rgba(11,11,18,0.40)_100%)]" />
+          <div className="absolute inset-y-0 right-0 hidden w-1/2 opacity-50 lg:block">
+            <div className="absolute right-12 top-16 h-80 w-80 rotate-12 rounded-[2rem] border border-brand-400/20 bg-brand-400/[0.04]" />
+            <div className="absolute right-36 top-36 h-72 w-72 -rotate-12 rounded-[2rem] border border-brand-400/20 bg-brand-400/[0.04]" />
+            <Trophy className="absolute right-24 top-24 h-72 w-72 rotate-12 text-white/[0.05]" />
+          </div>
+          <div className="absolute inset-0 bg-gradient-to-r from-[#0d0d14] via-[#0d0d14]/90 to-transparent" />
 
-          <div className="relative px-6 py-16 sm:py-20 lg:py-24">
+          <div className="relative mx-auto flex min-h-[430px] max-w-6xl flex-col justify-between px-4 py-8 sm:px-6 lg:px-8">
             <div className="max-w-2xl">
-              {/* Live / status indicator */}
-              <div className="mb-4 flex items-center gap-2.5">
-                {heroItem.status === 'active' && (
-                  <span className="relative flex h-2.5 w-2.5 flex-shrink-0">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-400 opacity-75" />
-                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-brand-500" />
-                  </span>
-                )}
-                <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-brand-400">
-                  {heroItem.status === 'active'
-                    ? 'Ao Vivo Agora'
-                    : heroItem.status === 'voting'
-                      ? 'Em Votação'
-                      : 'Inscrições Abertas'}
+              <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-brand-400/20 bg-white/[0.06] px-3 py-1.5 text-xs font-bold text-brand-100 shadow-[0_12px_30px_rgba(0,0,0,0.25)]">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-400 opacity-70" />
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-brand-400" />
+                </span>
+                Classificatórias abertas
+              </div>
+
+              <p className="text-sm font-semibold text-surface-400 sm:text-base">
+                {BRAZIL_STATE_LABELS[heroQualifier.region]}
+              </p>
+              <h1 className="mt-1.5 text-4xl font-black leading-none text-white sm:text-5xl lg:text-[4rem]">
+                Classificatória{' '}
+                <span className="block text-brand-400">
+                  {COMPETITION_CATEGORY_LABELS[heroQualifier.category]}
+                </span>
+              </h1>
+
+              <p className="mt-4 max-w-xl text-sm leading-6 text-surface-300 sm:text-base">
+                Entre na disputa oficial, acompanhe os confrontos e avance para o Regional.
+                {heroQualifierNextDate
+                  ? ` Inscrições ${formatRelativeTime(heroQualifierNextDate)}.`
+                  : ` Inscrições até ${QUALIFIER_REGISTRATION_DEADLINE_LABEL}.`}
+              </p>
+
+              <div className="mt-5 flex flex-wrap items-center gap-3 text-sm text-surface-300">
+                <span className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2">
+                  <Users className="h-4 w-4 text-brand-300" />
+                  {heroQualifierEntries} {heroQualifierEntries === 1 ? 'inscrito' : 'inscritos'}
+                </span>
+                <span className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2">
+                  <Trophy className="h-4 w-4 text-brand-300" />
+                  Vagas diretas para Regionais
+                </span>
+                <span className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2">
+                  <Clock className="h-4 w-4 text-surface-300" />
+                  {getQualifierTrackStatusCopy(heroQualifier)}
                 </span>
               </div>
 
-              {/* Two-line title like the reference */}
-              <p className="text-sm font-medium text-surface-400 sm:text-base">Batalha de Assobio</p>
-              <h1 className="mt-1 text-3xl font-black leading-tight text-white sm:text-4xl lg:text-[2.75rem]">
-                {heroItem.title}
-              </h1>
-
-              {/* Meta */}
-              <p className="mt-4 text-sm text-surface-400">
-                {heroItem.currentParticipants} participantes
-                {heroItem.entryFee === 0
-                  ? ' · Entrada gratuita'
-                  : ` · ${formatCurrency(heroItem.entryFee)}`}
-                {heroItem.prizePool > 0 && ` · Prêmio ${formatCurrency(heroItem.prizePool)}`}
-              </p>
-
-              {/* CTA — styled like the "PLAY NOW" button in the reference */}
-              <div className="mt-8">
-                <Link href={`/batalhas/${heroItem.id}`}>
-                  <button className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/[0.08] px-6 py-3 text-sm font-bold uppercase tracking-widest text-white backdrop-blur-sm transition-all hover:border-brand-500/50 hover:bg-brand-500/15 hover:text-brand-300">
-                    Ver detalhes
+              <div className="mt-6">
+                <Link href={user ? `/classificatorias/${heroQualifier.slug}` : '/entrar'}>
+                  <button className="inline-flex h-12 items-center gap-2 rounded-xl bg-brand-500 px-7 text-sm font-black uppercase tracking-wider text-white shadow-[0_18px_50px_rgba(37,169,114,0.28)] transition-all hover:bg-brand-400 active:scale-[0.98]">
+                    Participar
                     <ArrowRight className="h-4 w-4" />
                   </button>
                 </Link>
+              </div>
+            </div>
+
+            <div className="mt-7 lg:ml-auto lg:w-[58%]">
+              <p className="mb-2 text-sm font-bold text-white">Classificatórias para você</p>
+              <div className="flex gap-3 overflow-x-auto pb-2 [scrollbar-width:none] sm:grid sm:grid-cols-3 sm:overflow-visible sm:pb-0">
+                {heroQualifierTracks.map((track, index) => (
+                  <QualifierHeroMomentCard
+                    key={track.id}
+                    track={track}
+                    active={track.id === heroQualifier.id || index === heroQualifierIndex}
+                    onSelect={() => {
+                      setHeroQualifierIndex(index);
+                      setHeroRotationPaused(true);
+                    }}
+                  />
+                ))}
               </div>
             </div>
           </div>
@@ -535,30 +648,35 @@ export default function HomePage() {
           </div>
         )}
 
-        <div className="mb-5 flex items-end justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-white/5">
-              <Flame className="h-[18px] w-[18px] text-brand-400" />
+        <div className="mb-5 space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-white/5">
+                <Flame className="h-[18px] w-[18px] text-brand-400" />
+              </div>
+              <div className="min-w-0">
+                <h2 className="truncate text-base font-bold text-white sm:text-lg">
+                  Destaques Diários - {dailyHighlightDayLabel}
+                </h2>
+                <p className="mt-1 text-xs text-surface-500">
+                  Votos da comunidade, envie o seu e concorra ao top 3 diário
+                </p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-base font-bold text-white sm:text-lg">Destaques Diários</h2>
-              <p className="text-xs text-surface-400">{dailyHighlightDayLabel}</p>
-              <p className="text-xs text-surface-500">Votos da comunidade, envie o seu e concorra ao top 3 diário</p>
+            <div className="flex flex-shrink-0 flex-col items-end gap-2">
+              <SubmitDailyHighlightButton
+                isAuthenticated={Boolean(user)}
+                hasSubmittedToday={hasSubmittedDailyHighlightToday}
+                onClick={() => setSubmitDailyOpen(true)}
+              />
+              <Link
+                href="/destaques"
+                className="flex items-center gap-1 text-sm font-medium text-surface-400 transition-colors hover:text-white"
+              >
+                Ver mais
+                <ChevronRight className="h-4 w-4" />
+              </Link>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <SubmitDailyHighlightButton
-              isAuthenticated={Boolean(user)}
-              hasSubmittedToday={hasSubmittedDailyHighlightToday}
-              onClick={() => setSubmitDailyOpen(true)}
-            />
-            <Link
-              href="/destaques"
-              className="flex items-center gap-1 text-sm font-medium text-surface-400 transition-colors hover:text-white"
-            >
-              Ver mais
-              <ChevronRight className="h-4 w-4" />
-            </Link>
           </div>
         </div>
 
@@ -603,12 +721,12 @@ export default function HomePage() {
             </div>
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 py-16">
+          <div className="flex min-h-[188px] flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 px-6 py-12 text-center">
             <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-white/5">
               <Flame className="h-6 w-6 text-surface-600" />
             </div>
-            <p className="text-sm text-surface-500">
-              Os destaques aparecem quando houver assobios aprovados e votados.
+            <p className="mx-auto max-w-[280px] text-sm leading-6 text-surface-500">
+              Os destaques aparecem quando houver assobios enviados e votados.
             </p>
           </div>
         )}
@@ -667,7 +785,7 @@ export default function HomePage() {
                               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />
                               <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-white" />
                             </span>
-                            Ao Vivo
+                            Em andamento
                           </div>
                         ) : (
                           <Badge variant={status.variant} className="text-[10px]">{status.label}</Badge>
@@ -744,59 +862,6 @@ export default function HomePage() {
         )}
       </section>
 
-      {/* ── Classificatórias ──────────────────────────────────── */}
-      <section className="border-b border-white/5 px-4 py-8 sm:px-6">
-        <SectionHeader
-          icon={Rocket}
-          title="Classificatórias"
-          subtitle={
-            user && profile?.birthState
-              ? `Abertas para ${BRAZIL_STATE_LABELS[profile.birthState]}`
-              : 'Abertas em São Paulo e Rio de Janeiro'
-          }
-          href="/classificatorias"
-          hrefLabel="Ver todas"
-        />
-
-        {qualifierTracksLoading ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className="h-44 rounded-2xl" />
-            ))}
-          </div>
-        ) : visibleQualifierTracks.length > 0 ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {visibleQualifierTracks.slice(0, 6).map((track) => (
-              <Link key={track.id} href={`/classificatorias/${track.slug}`}>
-                <div className="group flex h-full flex-col overflow-hidden rounded-2xl border border-white/[0.07] bg-surface-900 p-5 transition-all duration-300 hover:-translate-y-0.5 hover:border-yellow-500/30 hover:shadow-[0_12px_40px_rgba(0,0,0,0.3)]">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="gold" className="text-[11px]">{getQualifierTrackStatusCopy(track)}</Badge>
-                    <Badge variant="default" className="text-[11px]">{BRAZIL_STATE_LABELS[track.region]}</Badge>
-                  </div>
-                  <h3 className="mt-4 flex-1 text-base font-bold text-white transition-colors group-hover:text-brand-300">
-                    {COMPETITION_CATEGORY_LABELS[track.category]}
-                  </h3>
-                  <p className="mt-2 text-sm leading-relaxed text-surface-500">
-                    Entrada aberta. Até 64 melhores avançam ao Regional.
-                  </p>
-                  <div className="mt-5 flex items-center justify-between gap-2">
-                    <p className="text-xs text-surface-600">Até {QUALIFIER_REGISTRATION_DEADLINE_LABEL}</p>
-                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-brand-500/10 px-3 py-1.5 text-xs font-bold text-brand-400 transition-colors group-hover:bg-brand-500/20">
-                      Inscrever-se
-                      <ArrowRight className="h-3 w-3" />
-                    </span>
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 py-14">
-            <p className="text-surface-500">Nenhuma classificatória disponível no momento.</p>
-          </div>
-        )}
-      </section>
-
       {/* ── Rankings ──────────────────────────────────────────── */}
       <section className="border-b border-white/5 px-4 py-8 sm:px-6">
         <SectionHeader
@@ -867,6 +932,63 @@ export default function HomePage() {
         )}
       </section>
 
+      {/* ── Classificatórias ──────────────────────────────────── */}
+      <section className="border-b border-white/5 px-4 py-8 sm:px-6">
+        <SectionHeader
+          icon={Rocket}
+          title="Classificatórias"
+          subtitle={
+            user && profile?.birthState
+              ? `Abertas para ${BRAZIL_STATE_LABELS[profile.birthState]}`
+              : 'Abertas em São Paulo e Rio de Janeiro'
+          }
+          href="/classificatorias"
+          hrefLabel="Explorar"
+        />
+
+        {qualifierTracksLoading ? (
+          <div className="-mx-4 flex gap-4 overflow-x-auto px-4 pb-3 [scrollbar-width:none] sm:-mx-6 sm:px-6">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton key={i} className="h-44 w-[280px] flex-shrink-0 rounded-2xl" />
+            ))}
+          </div>
+        ) : visibleQualifierTracks.length > 0 ? (
+          <div className="-mx-4 flex gap-4 overflow-x-auto px-4 pb-3 [scrollbar-width:none] sm:-mx-6 sm:px-6">
+            {visibleQualifierTracks.slice(0, 6).map((track) => (
+              <Link
+                key={track.id}
+                href={`/classificatorias/${track.slug}`}
+                className="w-[280px] flex-shrink-0"
+              >
+                <div className="group flex h-full flex-col overflow-hidden rounded-2xl border border-white/[0.07] bg-surface-900 p-5 transition-all duration-300 hover:-translate-y-0.5 hover:border-brand-500/30 hover:shadow-[0_12px_40px_rgba(0,0,0,0.3)]">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="gold" className="text-[11px]">{getQualifierTrackStatusCopy(track)}</Badge>
+                    <Badge variant="default" className="text-[11px]">{BRAZIL_STATE_LABELS[track.region]}</Badge>
+                  </div>
+                  <h3 className="mt-4 flex-1 text-base font-bold text-white transition-colors group-hover:text-brand-300">
+                    {COMPETITION_CATEGORY_LABELS[track.category]}
+                  </h3>
+                  <p className="mt-2 text-sm leading-relaxed text-surface-500">
+                    Entrada aberta. Até 64 melhores avançam ao Regional.
+                  </p>
+                  <div className="mt-5 flex items-center justify-between gap-2">
+                    <p className="text-xs text-surface-600">Até {QUALIFIER_REGISTRATION_DEADLINE_LABEL}</p>
+                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-brand-500/10 px-3 py-1.5 text-xs font-bold text-brand-400 transition-colors group-hover:bg-brand-500/20">
+                      Inscrever-se
+                      <ArrowRight className="h-3 w-3" />
+                    </span>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 py-14">
+            <p className="text-surface-500">Nenhuma classificatória disponível no momento.</p>
+          </div>
+        )}
+      </section>
+
       {/* ── Campeonatos ───────────────────────────────────────── */}
       <section className="border-b border-white/5 px-4 py-8 sm:px-6">
         <SectionHeader
@@ -874,22 +996,26 @@ export default function HomePage() {
           title="Campeonatos"
           subtitle="Temporada anual oficial"
           href="/campeonatos"
-          hrefLabel="Ver todos"
+          hrefLabel="Explorar"
         />
 
         {championshipsLoading ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="-mx-4 flex gap-4 overflow-x-auto px-4 pb-3 [scrollbar-width:none] sm:-mx-6 sm:px-6">
             {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className="h-44 rounded-2xl" />
+              <Skeleton key={i} className="h-44 w-[300px] flex-shrink-0 rounded-2xl" />
             ))}
           </div>
         ) : visibleChampionships.length > 0 ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="-mx-4 flex gap-4 overflow-x-auto px-4 pb-3 [scrollbar-width:none] sm:-mx-6 sm:px-6">
             {visibleChampionships.slice(0, 6).map((championship) => {
               const dateCopy = getChampionshipDateCopy(championship);
               const participantCount = getChampionshipParticipantCount(championship);
               return (
-                <Link key={championship.id} href={`/campeonatos/${championship.id}`}>
+                <Link
+                  key={championship.id}
+                  href={`/campeonatos/${championship.id}`}
+                  className="w-[300px] flex-shrink-0"
+                >
                   <div className="group flex h-full flex-col overflow-hidden rounded-2xl border border-white/[0.07] bg-surface-900 p-5 transition-all duration-300 hover:-translate-y-0.5 hover:border-white/15 hover:shadow-[0_12px_40px_rgba(0,0,0,0.3)]">
                     <div className="flex flex-wrap gap-2">
                       <Badge variant={championship.scope === 'national' ? 'gold' : 'purple'} className="text-[11px]">

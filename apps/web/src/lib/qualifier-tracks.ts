@@ -93,6 +93,59 @@ export function getQualifierTracksForStates({
   );
 }
 
+function getQualifierEntryCount(track: Pick<QualifierTrack, 'confirmedCount' | 'pendingPaymentCount' | 'registeredCount'>) {
+  return track.confirmedCount + track.pendingPaymentCount || track.registeredCount;
+}
+
+function sortQualifierTracksByInterest(a: QualifierTrack, b: QualifierTrack) {
+  const entryDiff = getQualifierEntryCount(b) - getQualifierEntryCount(a);
+  if (entryDiff !== 0) return entryDiff;
+  if (a.region !== b.region) return a.region.localeCompare(b.region);
+  return a.category.localeCompare(b.category);
+}
+
+export function getHomepageHeroQualifierTracks({
+  tracks,
+  userBirthState,
+  limit = 3,
+}: {
+  tracks: QualifierTrack[];
+  userBirthState?: BrazilState | null;
+  limit?: number;
+}) {
+  if (userBirthState) {
+    return getQualifierTracksForStates({ tracks, states: [userBirthState] })
+      .sort(sortQualifierTracksByInterest)
+      .slice(0, limit);
+  }
+
+  const sourceTracks =
+    tracks.length > 0
+      ? tracks
+      : getQualifierTracksForStates({ tracks, states: DEFAULT_PUBLIC_QUALIFIER_STATES });
+
+  return [...sourceTracks].sort(sortQualifierTracksByInterest).slice(0, limit);
+}
+
+export function getHomepageSectionQualifierTracks({
+  tracks,
+  userBirthState,
+  limit = 6,
+}: {
+  tracks: QualifierTrack[];
+  userBirthState?: BrazilState | null;
+  limit?: number;
+}) {
+  const states = userBirthState
+    ? [
+        userBirthState,
+        ...DEFAULT_PUBLIC_QUALIFIER_STATES.filter((state) => state !== userBirthState),
+      ]
+    : DEFAULT_PUBLIC_QUALIFIER_STATES;
+
+  return getQualifierTracksForStates({ tracks, states }).slice(0, limit);
+}
+
 export function getAllQualifierTracks(tracks: QualifierTrack[]) {
   return getQualifierTracksForStates({ tracks, states: ALL_QUALIFIER_STATES });
 }

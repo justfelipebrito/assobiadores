@@ -5,5 +5,5 @@ export function shouldShowSubmitDailyHighlightButton({
   isAuthenticated: boolean;
   hasSubmittedToday: boolean;
 }) {
-  return isAuthenticated && !hasSubmittedToday;
+  return !hasSubmittedToday;
 }

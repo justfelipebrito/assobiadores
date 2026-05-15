@@ -1,6 +1,7 @@
 'use client';
 
-import { Button } from '@batalha/ui';
+import Link from 'next/link';
+import { Button, buttonVariants, cn } from '@batalha/ui';
 import { shouldShowSubmitDailyHighlightButton } from './submit-daily-highlight-button-visibility';
 
 interface SubmitDailyHighlightButtonProps {
@@ -17,6 +18,14 @@ export function SubmitDailyHighlightButton({
   className,
 }: SubmitDailyHighlightButtonProps) {
   if (!shouldShowSubmitDailyHighlightButton({ isAuthenticated, hasSubmittedToday })) return null;
+
+  if (!isAuthenticated) {
+    return (
+      <Link href="/entrar" className={cn(buttonVariants({ size: 'sm' }), className)}>
+        Enviar
+      </Link>
+    );
+  }
 
   return (
     <Button size="sm" onClick={onClick} className={className}>

@@ -33,12 +33,12 @@ export function MobileNav({
   const navItems = getMobileNavigationItems(Boolean(user));
 
   return (
-    <div className="fixed inset-0 z-[100] md:hidden">
+    <div className="fixed inset-0 z-[100] lg:hidden">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
       {/* Panel */}
-      <div className="absolute bottom-0 right-0 top-0 w-[min(320px,86vw)] animate-slide-in-right border-l border-white/5 bg-surface-950">
+      <div className="absolute bottom-0 left-0 top-0 w-[min(320px,86vw)] animate-slide-in-left border-r border-white/5 bg-surface-950">
         <div className="flex h-full flex-col">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-white/5 px-4 py-3">
@@ -48,7 +48,7 @@ export function MobileNav({
                 alt={PUBLIC_BRAND_NAME}
                 className="h-9 w-9 rounded-xl object-contain"
               />
-              <span className="text-base font-bold text-white">assobiador.com</span>
+              <span className="text-base font-bold text-white">{PUBLIC_BRAND_NAME}</span>
             </div>
             <button
               onClick={onClose}

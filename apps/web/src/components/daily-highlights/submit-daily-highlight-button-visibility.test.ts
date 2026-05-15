@@ -2,13 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { shouldShowSubmitDailyHighlightButton } from './submit-daily-highlight-button-visibility';
 
 describe('shouldShowSubmitDailyHighlightButton', () => {
-  it('hides the CTA for logged-out users', () => {
+  it('shows the CTA for logged-out users so they can authenticate', () => {
     expect(
       shouldShowSubmitDailyHighlightButton({
         isAuthenticated: false,
         hasSubmittedToday: false,
       }),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it('shows the CTA for logged-in users who have not submitted today', () => {

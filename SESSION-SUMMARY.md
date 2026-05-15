@@ -830,6 +830,19 @@ Latest hardening/refactor:
   - added a static public `robots.txt` for `assobiador.com` to reduce normal crawler 404 noise. Verified the web production build after adding the asset.
   - fixed production daily-highlight submit failures caused by App Hosting standalone builds resolving `ffmpeg-static` to a missing runtime path. The web config now asks Next file tracing to include the ffmpeg binary, and audio upload storage falls back to the original audio instead of returning 500 when transcoding is unavailable. Verified focused upload/transcoding/submit tests, web type-check, web production build, deployed the web hotfix, and checked recent submit logs after rollout.
   - changed the `Destaques Diários` archive view so previous finalized days show only a top-3 podium summary instead of rendering playable media. Today's active day still shows the media player and voting controls. Added podium metadata coverage and verified focused tests plus web type-check.
+  - on `feat/homepage-redesign`, replaced the homepage hero's battle focus with a qualifier-first hero inspired by the provided style reference. Logged-in users now get three hero qualifier cards from their `birthState`; anonymous users get the three most active qualifier tracks by registration interest. The hero/card accent palette now uses the project's green brand colors instead of yellow/orange, the featured qualifier rotates through the three cards every 10 seconds, and the hero height/spacing is now more compact. Added helper coverage and verified qualifier tests plus web type-check.
+  - adjusted the homepage section order on `feat/homepage-redesign` so Rankings appears before Classificatórias, and changed the Classificatórias header CTA from `Ver todas` to `Explorar`.
+  - changed the hero `Classificatórias para você` cards from a horizontal scroller to a fixed responsive three-card grid.
+  - changed the qualifier detail/registration back control from a fixed `Classificatórias` link to a real `Voltar` button that uses browser history, with `/classificatorias` as the direct-entry fallback.
+  - changed the homepage Classificatórias and Campeonatos sections from responsive grids to horizontal scroll rails to match the other homepage sections.
+  - improved mobile redesign behavior: hero `Classificatórias para você` now stays in a single horizontal rail on mobile, the hamburger remains fixed while the header event rail scrolls, and the mobile menu opens from the left to match the trigger position.
+  - centered the empty-state message in the homepage `Destaques Diários` card so the icon and copy stay aligned on mobile.
+  - adjusted the homepage `Destaques Diários` section header so the title includes the date on one line and the `Enviar` / `Ver mais` actions stack in the right-side action column.
+  - expanded the homepage Classificatórias rail to show six cards by prioritizing the logged user's state and filling with default public states, and changed the Campeonatos CTA label to `Explorar`.
+  - changed the hero `Classificatórias para você` mini-cards into selector buttons: clicking a card updates the hero content and pauses the automatic 10-second rotation, while the main `Participar` CTA remains the navigation path.
+  - fixed the tablet/small-desktop navigation breakpoint so the hamburger opens the drawer anywhere the desktop sidebar is hidden, and changed the drawer title to the public brand name.
+  - changed the `Destaques Diários` submit CTA so logged-out users still see `Enviar`; it links to `/entrar`, while logged-in users who have not submitted still open the submit modal.
+  - applied the same auth-aware behavior to the homepage hero `Participar` CTA: logged-out users go to `/entrar`, logged-in users go to the selected qualifier page.
 
 Security/test work to do before expanding features:
 

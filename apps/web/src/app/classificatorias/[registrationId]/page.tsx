@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   ChevronLeft,
@@ -100,6 +100,27 @@ function getTime(value: unknown) {
     return (value as { seconds: number }).seconds * 1000;
   }
   return 0;
+}
+
+function QualifierBackButton() {
+  const router = useRouter();
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        if (window.history.length > 1) {
+          router.back();
+          return;
+        }
+        router.push('/classificatorias');
+      }}
+      className="mb-6 inline-flex items-center gap-2 text-sm text-surface-400 transition-colors hover:text-white"
+    >
+      <ArrowLeft className="h-4 w-4" />
+      Voltar
+    </button>
+  );
 }
 
 export default function QualifierRegistrationPage() {
@@ -248,13 +269,7 @@ export default function QualifierRegistrationPage() {
 
     return (
       <div className="mx-auto max-w-6xl px-4 py-8">
-        <Link
-          href="/classificatorias"
-          className="mb-6 inline-flex items-center gap-2 text-sm text-surface-400 transition-colors hover:text-white"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Classificatórias
-        </Link>
+        <QualifierBackButton />
 
         <section className="rounded-2xl border border-white/10 bg-surface-900/70 p-5">
           <div className="mb-4 flex flex-wrap items-center gap-2 text-xs font-semibold">
@@ -570,13 +585,7 @@ export default function QualifierRegistrationPage() {
   if (!registration || !isOwner) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-10">
-        <Link
-          href="/classificatorias"
-          className="mb-6 inline-flex items-center gap-2 text-sm text-surface-400 transition-colors hover:text-white"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Classificatórias
-        </Link>
+        <QualifierBackButton />
         <Card>
           <CardContent className="text-center">
             <Flag className="mx-auto h-8 w-8 text-surface-500" />
@@ -603,13 +612,7 @@ export default function QualifierRegistrationPage() {
         onSubmitted={() => setSubmissionMatch(null)}
       />
 
-      <Link
-        href="/classificatorias"
-        className="mb-6 inline-flex items-center gap-2 text-sm text-surface-400 transition-colors hover:text-white"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Classificatórias
-      </Link>
+      <QualifierBackButton />
 
       <div className="mb-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
         <section className="rounded-2xl border border-white/10 bg-surface-900/70 p-5">
