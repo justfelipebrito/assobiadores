@@ -5,6 +5,7 @@ import {
   getBrazilDayKey,
   getDailyHighlightDayKeys,
   getDailyHighlightPlacementLabel,
+  getDailyHighlightPodiumMeta,
   getDailyHighlightPromoText,
   getDailyHighlightsForDay,
   getVisibleDailyHighlights,
@@ -112,6 +113,18 @@ describe('daily highlight view helpers', () => {
     expect(getDailyHighlightPlacementLabel({ placement: 2 } as never)).toBe('2º lugar');
     expect(getDailyHighlightPlacementLabel({ placement: 3 } as never)).toBe('3º lugar');
     expect(getDailyHighlightPlacementLabel({ placement: null } as never)).toBeNull();
+  });
+
+  it('returns podium metadata only for top 3 placements', () => {
+    expect(getDailyHighlightPodiumMeta(1)).toEqual({
+      label: '1º lugar',
+      tone: 'gold',
+      shortLabel: '1º',
+    });
+    expect(getDailyHighlightPodiumMeta(2)).toMatchObject({ tone: 'silver' });
+    expect(getDailyHighlightPodiumMeta(3)).toMatchObject({ tone: 'bronze' });
+    expect(getDailyHighlightPodiumMeta(null)).toBeNull();
+    expect(getDailyHighlightPodiumMeta(4)).toBeNull();
   });
 
   it('moves Brazil day keys by calendar day', () => {
