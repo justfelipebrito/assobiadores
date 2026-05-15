@@ -4,6 +4,8 @@ import {
   buildQualifierTrackFallback,
   MAJOR_QUALIFIER_STATES,
   getAllQualifierTracks,
+  getHomepageHeroQualifierTracks,
+  getHomepageSectionQualifierTracks,
   getQualifierTrackId,
   getQualifierTrackSlug,
   getQualifierTracksForStates,
@@ -70,5 +72,62 @@ describe('qualifier track helpers', () => {
       'RS',
       'AC',
     ]);
+  });
+
+  it('uses the logged user state for the homepage hero qualifier tracks', () => {
+    const spFreestyle = buildQualifierTrackFallback('SP', 'freestyle');
+    spFreestyle.confirmedCount = 99;
+    const rjFreestyle = buildQualifierTrackFallback('RJ', 'freestyle');
+    rjFreestyle.confirmedCount = 1;
+    const rjMelodia = buildQualifierTrackFallback('RJ', 'melodia');
+    rjMelodia.confirmedCount = 4;
+
+    const tracks = getHomepageHeroQualifierTracks({
+      tracks: [spFreestyle, rjFreestyle, rjMelodia],
+      userBirthState: 'RJ',
+    });
+
+    expect(tracks).toHaveLength(3);
+    expect(tracks.every((track) => track.region === 'RJ')).toBe(true);
+    expect(tracks.map((track) => track.category)).toEqual(['melodia', 'freestyle', 'passaros']);
+  });
+
+  it('uses the most active qualifier tracks for anonymous homepage visitors', () => {
+    const spFreestyle = buildQualifierTrackFallback('SP', 'freestyle');
+    spFreestyle.confirmedCount = 4;
+    const rjMelodia = buildQualifierTrackFallback('RJ', 'melodia');
+    rjMelodia.confirmedCount = 12;
+    const mgPassaros = buildQualifierTrackFallback('MG', 'passaros');
+    mgPassaros.pendingPaymentCount = 6;
+    const baFreestyle = buildQualifierTrackFallback('BA', 'freestyle');
+    baFreestyle.registeredCount = 2;
+
+    const tracks = getHomepageHeroQualifierTracks({
+      tracks: [spFreestyle, rjMelodia, mgPassaros, baFreestyle],
+    });
+
+    expect(tracks.map((track) => track.id)).toEqual([
+      rjMelodia.id,
+      mgPassaros.id,
+      spFreestyle.id,
+    ]);
+  });
+
+  it('fills the homepage qualifier section with six tracks while prioritizing the logged user state', () => {
+    const baFreestyle = buildQualifierTrackFallback('BA', 'freestyle');
+    baFreestyle.confirmedCount = 3;
+    const spMelodia = buildQualifierTrackFallback('SP', 'melodia');
+    spMelodia.confirmedCount = 10;
+
+    const tracks = getHomepageSectionQualifierTracks({
+      tracks: [baFreestyle, spMelodia],
+      userBirthState: 'BA',
+    });
+
+    expect(tracks).toHaveLength(6);
+    expect(tracks.slice(0, 3).map((track) => track.region)).toEqual(['BA', 'BA', 'BA']);
+    expect(tracks.slice(3).map((track) => track.region)).toEqual(['SP', 'SP', 'SP']);
+    expect(tracks.find((track) => track.id === baFreestyle.id)?.confirmedCount).toBe(3);
+    expect(tracks.find((track) => track.id === spMelodia.id)?.confirmedCount).toBe(10);
   });
 });

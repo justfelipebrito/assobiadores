@@ -87,8 +87,10 @@ export function AudioHighlightPlayer({
 
   return (
     <div
-      className={`flex w-full flex-col justify-between rounded-xl border border-white/10 bg-surface-900 ${
-        size === 'compact' ? 'h-full p-3' : 'aspect-video p-4'
+      className={`flex w-full flex-col justify-between ${
+        size === 'compact'
+          ? 'h-full rounded-xl border border-white/10 bg-black/20 p-3 backdrop-blur-sm'
+          : 'aspect-video rounded-xl border border-white/10 bg-surface-900 p-4'
       }`}
     >
       <audio
@@ -127,7 +129,7 @@ export function AudioHighlightPlayer({
       {showHeader && (
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold">
+            <p className={`${size === 'compact' ? 'text-xs' : 'text-sm'} truncate font-semibold`}>
               <span className="text-white">{username}</span>
               {naturalidade ? <span className="text-surface-400"> - {naturalidade}</span> : null}
             </p>
@@ -137,7 +139,13 @@ export function AudioHighlightPlayer({
               </p>
             )}
           </div>
-          <Badge variant="purple">{COMPETITION_CATEGORY_LABELS[category]}</Badge>
+          {size === 'compact' ? (
+            <span className="shrink-0 rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-semibold text-surface-300">
+              {COMPETITION_CATEGORY_LABELS[category]}
+            </span>
+          ) : (
+            <Badge variant="purple">{COMPETITION_CATEGORY_LABELS[category]}</Badge>
+          )}
         </div>
       )}
 
@@ -145,8 +153,10 @@ export function AudioHighlightPlayer({
         <button
           type="button"
           onClick={togglePlayback}
-          className={`inline-flex flex-shrink-0 items-center justify-center rounded-xl border border-brand-500/30 bg-brand-500/10 text-brand-300 transition-colors hover:bg-brand-500/20 ${
-            size === 'compact' ? 'h-9 w-9' : 'h-10 w-10'
+          className={`inline-flex flex-shrink-0 items-center justify-center rounded-xl transition-colors ${
+            size === 'compact'
+              ? 'h-10 w-10 border border-white/15 bg-white/10 text-white hover:border-brand-400/50 hover:bg-brand-500/20 hover:text-brand-200'
+              : 'h-10 w-10 border border-brand-500/30 bg-brand-500/10 text-brand-300 hover:bg-brand-500/20'
           }`}
           aria-label={playing ? 'Pausar audio' : 'Tocar audio'}
         >
@@ -161,7 +171,7 @@ export function AudioHighlightPlayer({
 
         <div
           className={`flex w-full items-center gap-1 overflow-hidden rounded-lg bg-black/20 px-3 ${
-            size === 'compact' ? 'h-12' : 'h-16'
+            size === 'compact' ? 'h-10' : 'h-16'
           }`}
         >
           {wave.map((height, index) => {
@@ -170,16 +180,20 @@ export function AudioHighlightPlayer({
               <div
                 key={index}
                 className={`w-full rounded-full transition-colors ${
-                  active ? 'bg-brand-400' : 'bg-white/15'
+                  active ? 'bg-brand-300' : 'bg-white/20'
                 }`}
-                style={{ height: `${height}%` }}
+                style={{ height: `${size === 'compact' ? Math.max(20, height - 8) : height}%` }}
               />
             );
           })}
         </div>
       </div>
 
-      <p className="text-xs tabular-nums text-surface-400">
+      <p
+        className={`tabular-nums text-surface-400 ${
+          size === 'compact' ? 'text-[11px]' : 'text-xs'
+        }`}
+      >
         {formatTime(currentTime)} / {formatTime(duration)}
       </p>
       {playbackError && <p className="text-xs text-red-300">{playbackError}</p>}
