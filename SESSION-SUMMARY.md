@@ -843,6 +843,7 @@ Latest hardening/refactor:
   - fixed the tablet/small-desktop navigation breakpoint so the hamburger opens the drawer anywhere the desktop sidebar is hidden, and changed the drawer title to the public brand name.
   - changed the `Destaques Diários` submit CTA so logged-out users still see `Enviar`; it links to `/entrar`, while logged-in users who have not submitted still open the submit modal.
   - applied the same auth-aware behavior to the homepage hero `Participar` CTA: logged-out users go to `/entrar`, logged-in users go to the selected qualifier page.
+  - on `feat/homepage-official-battle-priority`, added homepage battle prioritization rules: the Batalhas rail now orders official active battles before community battles, and users with at least one confirmed qualifier registration see the hero switch from qualifier signup to the three official battles closing soonest for registration or voting. Added focused helper coverage and verified web type-check.
 
 Security/test work to do before expanding features:
 
