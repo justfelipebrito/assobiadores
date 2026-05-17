@@ -29,6 +29,7 @@ import {
   type Championship,
   type DailyHighlight,
   type HomepageSettings,
+  type QualifierRegistration,
   type QualifierTrack,
   type Season,
   type SeasonRanking,
@@ -60,6 +61,12 @@ import {
   getQualifierTrackStatusCopy,
   QUALIFIER_REGISTRATION_DEADLINE_LABEL,
 } from '@/lib/qualifier-tracks';
+import {
+  getHomepageBattleCards,
+  getHomepageOfficialBattleHeroItems,
+  getOfficialBattleCloseDate,
+  getOfficialBattleHeroActionLabel,
+} from '@/lib/homepage-battles';
 import { trackAuthCtaClick } from '@/lib/analytics-events';
 
 const STATUS_MAP: Record<
@@ -371,6 +378,54 @@ function QualifierHeroMomentCard({
   );
 }
 
+function OfficialBattleHeroMomentCard({
+  battle,
+  active,
+  onSelect,
+}: {
+  battle: Battle;
+  active: boolean;
+  onSelect: () => void;
+}) {
+  const closeAt = getOfficialBattleCloseDate(battle);
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={active}
+      className="group block min-w-[220px] text-left sm:min-w-0"
+    >
+      <div
+        className={`relative h-24 overflow-hidden rounded-xl border bg-surface-950/80 transition-all duration-300 ${
+          active
+            ? 'border-brand-400/70 shadow-[0_0_0_1px_rgba(37,169,114,0.18),0_18px_60px_rgba(0,0,0,0.45)]'
+            : 'border-white/10 hover:border-brand-400/40'
+        }`}
+      >
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(37,169,114,0.22),transparent_32%),radial-gradient(circle_at_80%_20%,rgba(74,222,128,0.12),transparent_36%)]" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+        <div className="relative flex h-full flex-col justify-between p-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="rounded-md border border-brand-400/15 bg-black/30 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-brand-100">
+              Oficial
+            </span>
+            <span className="text-[10px] font-semibold text-surface-300">
+              {getOfficialBattleHeroActionLabel(battle)}
+            </span>
+          </div>
+          <div>
+            <p className="line-clamp-1 text-sm font-black text-white">{battle.title}</p>
+            <p className="mt-0.5 text-xs text-surface-400">
+              {closeAt ? formatRelativeTime(closeAt) : 'Em andamento'}
+            </p>
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
 function SectionHeader({
   icon: Icon,
   title,
@@ -413,6 +468,8 @@ export default function HomePage() {
   const [platformStats, setPlatformStats] = useState<PlatformStats | null>(null);
   const [heroQualifierIndex, setHeroQualifierIndex] = useState(0);
   const [heroRotationPaused, setHeroRotationPaused] = useState(false);
+  const [heroOfficialBattleIndex, setHeroOfficialBattleIndex] = useState(0);
+  const [officialBattleRotationPaused, setOfficialBattleRotationPaused] = useState(false);
   const todayDailyHighlightKey = useMemo(() => getBrazilDayKey(), []);
   const dailyHighlightDayLabel = useMemo(
     () => formatBrazilDayKey(todayDailyHighlightKey),
@@ -463,16 +520,23 @@ export default function HomePage() {
       ? [where('dayKey', '==', todayDailyHighlightKey), where('userId', '==', user.uid), limit(1)]
       : [],
   );
+  const { data: confirmedQualifierRegistrations } = useCollection<QualifierRegistration>(
+    user ? 'qualifierRegistrations' : undefined,
+    user
+      ? [where('userId', '==', user.uid), where('status', '==', 'confirmed'), limit(1)]
+      : [],
+  );
   const { data: qualifierTracks, loading: qualifierTracksLoading } = useCollection<QualifierTrack>(
     'qualifierTracks',
     [limit(200)],
   );
 
   const activeBattles = useMemo(
-    () =>
-      battles
-        .filter((battle) => ['registration', 'active', 'voting'].includes(battle.status))
-        .slice(0, 8),
+    () => getHomepageBattleCards(battles, 8),
+    [battles],
+  );
+  const officialHeroBattles = useMemo(
+    () => getHomepageOfficialBattleHeroItems({ battles, limit: 3 }),
     [battles],
   );
   const visibleChampionships = useMemo(
@@ -521,6 +585,14 @@ export default function HomePage() {
   const heroQualifier = heroQualifierTracks[heroQualifierIndex] ?? heroQualifierTracks[0] ?? null;
   const heroQualifierEntries = heroQualifier ? getQualifierTrackEntryCount(heroQualifier) : 0;
   const heroQualifierNextDate = heroQualifier ? getQualifierTrackNextDate(heroQualifier) : null;
+  const hasConfirmedQualifierRegistration = confirmedQualifierRegistrations.length > 0;
+  const shouldShowOfficialBattleHero =
+    hasConfirmedQualifierRegistration && officialHeroBattles.length > 0;
+  const heroOfficialBattle =
+    officialHeroBattles[heroOfficialBattleIndex] ?? officialHeroBattles[0] ?? null;
+  const heroOfficialBattleCloseDate = heroOfficialBattle
+    ? getOfficialBattleCloseDate(heroOfficialBattle)
+    : null;
 
   const getHighlightNaturalidade = (highlight: DailyHighlight) => {
     const userProfile = highlightUsersById.get(highlight.userId);
@@ -555,10 +627,110 @@ export default function HomePage() {
     return () => window.clearInterval(intervalId);
   }, [heroQualifierTracks, heroRotationPaused]);
 
+  useEffect(() => {
+    setHeroOfficialBattleIndex((current) =>
+      officialHeroBattles.length > 0 ? current % officialHeroBattles.length : 0,
+    );
+
+    if (
+      !shouldShowOfficialBattleHero ||
+      officialBattleRotationPaused ||
+      officialHeroBattles.length <= 1
+    ) {
+      return undefined;
+    }
+
+    const intervalId = window.setInterval(() => {
+      setHeroOfficialBattleIndex((current) => (current + 1) % officialHeroBattles.length);
+    }, HERO_QUALIFIER_ROTATION_MS);
+
+    return () => window.clearInterval(intervalId);
+  }, [officialBattleRotationPaused, officialHeroBattles, shouldShowOfficialBattleHero]);
+
   return (
     <>
       {/* ── HERO BANNER ───────────────────────────────────────── */}
-      {heroQualifier && (
+      {shouldShowOfficialBattleHero && heroOfficialBattle && (
+        <section className="relative min-h-[430px] overflow-hidden border-b border-white/5 bg-[#0d0d14]">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_76%_18%,rgba(37,169,114,0.22),transparent_30%),radial-gradient(circle_at_64%_62%,rgba(74,222,128,0.12),transparent_38%),linear-gradient(115deg,rgba(11,11,18,0.98)_0%,rgba(11,11,18,0.86)_42%,rgba(11,11,18,0.40)_100%)]" />
+          <div className="absolute inset-y-0 right-0 hidden w-1/2 opacity-50 lg:block">
+            <div className="absolute right-12 top-16 h-80 w-80 rotate-12 rounded-[2rem] border border-brand-400/20 bg-brand-400/[0.04]" />
+            <div className="absolute right-36 top-36 h-72 w-72 -rotate-12 rounded-[2rem] border border-brand-400/20 bg-brand-400/[0.04]" />
+            <Swords className="absolute right-24 top-24 h-72 w-72 rotate-12 text-white/[0.05]" />
+          </div>
+          <div className="absolute inset-0 bg-gradient-to-r from-[#0d0d14] via-[#0d0d14]/90 to-transparent" />
+
+          <div className="relative mx-auto flex min-h-[430px] max-w-6xl flex-col justify-between px-4 py-8 sm:px-6 lg:px-8">
+            <div className="max-w-2xl">
+              <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-brand-400/20 bg-white/[0.06] px-3 py-1.5 text-xs font-bold text-brand-100 shadow-[0_12px_30px_rgba(0,0,0,0.25)]">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-400 opacity-70" />
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-brand-400" />
+                </span>
+                Batalhas oficiais
+              </div>
+
+              <p className="text-sm font-semibold text-surface-400 sm:text-base">
+                {heroOfficialBattle.status === 'voting' ? 'Votação aberta' : 'Inscrições abertas'}
+              </p>
+              <h1 className="mt-1.5 text-4xl font-black leading-none text-white sm:text-5xl lg:text-[4rem]">
+                {heroOfficialBattle.title}
+              </h1>
+
+              <p className="mt-4 max-w-xl text-sm leading-6 text-surface-300 sm:text-base">
+                Você já está nas classificatórias. Acompanhe as batalhas oficiais que encerram primeiro para participar ou votar.
+                {heroOfficialBattleCloseDate
+                  ? ` Encerra ${formatRelativeTime(heroOfficialBattleCloseDate)}.`
+                  : ''}
+              </p>
+
+              <div className="mt-5 flex flex-wrap items-center gap-3 text-sm text-surface-300">
+                <span className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2">
+                  <Users className="h-4 w-4 text-brand-300" />
+                  {heroOfficialBattle.currentParticipants}{' '}
+                  {heroOfficialBattle.currentParticipants === 1 ? 'participante' : 'participantes'}
+                </span>
+                <span className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2">
+                  <Trophy className="h-4 w-4 text-brand-300" />
+                  Oficial
+                </span>
+                <span className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2">
+                  <Clock className="h-4 w-4 text-surface-300" />
+                  {STATUS_MAP[heroOfficialBattle.status]?.label ?? 'Em andamento'}
+                </span>
+              </div>
+
+              <div className="mt-6">
+                <Link href={`/batalhas/${heroOfficialBattle.id}`}>
+                  <button className="inline-flex h-12 items-center gap-2 rounded-xl bg-brand-500 px-7 text-sm font-black uppercase tracking-wider text-white shadow-[0_18px_50px_rgba(37,169,114,0.28)] transition-all hover:bg-brand-400 active:scale-[0.98]">
+                    {getOfficialBattleHeroActionLabel(heroOfficialBattle)}
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                </Link>
+              </div>
+            </div>
+
+            <div className="mt-7 lg:ml-auto lg:w-[58%]">
+              <p className="mb-2 text-sm font-bold text-white">Batalhas encerrando primeiro</p>
+              <div className="flex gap-3 overflow-x-auto pb-2 [scrollbar-width:none] sm:grid sm:grid-cols-3 sm:overflow-visible sm:pb-0">
+                {officialHeroBattles.map((battle, index) => (
+                  <OfficialBattleHeroMomentCard
+                    key={battle.id}
+                    battle={battle}
+                    active={battle.id === heroOfficialBattle.id || index === heroOfficialBattleIndex}
+                    onSelect={() => {
+                      setHeroOfficialBattleIndex(index);
+                      setOfficialBattleRotationPaused(true);
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {!shouldShowOfficialBattleHero && heroQualifier && (
         <section className="relative min-h-[430px] overflow-hidden border-b border-white/5 bg-[#0d0d14]">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_76%_18%,rgba(37,169,114,0.22),transparent_30%),radial-gradient(circle_at_64%_62%,rgba(74,222,128,0.12),transparent_38%),linear-gradient(115deg,rgba(11,11,18,0.98)_0%,rgba(11,11,18,0.86)_42%,rgba(11,11,18,0.40)_100%)]" />
           <div className="absolute inset-y-0 right-0 hidden w-1/2 opacity-50 lg:block">
