@@ -4,13 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, Pause, Play } from 'lucide-react';
 import { Badge } from '@batalha/ui';
 import { COMPETITION_CATEGORY_LABELS, type CompetitionCategory } from '@batalha/types';
-
-function formatTime(seconds: number) {
-  const safe = Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds)) : 0;
-  const minutes = Math.floor(safe / 60);
-  const remaining = String(safe % 60).padStart(2, '0');
-  return `${minutes}:${remaining}`;
-}
+import { formatDurationLabel, formatTime, getValidDuration } from '@/lib/audio-duration';
 
 function buildWave(seed: string) {
   return Array.from({ length: 36 }).map((_, index) => {
@@ -45,19 +39,27 @@ export function AudioHighlightPlayer({
   const [loading, setLoading] = useState(false);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
-  const [loadedDuration, setLoadedDuration] = useState(durationSeconds ?? 0);
+  const [loadedDuration, setLoadedDuration] = useState<number | null>(
+    getValidDuration(durationSeconds),
+  );
   const wave = useMemo(() => buildWave(`${src}-${username}`), [src, username]);
-  const duration = loadedDuration || durationSeconds || 0;
-  const progress = duration > 0 ? Math.min(1, currentTime / duration) : 0;
+  const duration = loadedDuration ?? getValidDuration(durationSeconds);
+  const progress = duration !== null && duration > 0 ? Math.min(1, currentTime / duration) : 0;
 
   useEffect(() => {
     setPlaying(false);
     setLoading(false);
     setPlaybackError(null);
     setCurrentTime(0);
-    setLoadedDuration(durationSeconds ?? 0);
+    setLoadedDuration(getValidDuration(durationSeconds));
     audioRef.current?.load();
   }, [durationSeconds, src]);
+
+  function syncDuration(audio: HTMLAudioElement) {
+    const nextDuration = getValidDuration(audio.duration);
+    if (nextDuration !== null) setLoadedDuration(nextDuration);
+    setLoading(false);
+  }
 
   async function togglePlayback() {
     const audio = audioRef.current;
@@ -97,10 +99,8 @@ export function AudioHighlightPlayer({
         ref={audioRef}
         src={src}
         preload="metadata"
-        onLoadedMetadata={(event) => {
-          setLoadedDuration(event.currentTarget.duration);
-          setLoading(false);
-        }}
+        onLoadedMetadata={(event) => syncDuration(event.currentTarget)}
+        onDurationChange={(event) => syncDuration(event.currentTarget)}
         onCanPlay={() => setLoading(false)}
         onWaiting={() => setLoading(true)}
         onPlaying={() => {
@@ -194,7 +194,7 @@ export function AudioHighlightPlayer({
           size === 'compact' ? 'text-[11px]' : 'text-xs'
         }`}
       >
-        {formatTime(currentTime)} / {formatTime(duration)}
+        {formatTime(currentTime)} / {formatDurationLabel(duration)}
       </p>
       {playbackError && <p className="text-xs text-red-300">{playbackError}</p>}
     </div>

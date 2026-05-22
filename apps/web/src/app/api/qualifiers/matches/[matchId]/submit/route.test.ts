@@ -6,6 +6,16 @@ const requireDecodedToken = vi.fn();
 const uploadQualifierSubmissionAudio = vi.fn();
 const createQualifierSubmission = vi.fn();
 const deleteUploadedFile = vi.fn();
+const detectAudioDurationSeconds = vi.fn();
+const getResolvedAudioDurationSeconds = vi.fn(
+  ({
+    detectedDurationSeconds,
+    clientDurationSeconds,
+  }: {
+    detectedDurationSeconds?: number | null;
+    clientDurationSeconds?: number | null;
+  }) => Math.round(detectedDurationSeconds ?? clientDurationSeconds ?? 0),
+);
 
 vi.mock('@batalha/firebase/src/admin', () => ({
   getAdminFirestore,
@@ -18,6 +28,11 @@ vi.mock('../../../../../../server/auth', () => ({
 
 vi.mock('../../../../../../server/daily-highlight-audio-service', () => ({
   uploadQualifierSubmissionAudio,
+}));
+
+vi.mock('../../../../../../server/audio-transcoding', () => ({
+  detectAudioDurationSeconds,
+  getResolvedAudioDurationSeconds,
 }));
 
 vi.mock('../../../../../../server/qualifier-submission-service', () => ({
@@ -48,6 +63,7 @@ describe('POST /api/qualifiers/matches/[matchId]/submit', () => {
       file: vi.fn(() => ({ delete: deleteUploadedFile.mockResolvedValue(undefined) })),
     });
     requireDecodedToken.mockResolvedValue({ uid: 'user-1' });
+    detectAudioDurationSeconds.mockResolvedValue(null);
     uploadQualifierSubmissionAudio.mockResolvedValue({
       audioURL: 'https://storage.example/audio-playback.m4a',
       audioPath: 'qualifier-submissions/match-1/user-1-playback.m4a',
@@ -93,6 +109,24 @@ describe('POST /api/qualifiers/matches/[matchId]/submit', () => {
         originalContentType: 'audio/webm',
         originalSizeBytes: 5,
         durationSeconds: 12,
+      }),
+    );
+  });
+
+  it('prefers server-detected audio duration over the client stopwatch', async () => {
+    detectAudioDurationSeconds.mockResolvedValue(15.6);
+
+    const res = await post();
+
+    expect(res.status).toBe(200);
+    expect(getResolvedAudioDurationSeconds).toHaveBeenCalledWith({
+      detectedDurationSeconds: 15.6,
+      clientDurationSeconds: 12,
+    });
+    expect(createQualifierSubmission).toHaveBeenCalledWith(
+      { db: true },
+      expect.objectContaining({
+        durationSeconds: 16,
       }),
     );
   });

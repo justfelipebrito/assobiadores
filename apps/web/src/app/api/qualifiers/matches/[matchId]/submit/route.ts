@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminFirestore, getAdminStorageBucket } from '@batalha/firebase/src/admin';
 import { ApiError, getErrorResponse } from '../../../../../../server/api-errors';
 import { requireDecodedToken } from '../../../../../../server/auth';
+import {
+  detectAudioDurationSeconds,
+  getResolvedAudioDurationSeconds,
+} from '../../../../../../server/audio-transcoding';
 import { uploadQualifierSubmissionAudio } from '../../../../../../server/daily-highlight-audio-service';
 import { createQualifierSubmission } from '../../../../../../server/qualifier-submission-service';
 
@@ -17,7 +21,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     const decodedToken = await requireDecodedToken(req);
     const formData = await req.formData();
     const file = formData.get('audio');
-    const durationSeconds = Number(formData.get('durationSeconds') ?? 0);
+    const clientDurationSeconds = Number(formData.get('durationSeconds') ?? 0);
 
     if (!file || typeof file !== 'object' || !('arrayBuffer' in file)) {
       throw new ApiError(400, 'Grave um audio antes de enviar');
@@ -25,6 +29,17 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 
     const audioContentType = 'type' in file ? String(file.type) : '';
     const buffer = Buffer.from(await file.arrayBuffer());
+    const detectedDurationSeconds = await detectAudioDurationSeconds(
+      buffer,
+      audioContentType,
+    ).catch((error) => {
+      console.warn('Audio duration probe failed; using client duration.', error);
+      return null;
+    });
+    const durationSeconds = getResolvedAudioDurationSeconds({
+      detectedDurationSeconds,
+      clientDurationSeconds,
+    });
     const upload = await uploadQualifierSubmissionAudio({
       bucket,
       userId: decodedToken.uid,

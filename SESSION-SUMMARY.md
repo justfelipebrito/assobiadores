@@ -9,6 +9,12 @@ Battle ranking points fix:
 - Production backfill was run on May 22, 2026. It awarded the missing `+20` points for finished battle `Uws32D9nJXprJM6OthDR` to winner `Ovo3wtpm0oeqoh8Pn42gi4I6Mjt1` in season `2026`; a follow-up dry run skipped it as `already-awarded`.
 - Focused verification passed: `pnpm --filter admin test -- admin-battle-form.test.ts`, `pnpm --filter web test -- battle-finalization-service.test.ts`, `pnpm --filter admin type-check`, and `node --check scripts/backfill-finalized-battle-points.cjs`.
 
+Audio duration handling review:
+
+- Confirmed the latest audio player implementation preserves stored `mediaDurationSeconds` when browser metadata reports invalid values such as `Infinity`, `NaN`, or `0`, preventing valid existing records from displaying as `0:00 / 0:00`.
+- Added route-level tests proving ffmpeg-detected durations override the client stopwatch for battle submissions, qualifier match submissions, and daily highlight submissions. Existing helper tests cover invalid duration formatting and fallback behavior.
+- Focused verification passed: `pnpm --filter web test -- audio-duration.test.ts audio-transcoding.test.ts submissions/create/route.test.ts qualifiers/matches/\[matchId\]/submit/route.test.ts daily-highlights/submit/route.test.ts`.
+
 Recent battle voting clarification:
 
 - Battle creator votes are intentionally tie-break signals and do not increment the community vote counter. The battle detail UI now labels creator voting as `Desempatar`, marks selected creator votes as `Desempate registrado`, and explains in the confirmation modal that this does not count as a community vote. Focused helper coverage was updated in `apps/web/src/lib/battle-vote-view.test.ts`.

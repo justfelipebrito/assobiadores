@@ -1,15 +1,31 @@
 import { describe, expect, it } from 'vitest';
-import { needsPlaybackTranscode, PLAYBACK_AUDIO_CONTENT_TYPE } from './audio-transcoding';
+import { getResolvedAudioDurationSeconds } from './audio-transcoding';
 
 describe('audio transcoding helpers', () => {
-  it('normalizes non-mp4 browser recordings to mp4 playback audio', () => {
-    expect(needsPlaybackTranscode('audio/webm;codecs=opus')).toBe(true);
-    expect(needsPlaybackTranscode('audio/ogg;codecs=opus')).toBe(true);
-    expect(PLAYBACK_AUDIO_CONTENT_TYPE).toBe('audio/mp4');
+  it('prefers the duration detected from the uploaded media', () => {
+    expect(
+      getResolvedAudioDurationSeconds({
+        detectedDurationSeconds: 6.4,
+        clientDurationSeconds: 5,
+      }),
+    ).toBe(6);
   });
 
-  it('does not transcode mobile-safe aac/mp4 recordings', () => {
-    expect(needsPlaybackTranscode('audio/mp4; codecs=mp4a.40.2')).toBe(false);
-    expect(needsPlaybackTranscode('audio/aac')).toBe(false);
+  it('falls back to the client stopwatch when probing is unavailable', () => {
+    expect(
+      getResolvedAudioDurationSeconds({
+        detectedDurationSeconds: null,
+        clientDurationSeconds: 12.2,
+      }),
+    ).toBe(12);
+  });
+
+  it('returns zero when neither source has a usable duration', () => {
+    expect(
+      getResolvedAudioDurationSeconds({
+        detectedDurationSeconds: Number.NaN,
+        clientDurationSeconds: 0,
+      }),
+    ).toBe(0);
   });
 });

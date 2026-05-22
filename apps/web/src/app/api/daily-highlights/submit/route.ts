@@ -3,6 +3,10 @@ import { getAdminFirestore, getAdminStorageBucket } from '@batalha/firebase/src/
 import { competitionCategorySchema } from '@batalha/types';
 import { ApiError, getErrorResponse } from '../../../../server/api-errors';
 import { requireDecodedToken } from '../../../../server/auth';
+import {
+  detectAudioDurationSeconds,
+  getResolvedAudioDurationSeconds,
+} from '../../../../server/audio-transcoding';
 import { createDailyHighlightFromAudio } from '../../../../server/daily-highlight-service';
 import { uploadDailyHighlightAudio } from '../../../../server/daily-highlight-audio-service';
 
@@ -15,7 +19,7 @@ export async function POST(req: NextRequest) {
       const formData = await req.formData();
       const file = formData.get('audio');
       const categoryResult = competitionCategorySchema.safeParse(formData.get('category'));
-      const durationSeconds = Number(formData.get('durationSeconds') ?? 0);
+      const clientDurationSeconds = Number(formData.get('durationSeconds') ?? 0);
 
       if (!categoryResult.success) {
         throw new ApiError(400, 'Categoria invalida');
@@ -26,6 +30,17 @@ export async function POST(req: NextRequest) {
 
       const audioContentType = 'type' in file ? String(file.type) : '';
       const buffer = Buffer.from(await file.arrayBuffer());
+      const detectedDurationSeconds = await detectAudioDurationSeconds(
+        buffer,
+        audioContentType,
+      ).catch((error) => {
+        console.warn('Audio duration probe failed; using client duration.', error);
+        return null;
+      });
+      const durationSeconds = getResolvedAudioDurationSeconds({
+        detectedDurationSeconds,
+        clientDurationSeconds,
+      });
       const bucket = getAdminStorageBucket();
       const upload = await uploadDailyHighlightAudio({
         bucket,

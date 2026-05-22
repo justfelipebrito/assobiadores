@@ -68,6 +68,7 @@ import {
   getOfficialBattleHeroActionLabel,
 } from '@/lib/homepage-battles';
 import { trackAuthCtaClick } from '@/lib/analytics-events';
+import { getValidDuration } from '@/lib/audio-duration';
 
 const STATUS_MAP: Record<
   string,
@@ -123,7 +124,7 @@ function HighlightFeaturedCard({
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(highlight.mediaDurationSeconds ?? 0);
+  const [duration, setDuration] = useState(getValidDuration(highlight.mediaDurationSeconds) ?? 0);
   const wave = useMemo(
     () => buildWave(`${highlight.mediaURL ?? ''}-${username}`),
     [highlight.mediaURL, username],
@@ -194,7 +195,10 @@ function HighlightFeaturedCard({
           src={highlight.mediaURL}
           preload="metadata"
           onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-          onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
+          onLoadedMetadata={(e) => {
+            const nextDuration = getValidDuration(e.currentTarget.duration);
+            if (nextDuration !== null) setDuration(nextDuration);
+          }}
           onPlay={() => setPlaying(true)}
           onPause={() => setPlaying(false)}
           onEnded={() => { setPlaying(false); setCurrentTime(0); }}
@@ -218,7 +222,7 @@ function HighlightCompactCard({
   const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(highlight.mediaDurationSeconds ?? 0);
+  const [duration, setDuration] = useState(getValidDuration(highlight.mediaDurationSeconds) ?? 0);
   const wave = useMemo(
     () => buildWave(`${highlight.mediaURL ?? ''}-${username}`).slice(0, 24),
     [highlight.mediaURL, username],
@@ -292,7 +296,10 @@ function HighlightCompactCard({
           src={highlight.mediaURL}
           preload="metadata"
           onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-          onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
+          onLoadedMetadata={(e) => {
+            const nextDuration = getValidDuration(e.currentTarget.duration);
+            if (nextDuration !== null) setDuration(nextDuration);
+          }}
           onPlay={() => setPlaying(true)}
           onPause={() => setPlaying(false)}
           onEnded={() => { setPlaying(false); setCurrentTime(0); }}

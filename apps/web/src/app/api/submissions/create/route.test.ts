@@ -6,6 +6,16 @@ const getAdminStorageBucket = vi.fn();
 const requireDecodedToken = vi.fn();
 const createSubmission = vi.fn();
 const uploadBattleSubmissionAudio = vi.fn();
+const detectAudioDurationSeconds = vi.fn();
+const getResolvedAudioDurationSeconds = vi.fn(
+  ({
+    detectedDurationSeconds,
+    clientDurationSeconds,
+  }: {
+    detectedDurationSeconds?: number | null;
+    clientDurationSeconds?: number | null;
+  }) => Math.round(detectedDurationSeconds ?? clientDurationSeconds ?? 0),
+);
 
 const bucket = {
   file: vi.fn(() => ({
@@ -24,6 +34,11 @@ vi.mock('../../../../server/auth', () => ({
 
 vi.mock('../../../../server/daily-highlight-audio-service', () => ({
   uploadBattleSubmissionAudio,
+}));
+
+vi.mock('../../../../server/audio-transcoding', () => ({
+  detectAudioDurationSeconds,
+  getResolvedAudioDurationSeconds,
 }));
 
 vi.mock('../../../../server/submission-service', () => ({
@@ -56,6 +71,7 @@ describe('POST /api/submissions/create', () => {
     getAdminFirestore.mockReturnValue('db');
     getAdminStorageBucket.mockReturnValue(bucket);
     requireDecodedToken.mockResolvedValue({ uid: 'user-1' });
+    detectAudioDurationSeconds.mockResolvedValue(null);
     uploadBattleSubmissionAudio.mockResolvedValue({
       audioURL: 'https://storage.example/battle-playback.m4a',
       audioPath: 'battle-submissions/battle-1/user-1-playback.m4a',
@@ -99,6 +115,24 @@ describe('POST /api/submissions/create', () => {
       durationSeconds: 5,
       category: 'freestyle',
     });
+  });
+
+  it('prefers server-detected audio duration over the client stopwatch', async () => {
+    detectAudioDurationSeconds.mockResolvedValue(8.4);
+
+    const res = await post();
+
+    expect(res.status).toBe(200);
+    expect(getResolvedAudioDurationSeconds).toHaveBeenCalledWith({
+      detectedDurationSeconds: 8.4,
+      clientDurationSeconds: 5,
+    });
+    expect(createSubmission).toHaveBeenCalledWith(
+      'db',
+      expect.objectContaining({
+        durationSeconds: 8,
+      }),
+    );
   });
 
   it('returns auth and service errors with their status code', async () => {
