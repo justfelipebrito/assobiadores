@@ -2,6 +2,13 @@
 
 ## What's Been Built
 
+Battle ranking points fix:
+
+- Fixed the admin battle edit flow so changing a battle to `Finalizada` no longer writes `status: finished` directly from the client. That transition now calls trusted `POST /api/admin/battles/finalize`, so winners receive battle-win points, `pointActivities`, and `seasonRankings/{seasonId}/users/{userId}` updates through server-owned logic.
+- Added `scripts/backfill-finalized-battle-points.cjs` plus `pnpm backfill:battle-points`. The script is idempotent by checking the deterministic `battle__{battleId}__battle_win__{userId}` activity before awarding.
+- Production backfill was run on May 22, 2026. It awarded the missing `+20` points for finished battle `Uws32D9nJXprJM6OthDR` to winner `Ovo3wtpm0oeqoh8Pn42gi4I6Mjt1` in season `2026`; a follow-up dry run skipped it as `already-awarded`.
+- Focused verification passed: `pnpm --filter admin test -- admin-battle-form.test.ts`, `pnpm --filter web test -- battle-finalization-service.test.ts`, `pnpm --filter admin type-check`, and `node --check scripts/backfill-finalized-battle-points.cjs`.
+
 Recent battle voting clarification:
 
 - Battle creator votes are intentionally tie-break signals and do not increment the community vote counter. The battle detail UI now labels creator voting as `Desempatar`, marks selected creator votes as `Desempate registrado`, and explains in the confirmation modal that this does not count as a community vote. Focused helper coverage was updated in `apps/web/src/lib/battle-vote-view.test.ts`.

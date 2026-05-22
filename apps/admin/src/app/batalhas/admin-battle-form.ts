@@ -155,6 +155,16 @@ export function battleToAdminFormValues(battle: Battle): AdminBattleFormValues {
   };
 }
 
+export function shouldFinalizeBattleThroughTrustedApi({
+  currentStatus,
+  nextStatus,
+}: {
+  currentStatus: Battle['status'];
+  nextStatus: AdminBattlePayload['status'];
+}) {
+  return currentStatus !== 'finished' && nextStatus === 'finished';
+}
+
 export function validateAdminBattleForm(
   values: AdminBattleFormValues,
 ): AdminBattleValidationResult {

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   battleToAdminFormValues,
   createDefaultAdminBattleFormValues,
+  shouldFinalizeBattleThroughTrustedApi,
   validateAdminBattleForm,
 } from './admin-battle-form';
 import type { Battle } from '@batalha/types';
@@ -104,5 +105,26 @@ describe('admin battle form helpers', () => {
         rulesText: 'Sem edicao',
       }),
     );
+  });
+
+  it('routes only new finished transitions through trusted finalization', () => {
+    expect(
+      shouldFinalizeBattleThroughTrustedApi({
+        currentStatus: 'voting',
+        nextStatus: 'finished',
+      }),
+    ).toBe(true);
+    expect(
+      shouldFinalizeBattleThroughTrustedApi({
+        currentStatus: 'finished',
+        nextStatus: 'finished',
+      }),
+    ).toBe(false);
+    expect(
+      shouldFinalizeBattleThroughTrustedApi({
+        currentStatus: 'voting',
+        nextStatus: 'voting',
+      }),
+    ).toBe(false);
   });
 });

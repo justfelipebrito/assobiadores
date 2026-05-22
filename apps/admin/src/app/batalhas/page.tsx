@@ -36,6 +36,7 @@ import {
   ADMIN_BATTLE_TYPE_OPTIONS,
   battleToAdminFormValues,
   createDefaultAdminBattleFormValues,
+  shouldFinalizeBattleThroughTrustedApi,
   type AdminBattleFormValues,
   validateAdminBattleForm,
 } from './admin-battle-form';
@@ -125,15 +126,33 @@ function BattleForm({ battle, onCancel, onSaved }: BattleFormProps) {
       const now = serverTimestamp();
 
       if (battle) {
-        await updateDoc(doc(db, 'battles', battle.id), {
-          ...result.payload,
-          currentParticipants: Math.min(
-            battle.currentParticipants ?? 0,
-            result.payload.maxParticipants,
-          ),
-          updatedAt: now,
+        const shouldFinalize = shouldFinalizeBattleThroughTrustedApi({
+          currentStatus: battle.status,
+          nextStatus: result.payload.status,
         });
-        toast.success('Batalha atualizada.');
+
+        if (shouldFinalize) {
+          const token = await getClientAuth().currentUser?.getIdToken();
+          if (!token) throw new Error('Sessao expirada. Entre novamente.');
+          const response = await fetch(`${getWebApiBaseUrl()}/api/admin/battles/finalize`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+            body: JSON.stringify({ battleId: battle.id }),
+          });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || 'Erro ao finalizar batalha');
+          toast.success('Batalha finalizada com pontuacao processada.');
+        } else {
+          await updateDoc(doc(db, 'battles', battle.id), {
+            ...result.payload,
+            currentParticipants: Math.min(
+              battle.currentParticipants ?? 0,
+              result.payload.maxParticipants,
+            ),
+            updatedAt: now,
+          });
+          toast.success('Batalha atualizada.');
+        }
       } else {
         const battleRef = await addDoc(collection(db, 'battles'), {
           ...result.payload,
