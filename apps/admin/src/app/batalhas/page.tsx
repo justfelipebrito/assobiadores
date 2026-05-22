@@ -10,6 +10,7 @@ import {
   updateDoc,
   useAuth,
   useCollection,
+  getClientAuth,
 } from '@batalha/firebase';
 import { getClientFirestore } from '@batalha/firebase';
 import {
@@ -24,9 +25,10 @@ import {
 } from '@batalha/ui';
 import { formatCurrency, formatRelativeTime, toDate } from '@batalha/utils';
 import { toast } from 'sonner';
-import type { Battle } from '@batalha/types';
+import type { Battle, BattleEntry, Submission, Vote } from '@batalha/types';
 import { SortableTableHeader } from '../../components/sortable-table-header';
 import { getNextSortState, sortRows, type SortState } from '../../components/sortable-table';
+import { getWebApiBaseUrl } from '../../lib/web-api';
 import {
   ADMIN_BATTLE_CATEGORY_OPTIONS,
   ADMIN_BATTLE_FORMAT_OPTIONS,
@@ -37,6 +39,7 @@ import {
   type AdminBattleFormValues,
   validateAdminBattleForm,
 } from './admin-battle-form';
+import { getAdminBattleTieBreakOptions } from './admin-battle-tiebreak';
 
 type BattleSortKey = 'battle' | 'status' | 'participants' | 'entryFee';
 
@@ -239,8 +242,8 @@ function BattleForm({ battle, onCancel, onSaved }: BattleFormProps) {
           </div>
 
           <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-surface-300">
-            Votacao: comunidade vale 70%; criador vale 30%. Participantes nao votam na propria
-            batalha.
+            Votacao: comunidade decide o resultado. Criador ou admin desempata somente apos o fim
+            da votacao. Participantes nao votam na propria batalha.
           </div>
 
           <Textarea
@@ -312,6 +315,7 @@ function BattleForm({ battle, onCancel, onSaved }: BattleFormProps) {
 export default function AdminBattlesPage() {
   const [editingBattle, setEditingBattle] = useState<Battle | null>(null);
   const [formVisible, setFormVisible] = useState(false);
+  const [tieBreakingKey, setTieBreakingKey] = useState<string | null>(null);
   const [sort, setSort] = useState<SortState<BattleSortKey>>({
     key: 'battle',
     direction: 'asc',
@@ -319,10 +323,28 @@ export default function AdminBattlesPage() {
   const { data: battles, loading } = useCollection<Battle>('battles', [
     orderBy('createdAt', 'desc'),
   ]);
+  const { data: entries } = useCollection<BattleEntry>('battleEntries');
+  const { data: submissions } = useCollection<Submission>('submissions');
+  const { data: votes } = useCollection<Vote>('votes');
   const sortedBattles = useMemo(
     () => sortRows(battles, sort, BATTLE_SORT_SELECTORS),
     [battles, sort],
   );
+  const tieBreakOptionsByBattle = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof getAdminBattleTieBreakOptions>>();
+    battles.forEach((battle) => {
+      map.set(
+        battle.id,
+        getAdminBattleTieBreakOptions({
+          battle,
+          entries,
+          submissions,
+          votes,
+        }),
+      );
+    });
+    return map;
+  }, [battles, entries, submissions, votes]);
 
   const openCreateForm = () => {
     setEditingBattle(null);
@@ -337,6 +359,29 @@ export default function AdminBattlesPage() {
   const closeForm = () => {
     setEditingBattle(null);
     setFormVisible(false);
+  };
+
+  const resolveTieBreak = async (battleId: string, submissionId: string) => {
+    const key = `${battleId}:${submissionId}`;
+    if (!confirm('Registrar este desempate?')) return;
+
+    setTieBreakingKey(key);
+    try {
+      const token = await getClientAuth().currentUser?.getIdToken();
+      if (!token) throw new Error('Sessao expirada. Entre novamente.');
+      const response = await fetch(`${getWebApiBaseUrl()}/api/battles/${battleId}/tiebreak`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+        body: JSON.stringify({ submissionId }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erro ao desempatar batalha');
+      toast.success('Desempate registrado.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao desempatar batalha');
+    } finally {
+      setTieBreakingKey(null);
+    }
   };
 
   return (
@@ -418,6 +463,7 @@ export default function AdminBattlesPage() {
                 {sortedBattles.map((battle) => {
                   const status = STATUS_MAP[battle.status] || STATUS_MAP.draft!;
                   const regEnd = toDate(battle.registrationEnd);
+                  const tieBreakOptions = tieBreakOptionsByBattle.get(battle.id) ?? [];
 
                   return (
                     <tr
@@ -466,16 +512,35 @@ export default function AdminBattlesPage() {
                         )}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            openBattle(battle);
-                          }}
-                        >
-                          Abrir
-                        </Button>
+                        <div className="flex flex-col items-end gap-2">
+                          {tieBreakOptions.map((option) => {
+                            const key = `${battle.id}:${option.id}`;
+                            return (
+                              <Button
+                                key={option.id}
+                                size="sm"
+                                variant="secondary"
+                                loading={tieBreakingKey === key}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  resolveTieBreak(battle.id, option.id);
+                                }}
+                              >
+                                Desempatar {option.userDisplayName ?? option.userId}
+                              </Button>
+                            );
+                          })}
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openBattle(battle);
+                            }}
+                          >
+                            Abrir
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   );

@@ -159,3 +159,37 @@ export function getBattleSubmissionResultBreakdown(submission: SubmissionResultF
     hasCreatorVote: judgeVoteCount > 0,
   };
 }
+
+export function getBattleTieBreakState({
+  battle,
+  submissions,
+  isResolver,
+  now = new Date(),
+}: {
+  battle: Pick<Battle, 'status' | 'votingEnd'>;
+  submissions: Array<Pick<Submission, 'id' | 'voteCount'> & SubmissionResultFields>;
+  isResolver: boolean;
+  now?: Date;
+}) {
+  const votingEnd = toDate(battle.votingEnd);
+  if (!isResolver || battle.status !== 'voting' || !votingEnd || now.getTime() < votingEnd.getTime()) {
+    return { canResolve: false, tiedSubmissionIds: new Set<string>() };
+  }
+
+  const topVotes = Math.max(
+    ...submissions.map((submission) => getBattleSubmissionResultBreakdown(submission).publicVoteCount),
+  );
+  const tiedSubmissionIds = new Set(
+    submissions
+      .filter(
+        (submission) =>
+          getBattleSubmissionResultBreakdown(submission).publicVoteCount === topVotes,
+      )
+      .map((submission) => submission.id),
+  );
+
+  return {
+    canResolve: tiedSubmissionIds.size >= 2,
+    tiedSubmissionIds,
+  };
+}

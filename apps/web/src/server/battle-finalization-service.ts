@@ -171,6 +171,9 @@ export async function finalizeBattle(
   const category = typeof battle.category === 'string' ? battle.category : null;
   const pointActivityCategory = category as CompetitionCategory | null;
   const unresolvedWinnerTie = hasUnresolvedWinnerTie(rankedSubmissions);
+  if (unresolvedWinnerTie) {
+    throw new ApiError(409, 'Desempate pendente antes da finalizacao');
+  }
   const officialScoringApplied =
     hasEnoughScoringSignal({ battle, entries, submissions }) && !unresolvedWinnerTie;
   const winPoints =

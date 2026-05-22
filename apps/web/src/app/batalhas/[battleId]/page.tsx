@@ -33,6 +33,7 @@ import {
   getBattleRuleCards,
   getBattleScheduleItems,
   getBattleSubmissionResultBreakdown,
+  getBattleTieBreakState,
   sortBattleEntriesByCreatedAt,
   sortBattleEntriesForDisplay,
   sortBattleSubmissionsByVoteCount,
@@ -120,7 +121,9 @@ export default function BattleDetailPage({ params }: { params: { battleId: strin
   const [joining, setJoining] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
   const [votingId, setVotingId] = useState<string | null>(null);
+  const [tieBreakingId, setTieBreakingId] = useState<string | null>(null);
   const [pendingVote, setPendingVote] = useState<Submission | null>(null);
+  const [pendingTieBreak, setPendingTieBreak] = useState<Submission | null>(null);
   const [submitOpen, setSubmitOpen] = useState(false);
   const [payment, setPayment] = useState<{
     paymentId: string;
@@ -128,7 +131,7 @@ export default function BattleDetailPage({ params }: { params: { battleId: strin
     pixCopiaECola: string;
     expiresAt: string;
   } | null>(null);
-  useBodyScrollLock(Boolean(payment) || Boolean(pendingVote));
+  useBodyScrollLock(Boolean(payment) || Boolean(pendingVote) || Boolean(pendingTieBreak));
 
   const { data: battle, loading: battleLoading } = useDocument<Battle>('battles', params.battleId);
   const { data: entries, loading: entriesLoading } = useCollection<BattleEntry>('battleEntries', [
@@ -157,6 +160,10 @@ export default function BattleDetailPage({ params }: { params: { battleId: strin
       ? [where('battleId', '==', params.battleId), where('voterId', '==', user.uid)]
       : [],
   );
+  const { data: tieBreakVotes } = useCollection<BattleVote>('votes', [
+    where('battleId', '==', params.battleId),
+    where('voterType', '==', 'judge'),
+  ]);
 
   const confirmedEntries = useMemo(
     () => sortBattleEntriesByCreatedAt(entries.filter((entry) => entry.status === 'confirmed')),
@@ -238,6 +245,16 @@ export default function BattleDetailPage({ params }: { params: { battleId: strin
   const isPaid = currentBattle.entryFee > 0;
   const isInviteOnly = currentBattle.visibility === 'invite_only';
   const isCreator = Boolean(user && currentBattle.createdBy === user.uid);
+  const hasTieBreakVote = tieBreakVotes.length > 0;
+  const displayedSubmissions = displayEntries
+    .map((entry) => submissionsByUserId.get(entry.userId))
+    .filter((submission): submission is Submission => Boolean(submission));
+  const tieBreakState = getBattleTieBreakState({
+    battle: currentBattle,
+    submissions: displayedSubmissions,
+    isResolver: isCreator,
+  });
+  const needsTieBreak = tieBreakState.canResolve && !hasTieBreakVote;
   const canSubmitEntry = canSubmitBattleEntry({
     battle: currentBattle,
     hasConfirmedEntry: Boolean(currentUserEntry),
@@ -299,7 +316,7 @@ export default function BattleDetailPage({ params }: { params: { battleId: strin
     if (!user || currentBattle.status !== 'voting') return false;
     if (submission.userId === user.uid) return false;
     if (currentUserEntry) return false;
-    if (currentBattle.createdBy === user.uid) return true;
+    if (currentBattle.createdBy === user.uid) return false;
     return true;
   }
 
@@ -345,6 +362,28 @@ export default function BattleDetailPage({ params }: { params: { battleId: strin
       toast.error(err instanceof Error ? err.message : 'Erro ao finalizar batalha');
     } finally {
       setFinalizing(false);
+    }
+  }
+
+  async function handleTieBreak(submissionId: string) {
+    if (!user) return;
+
+    setTieBreakingId(submissionId);
+    try {
+      const token = await getToken();
+      const res = await fetch(`/api/battles/${currentBattle.id}/tiebreak`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+        body: JSON.stringify({ submissionId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao desempatar batalha');
+      toast.success('Desempate registrado.');
+      setPendingTieBreak(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao desempatar batalha');
+    } finally {
+      setTieBreakingId(null);
     }
   }
 
@@ -427,11 +466,21 @@ export default function BattleDetailPage({ params }: { params: { battleId: strin
           )}
 
           {isCreator && currentBattle.status === 'voting' && (
-            <div className="mt-6">
-              <Button variant="secondary" onClick={handleFinalize} loading={finalizing}>
+            <div className="mt-6 flex flex-wrap items-center gap-3">
+              <Button
+                variant="secondary"
+                onClick={handleFinalize}
+                loading={finalizing}
+                disabled={needsTieBreak}
+              >
                 <Trophy className="mr-2 h-4 w-4" />
                 Finalizar batalha
               </Button>
+              {needsTieBreak && (
+                <span className="text-sm text-surface-400">
+                  Desempate pendente antes da finalizacao.
+                </span>
+              )}
             </div>
           )}
         </div>
@@ -538,6 +587,11 @@ export default function BattleDetailPage({ params }: { params: { battleId: strin
                         canVote: canVoteOnSubmission(submission),
                       })
                     : null;
+                  const canTieBreakSubmission =
+                    Boolean(submission) &&
+                    tieBreakState.canResolve &&
+                    !hasTieBreakVote &&
+                    tieBreakState.tiedSubmissionIds.has(submission!.id);
 
                   return (
                     <div
@@ -561,7 +615,7 @@ export default function BattleDetailPage({ params }: { params: { battleId: strin
                               </Badge>
                             )}
                             {voteState?.isSelectedVote && (
-                              <Badge variant="success">Seu voto</Badge>
+                              <Badge variant="success">{voteState.selectedLabel}</Badge>
                             )}
                             {submission ? (
                               <Badge variant="success">Enviado</Badge>
@@ -575,22 +629,34 @@ export default function BattleDetailPage({ params }: { params: { battleId: strin
                         </div>
 
                         {submission && battle.status === 'voting' && (
-                          voteState?.isSelectedVote ? (
-                            <Badge variant="success" className="px-3 py-2">
-                              Seu voto
-                            </Badge>
-                          ) : (
+                          canTieBreakSubmission ? (
                             <Button
                               size="sm"
                               variant="secondary"
-                              onClick={() => setPendingVote(submission)}
-                              loading={votingId === submission.id}
-                              disabled={!voteState?.canVote}
+                              onClick={() => setPendingTieBreak(submission)}
+                              loading={tieBreakingId === submission.id}
                             >
-                              <Vote className="mr-2 h-4 w-4" />
-                              {voteState?.buttonLabel ?? 'Votar'}
+                              <Trophy className="mr-2 h-4 w-4" />
+                              Desempatar
                             </Button>
-                          )
+                          ) : !isCreator ? (
+                            voteState?.isSelectedVote ? (
+                              <Badge variant="success" className="px-3 py-2">
+                                {voteState.selectedLabel}
+                              </Badge>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => setPendingVote(submission)}
+                                loading={votingId === submission.id}
+                                disabled={!voteState?.canVote}
+                              >
+                                <Vote className="mr-2 h-4 w-4" />
+                                {voteState?.buttonLabel ?? 'Votar'}
+                              </Button>
+                            )
+                          ) : null
                         )}
                       </div>
 
@@ -701,7 +767,9 @@ export default function BattleDetailPage({ params }: { params: { battleId: strin
               <div>
                 <h2 className="text-lg font-semibold text-white">Confirmar voto</h2>
                 <p className="mt-1 text-sm text-surface-500">
-                  Essa acao nao pode ser desfeita.
+                  {isCreator
+                    ? 'Esse desempate nao conta como voto da comunidade.'
+                    : 'Essa acao nao pode ser desfeita.'}
                 </p>
               </div>
               <button
@@ -716,7 +784,7 @@ export default function BattleDetailPage({ params }: { params: { battleId: strin
 
             <div className="px-5 py-5">
               <p className="text-sm leading-relaxed text-surface-300">
-                Voce esta votando em{' '}
+                {isCreator ? 'Voce esta registrando o desempate para ' : 'Voce esta votando em '}
                 <span className="font-semibold text-white">
                   {pendingVote.userDisplayName ?? pendingVote.userId}
                 </span>
@@ -738,7 +806,58 @@ export default function BattleDetailPage({ params }: { params: { battleId: strin
                 onClick={() => handleVote(pendingVote.id)}
                 loading={votingId === pendingVote.id}
               >
-                Confirmar voto
+                {isCreator ? 'Confirmar desempate' : 'Confirmar voto'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingTieBreak && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/70 px-3 py-3 backdrop-blur-sm sm:items-center sm:px-4 sm:py-6">
+          <div className="max-h-[calc(100dvh-1.5rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-white/10 bg-surface-950 shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
+              <div>
+                <h2 className="text-lg font-semibold text-white">Confirmar desempate</h2>
+                <p className="mt-1 text-sm text-surface-500">
+                  O desempate so vale porque a votacao da comunidade terminou empatada.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPendingTieBreak(null)}
+                className="rounded-lg p-1 text-surface-500 transition-colors hover:bg-white/5 hover:text-white"
+                aria-label="Fechar"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="px-5 py-5">
+              <p className="text-sm leading-relaxed text-surface-300">
+                Voce esta escolhendo{' '}
+                <span className="font-semibold text-white">
+                  {pendingTieBreak.userDisplayName ?? pendingTieBreak.userId}
+                </span>{' '}
+                como vencedor do empate. Essa acao nao pode ser desfeita.
+              </p>
+            </div>
+
+            <div className="flex flex-col-reverse gap-3 border-t border-white/10 px-5 py-4 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setPendingTieBreak(null)}
+                disabled={tieBreakingId === pendingTieBreak.id}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                onClick={() => handleTieBreak(pendingTieBreak.id)}
+                loading={tieBreakingId === pendingTieBreak.id}
+              >
+                Confirmar desempate
               </Button>
             </div>
           </div>

@@ -33,6 +33,10 @@ export async function createVote(
       throw new ApiError(400, 'Votacao nao esta aberta para esta batalha');
     }
 
+    if (battle.createdBy === voterId) {
+      throw new ApiError(403, 'Criador desempata somente apos o encerramento da votacao');
+    }
+
     if (submission.battleId !== battleId || submission.status !== 'approved') {
       throw new ApiError(400, 'Submissao indisponivel para votacao');
     }
@@ -54,8 +58,6 @@ export async function createVote(
       throw new ApiError(403, 'Participantes nao podem votar na propria batalha');
     }
 
-    const voterType = battle.createdBy === voterId ? 'judge' : 'public';
-
     const existingVotes = await transaction.get(
       db
         .collection('votes')
@@ -74,17 +76,13 @@ export async function createVote(
       battleId,
       submissionId,
       voterId,
-      voterType,
+      voterType: 'public',
       weight: 1,
       createdAt: FieldValue.serverTimestamp(),
     });
     transaction.update(submissionRef, {
-      ...(voterType === 'judge'
-        ? { judgeVoteCount: FieldValue.increment(1) }
-        : {
-            voteCount: FieldValue.increment(1),
-            publicVoteCount: FieldValue.increment(1),
-          }),
+      voteCount: FieldValue.increment(1),
+      publicVoteCount: FieldValue.increment(1),
       updatedAt: FieldValue.serverTimestamp(),
     });
 

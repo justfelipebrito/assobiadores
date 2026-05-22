@@ -165,8 +165,8 @@ describe('createVote', () => {
     });
   });
 
-  it('records the battle creator vote as a tie-break signal without incrementing public votes', async () => {
-    const { db, tx, voteRef, submissionRef } = createDb({
+  it('blocks creator tie-breaks during the voting period', async () => {
+    const { db } = createDb({
       battle: { status: 'voting', createdBy: 'creator-1' },
     });
 
@@ -176,17 +176,9 @@ describe('createVote', () => {
         submissionId: 'submission-1',
         voterId: 'creator-1',
       }),
-    ).resolves.toEqual({ voteId: 'vote-1' });
-
-    expect(tx.set).toHaveBeenCalledWith(
-      voteRef,
-      expect.objectContaining({ voterType: 'judge', voterId: 'creator-1' }),
-    );
-    const updatePayload = tx.update.mock.calls.find((call) => call[0] === submissionRef)?.[1];
-    expect(updatePayload).toEqual(
-      expect.objectContaining({ judgeVoteCount: expect.anything() }),
-    );
-    expect(updatePayload).not.toHaveProperty('voteCount');
-    expect(updatePayload).not.toHaveProperty('publicVoteCount');
+    ).rejects.toMatchObject({
+      status: 403,
+      message: 'Criador desempata somente apos o encerramento da votacao',
+    });
   });
 });

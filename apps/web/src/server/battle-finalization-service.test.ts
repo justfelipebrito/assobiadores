@@ -118,7 +118,7 @@ describe('finalizeBattle', () => {
     expect(batch.commit).toHaveBeenCalledTimes(1);
   });
 
-  it('does not award points when a 1v1 battle ends tied', async () => {
+  it('requires a tie-break before finalizing an unresolved 1v1 tie', async () => {
     const { db, batch } = createDb({
       battle: {
         status: 'voting',
@@ -137,20 +137,11 @@ describe('finalizeBattle', () => {
 
     await expect(
       finalizeBattle(db as never, { battleId: 'battle-1', actorUserId: 'creator-1' }),
-    ).resolves.toMatchObject({
-      success: true,
-      officialScoringApplied: false,
-      winners: [],
+    ).rejects.toMatchObject({
+      status: 409,
+      message: 'Desempate pendente antes da finalizacao',
     });
-
-    expect(batch.update).toHaveBeenCalledWith(
-      expect.objectContaining({ id: 'battle-1' }),
-      expect.objectContaining({ seasonScoringApplied: false }),
-    );
-    expect(batch.update).not.toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ points: expect.anything() }),
-    );
+    expect(batch.commit).not.toHaveBeenCalled();
     expect(batch.set).not.toHaveBeenCalled();
   });
 

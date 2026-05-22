@@ -2,6 +2,11 @@
 
 ## What's Been Built
 
+Recent battle voting clarification:
+
+- Battle creator votes are intentionally tie-break signals and do not increment the community vote counter. The battle detail UI now labels creator voting as `Desempatar`, marks selected creator votes as `Desempate registrado`, and explains in the confirmation modal that this does not count as a community vote. Focused helper coverage was updated in `apps/web/src/lib/battle-vote-view.test.ts`.
+- Follow-up workflow change: creator tie-breaks are no longer allowed during the open community voting period. Public votes stay in `/api/votes/create`; post-voting tie-breaks now use trusted `/api/battles/{battleId}/tiebreak`, available only to the battle creator or an admin after `votingEnd`, only when the top public score is tied, and only for a tied top submission. Battle detail shows `Desempatar` only in that state and blocks finalization until the tie-break is recorded.
+
 ### Phase 1: Foundation — COMPLETE
 
 **Monorepo structure** fully set up with pnpm workspaces + Turborepo:

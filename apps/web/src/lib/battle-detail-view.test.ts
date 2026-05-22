@@ -4,6 +4,7 @@ import {
   getBattleRuleCards,
   getBattleScheduleItems,
   getBattleSubmissionResultBreakdown,
+  getBattleTieBreakState,
   sortBattleEntriesByCreatedAt,
   sortBattleSubmissionsByVoteCount,
   sortBattleSubmissionsForResult,
@@ -175,5 +176,42 @@ describe('battle detail view helpers', () => {
       publicVoteCount: 4,
       hasCreatorVote: false,
     });
+  });
+
+  it('allows tie-break resolution only after voting ends when top submissions are tied', () => {
+    const submissions = [
+      { id: 'sub-1', voteCount: 5, publicVoteCount: 5 },
+      { id: 'sub-2', voteCount: 5, publicVoteCount: 5 },
+      { id: 'sub-3', voteCount: 2, publicVoteCount: 2 },
+    ] as never[];
+
+    const beforeEnd = getBattleTieBreakState({
+      battle: { status: 'voting', votingEnd: new Date('2026-05-08T12:00:00.000Z') },
+      submissions,
+      isResolver: true,
+      now: new Date('2026-05-08T11:59:00.000Z'),
+    });
+    expect(beforeEnd.canResolve).toBe(false);
+    expect(Array.from(beforeEnd.tiedSubmissionIds)).toEqual([]);
+
+    const afterEnd = getBattleTieBreakState({
+      battle: { status: 'voting', votingEnd: new Date('2026-05-08T12:00:00.000Z') },
+      submissions,
+      isResolver: true,
+      now: new Date('2026-05-08T12:01:00.000Z'),
+    });
+    expect(afterEnd.canResolve).toBe(true);
+    expect(Array.from(afterEnd.tiedSubmissionIds)).toEqual(['sub-1', 'sub-2']);
+
+    const noTie = getBattleTieBreakState({
+      battle: { status: 'voting', votingEnd: new Date('2026-05-08T12:00:00.000Z') },
+      submissions: [
+        { id: 'sub-1', voteCount: 6, publicVoteCount: 6 },
+        { id: 'sub-2', voteCount: 5, publicVoteCount: 5 },
+      ] as never[],
+      isResolver: true,
+      now: new Date('2026-05-08T12:01:00.000Z'),
+    });
+    expect(noTie.canResolve).toBe(false);
   });
 });

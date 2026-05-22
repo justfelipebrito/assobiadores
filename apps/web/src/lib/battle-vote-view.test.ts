@@ -16,7 +16,12 @@ describe('battle vote view helpers', () => {
         currentVote: vote,
         canVote: true,
       }),
-    ).toEqual({ isSelectedVote: true, canVote: false, buttonLabel: 'Votar' });
+    ).toEqual({
+      isSelectedVote: true,
+      canVote: false,
+      buttonLabel: 'Votar',
+      selectedLabel: 'Seu voto',
+    });
 
     expect(
       getBattleSubmissionVoteState({
@@ -24,7 +29,12 @@ describe('battle vote view helpers', () => {
         currentVote: vote,
         canVote: true,
       }),
-    ).toEqual({ isSelectedVote: false, canVote: false, buttonLabel: 'Votar' });
+    ).toEqual({
+      isSelectedVote: false,
+      canVote: false,
+      buttonLabel: 'Votar',
+      selectedLabel: 'Seu voto',
+    });
   });
 
   it('allows voting only while the user has not voted yet', () => {
@@ -34,7 +44,42 @@ describe('battle vote view helpers', () => {
         currentVote: null,
         canVote: true,
       }),
-    ).toEqual({ isSelectedVote: false, canVote: true, buttonLabel: 'Votar' });
+    ).toEqual({
+      isSelectedVote: false,
+      canVote: true,
+      buttonLabel: 'Votar',
+      selectedLabel: 'Seu voto',
+    });
+  });
+
+  it('labels creator votes as tie-break votes', () => {
+    expect(
+      getBattleSubmissionVoteState({
+        submissionId: 'submission-1',
+        currentVote: null,
+        canVote: true,
+        isCreator: true,
+      }),
+    ).toEqual({
+      isSelectedVote: false,
+      canVote: true,
+      buttonLabel: 'Desempatar',
+      selectedLabel: 'Seu voto',
+    });
+
+    expect(
+      getBattleSubmissionVoteState({
+        submissionId: 'submission-1',
+        currentVote: { submissionId: 'submission-1', voterType: 'judge' } as never,
+        canVote: true,
+        isCreator: true,
+      }),
+    ).toEqual({
+      isSelectedVote: true,
+      canVote: false,
+      buttonLabel: 'Desempatar',
+      selectedLabel: 'Desempate registrado',
+    });
   });
 
   it('reads the current user vote and winner metadata', () => {

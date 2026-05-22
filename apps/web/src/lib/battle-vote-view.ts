@@ -8,18 +8,22 @@ export function getBattleSubmissionVoteState({
   submissionId,
   currentVote,
   canVote,
+  isCreator = false,
 }: {
   submissionId: string;
   currentVote: Vote | null;
   canVote: boolean;
+  isCreator?: boolean;
 }) {
   const isSelectedVote = currentVote?.submissionId === submissionId;
   const hasVoted = Boolean(currentVote);
+  const isCreatorTieBreakVote = currentVote?.voterType === 'judge';
 
   return {
     isSelectedVote,
     canVote: canVote && !hasVoted,
-    buttonLabel: 'Votar',
+    buttonLabel: isCreator ? 'Desempatar' : 'Votar',
+    selectedLabel: isCreatorTieBreakVote ? 'Desempate registrado' : 'Seu voto',
   };
 }
 
