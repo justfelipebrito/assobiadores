@@ -1,18 +1,15 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowRight,
   BarChart2,
   ChevronRight,
   Clock,
-  Crown,
   Flame,
   MoreHorizontal,
   Music2,
-  Pause,
-  Play,
   Rocket,
   Sparkles,
   Swords,
@@ -68,7 +65,7 @@ import {
   getOfficialBattleHeroActionLabel,
 } from '@/lib/homepage-battles';
 import { trackAuthCtaClick } from '@/lib/analytics-events';
-import { getValidDuration } from '@/lib/audio-duration';
+import { AudioHighlightPlayer } from '@/components/media/audio-highlight-player';
 
 const STATUS_MAP: Record<
   string,
@@ -103,13 +100,6 @@ const PODIUM_NUMBER_BG = [
 
 type PlatformStats = { users: number; battles: number };
 
-function buildWave(seed: string): number[] {
-  return Array.from({ length: 40 }, (_, i) => {
-    const char = seed.charCodeAt(i % Math.max(seed.length, 1)) || 7;
-    return 15 + ((char + i * 13) % 70);
-  });
-}
-
 function HighlightFeaturedCard({
   highlight,
   username,
@@ -121,90 +111,19 @@ function HighlightFeaturedCard({
   naturalidade: string | null;
   resultLabel: string | null;
 }) {
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const [playing, setPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(getValidDuration(highlight.mediaDurationSeconds) ?? 0);
-  const wave = useMemo(
-    () => buildWave(`${highlight.mediaURL ?? ''}-${username}`),
-    [highlight.mediaURL, username],
-  );
-  const progress = duration > 0 ? currentTime / duration : 0;
-
-  function toggle() {
-    const audio = audioRef.current;
-    if (!audio || !highlight.mediaURL) return;
-    if (audio.paused) audio.play().catch(() => {});
-    else audio.pause();
-  }
+  if (!highlight.mediaURL) return <HighlightPlaceholderCard />;
 
   return (
-    <div className="relative flex min-h-[244px] flex-col overflow-hidden rounded-2xl border border-white/[0.06] bg-[#13131a]">
-      {/* Decorative icon — rotated, artistic, not a background wash */}
-      <div className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 -rotate-12 opacity-[0.09]">
-        <Music2 className="h-40 w-40 text-white" />
-      </div>
-      {/* Dark fade at bottom for text legibility */}
-      <div className="absolute bottom-0 left-0 right-0 h-28 bg-gradient-to-t from-[#13131a] to-transparent" />
-
-      <div className="relative z-10 flex items-center gap-1.5 p-3 pb-0">
-        <span className="rounded border border-white/[0.10] bg-white/[0.06] px-2 py-0.5 text-[10px] font-medium text-surface-300">
-          {COMPETITION_CATEGORY_LABELS[highlight.category]}
-        </span>
-        {resultLabel && (
-          <span className="flex items-center gap-1 rounded bg-yellow-500 px-2 py-0.5 text-[10px] font-bold text-black">
-            <Crown className="h-2.5 w-2.5" />
-            {resultLabel}
-          </span>
-        )}
-      </div>
-
-      <div className="relative z-10 mt-auto p-3">
-        <h3 className="truncate text-sm font-black leading-tight text-white sm:text-base">
-          {username}
-          {naturalidade && <span className="text-brand-400"> - {naturalidade}</span>}
-        </h3>
-        <p className="mt-0.5 text-[11px] font-semibold text-brand-400">
-          {highlight.voteCount} {highlight.voteCount === 1 ? 'voto' : 'votos'}
-        </p>
-        <div className="mt-2.5 flex items-center gap-2.5">
-          <div className="flex flex-1 items-end gap-[2px] overflow-hidden" style={{ height: 24 }}>
-            {wave.map((h, i) => (
-              <div
-                key={i}
-                className={`flex-1 rounded-full transition-colors duration-150 ${i / wave.length <= progress ? 'bg-brand-400' : 'bg-white/[0.14]'}`}
-                style={{ height: `${h}%` }}
-              />
-            ))}
-          </div>
-          {highlight.mediaURL && (
-            <button
-              onClick={toggle}
-              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-brand-500 shadow-[0_0_16px_rgba(37,169,114,0.35)] transition-transform hover:scale-105 hover:bg-brand-400 active:scale-95"
-              aria-label={playing ? 'Pausar' : 'Tocar'}
-            >
-              {playing ? <Pause className="h-4 w-4 text-white" /> : <Play className="ml-0.5 h-4 w-4 text-white" />}
-            </button>
-          )}
-        </div>
-      </div>
-
-      {highlight.mediaURL && (
-        <audio
-          ref={audioRef}
-          src={highlight.mediaURL}
-          preload="metadata"
-          onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-          onLoadedMetadata={(e) => {
-            const nextDuration = getValidDuration(e.currentTarget.duration);
-            if (nextDuration !== null) setDuration(nextDuration);
-          }}
-          onPlay={() => setPlaying(true)}
-          onPause={() => setPlaying(false)}
-          onEnded={() => { setPlaying(false); setCurrentTime(0); }}
-        />
-      )}
-    </div>
+    <AudioHighlightPlayer
+      src={highlight.mediaURL}
+      username={username}
+      naturalidade={naturalidade}
+      category={highlight.category}
+      durationSeconds={highlight.mediaDurationSeconds}
+      voteCount={highlight.voteCount}
+      resultLabel={resultLabel}
+      variant="featured"
+    />
   );
 }
 
@@ -219,93 +138,19 @@ function HighlightCompactCard({
   naturalidade: string | null;
   resultLabel: string | null;
 }) {
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const [playing, setPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(getValidDuration(highlight.mediaDurationSeconds) ?? 0);
-  const wave = useMemo(
-    () => buildWave(`${highlight.mediaURL ?? ''}-${username}`).slice(0, 24),
-    [highlight.mediaURL, username],
-  );
-  const progress = duration > 0 ? currentTime / duration : 0;
-
-  function toggle() {
-    const audio = audioRef.current;
-    if (!audio || !highlight.mediaURL) return;
-    if (audio.paused) audio.play().catch(() => {});
-    else audio.pause();
-  }
+  if (!highlight.mediaURL) return <HighlightPlaceholderCard />;
 
   return (
-    <div className="flex min-h-[114px] overflow-hidden rounded-2xl border border-white/[0.06] bg-[#13131a]">
-      {/* Left: thumbnail — 40% width, darker surface, music icon */}
-      <div className="relative w-[40%] flex-shrink-0 bg-[#0c0c13]">
-        <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-[#0c0c13] to-transparent" />
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center opacity-[0.10]">
-          <Music2 className="h-14 w-14 -rotate-12 text-white" />
-        </div>
-        <div className="absolute bottom-2 left-2 z-10">
-          <span className="rounded border border-white/[0.10] bg-white/[0.06] px-1.5 py-0.5 text-[9px] font-medium text-surface-300">
-            {COMPETITION_CATEGORY_LABELS[highlight.category]}
-          </span>
-        </div>
-      </div>
-
-      {/* Right: info + player */}
-      <div className="flex flex-1 flex-col justify-between p-2.5">
-        <div>
-          {resultLabel && (
-            <span className="mb-1 flex w-fit items-center gap-1 rounded bg-yellow-500 px-1.5 py-0.5 text-[9px] font-bold text-black">
-              <Crown className="h-2 w-2" />
-              {resultLabel}
-            </span>
-          )}
-          <h3 className="truncate text-[13px] font-black leading-tight text-white">
-            {username}
-            {naturalidade && <span className="text-brand-400"> - {naturalidade}</span>}
-          </h3>
-          <p className="mt-0.5 text-[10px] font-semibold text-brand-400">
-            {highlight.voteCount} {highlight.voteCount === 1 ? 'voto' : 'votos'}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex flex-1 items-end gap-[2px] overflow-hidden" style={{ height: 18 }}>
-            {wave.map((h, i) => (
-              <div
-                key={i}
-                className={`flex-1 rounded-full transition-colors duration-150 ${i / wave.length <= progress ? 'bg-brand-400' : 'bg-white/[0.14]'}`}
-                style={{ height: `${h}%` }}
-              />
-            ))}
-          </div>
-          {highlight.mediaURL && (
-            <button
-              onClick={toggle}
-              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-brand-500 shadow-[0_0_12px_rgba(37,169,114,0.3)] transition-transform hover:scale-105 hover:bg-brand-400 active:scale-95"
-              aria-label={playing ? 'Pausar' : 'Tocar'}
-            >
-              {playing ? <Pause className="h-4 w-4 text-white" /> : <Play className="ml-0.5 h-4 w-4 text-white" />}
-            </button>
-          )}
-        </div>
-      </div>
-
-      {highlight.mediaURL && (
-        <audio
-          ref={audioRef}
-          src={highlight.mediaURL}
-          preload="metadata"
-          onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-          onLoadedMetadata={(e) => {
-            const nextDuration = getValidDuration(e.currentTarget.duration);
-            if (nextDuration !== null) setDuration(nextDuration);
-          }}
-          onPlay={() => setPlaying(true)}
-          onPause={() => setPlaying(false)}
-          onEnded={() => { setPlaying(false); setCurrentTime(0); }}
-        />
-      )}
-    </div>
+    <AudioHighlightPlayer
+      src={highlight.mediaURL}
+      username={username}
+      naturalidade={naturalidade}
+      category={highlight.category}
+      durationSeconds={highlight.mediaDurationSeconds}
+      voteCount={highlight.voteCount}
+      resultLabel={resultLabel}
+      size="compact"
+    />
   );
 }
 

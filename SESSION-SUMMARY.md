@@ -15,6 +15,13 @@ Audio duration handling review:
 - Added route-level tests proving ffmpeg-detected durations override the client stopwatch for battle submissions, qualifier match submissions, and daily highlight submissions. Existing helper tests cover invalid duration formatting and fallback behavior.
 - Focused verification passed: `pnpm --filter web test -- audio-duration.test.ts audio-transcoding.test.ts submissions/create/route.test.ts qualifiers/matches/\[matchId\]/submit/route.test.ts daily-highlights/submit/route.test.ts`.
 
+Shared audio playback UX:
+
+- Consolidated audio playback into the shared `AudioHighlightPlayer` so the homepage, `Destaques Diários`, `Classificatórias`, battle pages, result pages, voting pages, and upload previews use one implementation instead of separate homepage audio state.
+- The shared player now uses the homepage visual language as the default/featured UX, with a compact variant for dense lists. Waveforms are clickable and keyboard-seekable sliders, using valid finite stored/loaded duration only.
+- Added a frontend playback coordinator so starting one audio pauses any other active player across the page.
+- Focused verification passed: `pnpm --filter web test -- audio-duration.test.ts audio-playback-coordinator.test.ts audio-transcoding.test.ts submissions/create/route.test.ts qualifiers/matches/\[matchId\]/submit/route.test.ts daily-highlights/submit/route.test.ts battle-detail-view.test.ts daily-highlight-view.test.ts qualifier-view.test.ts` and `pnpm --filter web type-check`.
+
 Recent battle voting clarification:
 
 - Battle creator votes are intentionally tie-break signals and do not increment the community vote counter. The battle detail UI now labels creator voting as `Desempatar`, marks selected creator votes as `Desempate registrado`, and explains in the confirmation modal that this does not count as a community vote. Focused helper coverage was updated in `apps/web/src/lib/battle-vote-view.test.ts`.
