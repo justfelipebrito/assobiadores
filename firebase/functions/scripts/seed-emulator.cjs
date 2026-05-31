@@ -104,6 +104,21 @@ function getBrazilDayKey(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
+function getBrazilWeekStart(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const year = Number(parts.find((part) => part.type === 'year')?.value);
+  const month = Number(parts.find((part) => part.type === 'month')?.value);
+  const day = Number(parts.find((part) => part.type === 'day')?.value);
+  const brazilMidnightUtc = new Date(Date.UTC(year, month - 1, day, 3));
+  const daysSinceMonday = (brazilMidnightUtc.getUTCDay() + 6) % 7;
+  return new Date(brazilMidnightUtc.getTime() - daysSinceMonday * 24 * 60 * 60 * 1000);
+}
+
 async function clearCollection(name) {
   const snapshot = await db.collection(name).get();
   await Promise.all(snapshot.docs.map((doc) => doc.ref.delete()));
@@ -112,6 +127,60 @@ async function clearCollection(name) {
 async function clearSeasonRankings() {
   await clearCollection('seasonRankings/2026/users');
   await clearCollection('seasonRankings');
+}
+
+async function seedPointActivities() {
+  await clearCollection('pointActivities');
+  const weekStart = getBrazilWeekStart();
+  const previousWeekStart = new Date(weekStart.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const weeklyFixtures = [
+    ['qa-sp-1', 95, 'battle_win', 'Vitoria em batalha', 'battle', 'battle-voting-open'],
+    ['qa-rj-1', 82, 'daily_highlight_placement', 'Top 1 destaque diario', 'daily_highlight', 'daily-highlight-voter'],
+    ['admin-local', 70, 'qualifier_phase_advance', 'Avanco em classificatoria', 'qualifier', 'qualifier-match-1'],
+    ['qa-mg-1', 66, 'battle_win', 'Vitoria em batalha', 'battle', 'battle-finished-results'],
+    ['qa-sp-2', 55, 'daily_highlight_submission', 'Envio de destaque diario', 'daily_highlight', 'daily-highlight-4'],
+    ['voter-local', 48, 'qualifier_entry', 'Entrada em classificatoria', 'qualifier', 'registration-voter-local'],
+    ['qa-sp-3', 42, 'battle_win', 'Vitoria em batalha', 'battle', 'battle-active-submit'],
+    ['qa-rj-2', 38, 'daily_highlight_placement', 'Top 2 destaque diario', 'daily_highlight', 'daily-highlight-5'],
+    ['user-local', 34, 'daily_highlight_submission', 'Envio de destaque diario', 'daily_highlight', 'daily-highlight-user'],
+    ['qa-ba-1', 30, 'qualifier_entry', 'Entrada em classificatoria', 'qualifier', 'registration-qa-ba-1'],
+    ['qa-rs-1', 26, 'battle_win', 'Vitoria em batalha', 'battle', 'battle-community-group-open'],
+    ['qa-sp-4', 24, 'daily_highlight_submission', 'Envio de destaque diario', 'daily_highlight', 'daily-highlight-9'],
+    ['qa-rj-3', 22, 'daily_highlight_submission', 'Envio de destaque diario', 'daily_highlight', 'daily-highlight-10'],
+    ['qa-sp-5', 20, 'qualifier_entry', 'Entrada em classificatoria', 'qualifier', 'registration-qa-sp-5'],
+    ['qa-mg-2', 18, 'daily_highlight_submission', 'Envio de destaque diario', 'daily_highlight', 'daily-highlight-6'],
+  ];
+
+  const previousWeekFixtures = [
+    ['qa-sp-2', 90, 'battle_win', 'Vitoria em batalha', 'battle', 'previous-battle-1'],
+    ['qa-rj-3', 60, 'daily_highlight_placement', 'Top 1 destaque diario', 'daily_highlight', 'previous-daily-1'],
+    ['user-local', 25, 'qualifier_entry', 'Entrada em classificatoria', 'qualifier', 'previous-qualifier-1'],
+  ];
+
+  await Promise.all(
+    [...weeklyFixtures, ...previousWeekFixtures].map(
+      ([userId, points, reason, label, sourceType, sourceId], index) => {
+        const isPreviousWeek = index >= weeklyFixtures.length;
+        const base = isPreviousWeek ? previousWeekStart : weekStart;
+        const occurredAt = new Date(base.getTime() + (index % weeklyFixtures.length) * 5 * 60 * 60 * 1000);
+
+        return db.collection('pointActivities').doc(`qa-weekly-${index + 1}`).set({
+          id: `qa-weekly-${index + 1}`,
+          userId,
+          points,
+          reason,
+          label,
+          sourceType,
+          sourceId,
+          sourceTitle: null,
+          category: COMPETITION_CATEGORIES[index % COMPETITION_CATEGORIES.length].value,
+          seasonId: '2026',
+          occurredAt: Timestamp.fromDate(occurredAt),
+          createdAt: Timestamp.fromDate(occurredAt),
+        });
+      },
+    ),
+  );
 }
 
 const BRAZIL_STATES = [
@@ -1458,6 +1527,7 @@ async function main() {
   await seedQualifierMatches();
   await seedQualifierSubmissions();
   await seedPayments();
+  await seedPointActivities();
   await seedBattles();
   await seedBattleEntries();
   await seedSubmissionsAndVotes();

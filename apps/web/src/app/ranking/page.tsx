@@ -2,22 +2,44 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Trophy, Crown, Medal, Award, Globe, MapPin, ChevronDown } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+import {
+  Trophy,
+  Crown,
+  Medal,
+  Award,
+  Globe,
+  MapPin,
+  ChevronDown,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react';
 import { useCollection, orderBy, limit, where } from '@batalha/firebase';
 import { Badge, Skeleton, EmptyState } from '@batalha/ui';
 import { formatNumber, getRankTier } from '@batalha/utils';
 import {
   type BrazilState,
+  type PointActivity,
   type Season,
   type SeasonRanking,
+  type User,
 } from '@batalha/types';
 import {
+  formatWeeklyRankingLabel,
+  getBrazilWeekEnd,
+  getBrazilWeekStart,
   getRankingUsers,
   type RankingEntry,
   getUserRankingPoints,
   getUserRankingRank,
   getUserRankingRegion,
+  getWeekId,
+  getWeeklyRankingUsers,
   paginateRankingUsers,
+  parseWeekId,
+  shiftWeekStart,
+  type RankingPeriod,
 } from '@/lib/ranking-view';
 
 const PLACE_STYLES = [
@@ -72,7 +94,6 @@ const BRAZIL_STATES: { value: BrazilState; label: string }[] = [
 ];
 
 type Scope = 'nacional' | 'regional';
-type RankingMode = 'allTime' | 'season';
 const RANKING_PAGE_SIZE = 50;
 
 function FilterLabel({ children }: { children: React.ReactNode }) {
@@ -89,10 +110,12 @@ function RankingRow({
   user,
   index,
   seasonId,
+  showRegion = true,
 }: {
   user: RankingEntry;
   index: number;
   seasonId: string | null;
+  showRegion?: boolean;
 }) {
   const isTop3 = index < 3;
   const placeStyle = PLACE_STYLES[index];
@@ -129,7 +152,7 @@ function RankingRow({
               >
                 {rank}
               </Badge>
-              {region && (
+              {showRegion && region && (
                 <span className="flex items-center gap-0.5 text-[10px] text-surface-600">
                   <MapPin className="h-2.5 w-2.5" />
                   {region}
@@ -147,10 +170,60 @@ function RankingRow({
   );
 }
 
+function WeekNavigator({
+  weekStart,
+  onChange,
+}: {
+  weekStart: Date;
+  onChange: (weekStart: Date) => void;
+}) {
+  const currentWeekStart = useMemo(() => getBrazilWeekStart(), []);
+  const isCurrentWeek = weekStart.getTime() >= currentWeekStart.getTime();
+
+  return (
+    <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-3">
+      <button
+        type="button"
+        onClick={() => onChange(shiftWeekStart(weekStart, -1))}
+        className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 text-surface-300 transition-colors hover:bg-white/5 hover:text-white"
+        aria-label="Semana anterior"
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </button>
+
+      <div className="min-w-0 text-center">
+        <p className="flex items-center justify-center gap-2 text-sm font-bold text-white">
+          <CalendarDays className="h-4 w-4 text-brand-400" />
+          Semana
+        </p>
+        <p className="mt-0.5 text-xs font-medium text-surface-500">
+          {formatWeeklyRankingLabel(weekStart)}
+        </p>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => onChange(shiftWeekStart(weekStart, 1))}
+        disabled={isCurrentWeek}
+        className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 text-surface-300 transition-colors hover:bg-white/5 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+        aria-label="Proxima semana"
+      >
+        <ChevronRight className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
+
 export default function RankingPage() {
+  const searchParams = useSearchParams();
   const [scope, setScope] = useState<Scope>('nacional');
   const [selectedState, setSelectedState] = useState<BrazilState | ''>('SP');
-  const [rankingMode, setRankingMode] = useState<RankingMode>('allTime');
+  const [rankingMode, setRankingMode] = useState<RankingPeriod>(
+    searchParams.get('period') === 'weekly' ? 'weekly' : 'allTime',
+  );
+  const [weeklyWeekStart, setWeeklyWeekStart] = useState(() =>
+    parseWeekId(searchParams.get('week')),
+  );
   const [page, setPage] = useState(1);
 
   const { data: activeSeasons } = useCollection<Season>('seasons', [
@@ -166,17 +239,42 @@ export default function RankingPage() {
     seasonRankingCollection,
     seasonRankingCollection ? [orderBy('totalPoints', 'desc')] : [],
   );
+  const weeklyWeekEnd = useMemo(() => getBrazilWeekEnd(weeklyWeekStart), [weeklyWeekStart]);
+  const { data: weeklyPointActivities, loading: weeklyPointActivitiesLoading } =
+    useCollection<PointActivity>('pointActivities', [
+      where('occurredAt', '>=', weeklyWeekStart),
+      where('occurredAt', '<', weeklyWeekEnd),
+      orderBy('occurredAt', 'desc'),
+    ]);
+  const { data: weeklyProfileUsers, loading: weeklyProfileUsersLoading } = useCollection<User>(
+    rankingMode === 'weekly' ? 'users' : undefined,
+    rankingMode === 'weekly' ? [limit(500)] : [],
+  );
   const rankingUsers = seasonRankingUsers;
-  const loading = seasonRankingLoading;
+  const weeklyRankingUsers = useMemo(
+    () =>
+      getWeeklyRankingUsers({
+        pointActivities: weeklyPointActivities,
+        profiles: [...seasonRankingUsers, ...weeklyProfileUsers],
+        weekStart: weeklyWeekStart,
+      }),
+    [seasonRankingUsers, weeklyPointActivities, weeklyProfileUsers, weeklyWeekStart],
+  );
+  const loading =
+    rankingMode === 'weekly'
+      ? weeklyPointActivitiesLoading || seasonRankingLoading || weeklyProfileUsersLoading
+      : seasonRankingLoading;
 
   const users = useMemo(() => {
+    if (rankingMode === 'weekly') return weeklyRankingUsers;
+
     return getRankingUsers({
       users: rankingUsers,
       scope,
       selectedState,
       seasonId,
     });
-  }, [rankingUsers, scope, seasonId, selectedState]);
+  }, [rankingMode, rankingUsers, scope, seasonId, selectedState, weeklyRankingUsers]);
   const paginatedUsers = useMemo(
     () =>
       paginateRankingUsers({
@@ -189,12 +287,28 @@ export default function RankingPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [scope, selectedState, rankingMode]);
+  }, [scope, selectedState, rankingMode, weeklyWeekStart]);
+
+  useEffect(() => {
+    if (searchParams.get('period') === 'weekly') {
+      setRankingMode('weekly');
+      setScope('nacional');
+      setWeeklyWeekStart(parseWeekId(searchParams.get('week')));
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (rankingMode === 'weekly') {
+      setScope('nacional');
+    }
+  }, [rankingMode]);
 
   const selectedStateLabel = BRAZIL_STATES.find((s) => s.value === selectedState)?.label;
   const rankingDescription =
     scope === 'nacional'
-      ? rankingMode === 'season' && activeSeason
+      ? rankingMode === 'weekly'
+        ? `Ranking da Semana: ${formatWeeklyRankingLabel(weeklyWeekStart)}`
+        : rankingMode === 'season' && activeSeason
         ? `Ranking Oficial na ${activeSeason.name}`
         : 'Ranking Oficial Geral'
       : selectedStateLabel
@@ -211,7 +325,7 @@ export default function RankingPage() {
           <Trophy className="h-7 w-7" />
         </div>
         <h1 className="text-2xl font-bold text-white">Ranking Oficial</h1>
-        <p className="mt-1 text-surface-400">Liga nacional e rankings regionais</p>
+        <p className="mt-1 text-surface-400">Liga nacional, rankings regionais e semanais</p>
       </div>
 
       <div className="mt-8 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
@@ -231,22 +345,24 @@ export default function RankingPage() {
               <div className="grid grid-cols-2 rounded-xl border border-white/10 bg-surface-950/60 p-1">
                 <button
                   onClick={() => setScope('nacional')}
+                  disabled={rankingMode === 'weekly'}
                   className={`flex h-10 items-center justify-center gap-2 rounded-lg px-3 text-sm font-medium transition-all ${
                     scope === 'nacional'
                       ? 'bg-white/10 text-white shadow-sm'
                       : 'text-surface-400 hover:text-surface-300'
-                  }`}
+                  } disabled:cursor-not-allowed disabled:opacity-50`}
                 >
                   <Globe className="h-4 w-4" />
                   Nacional
                 </button>
                 <button
                   onClick={() => setScope('regional')}
+                  disabled={rankingMode === 'weekly'}
                   className={`flex h-10 items-center justify-center gap-2 rounded-lg px-3 text-sm font-medium transition-all ${
                     scope === 'regional'
                       ? 'bg-white/10 text-white shadow-sm'
                       : 'text-surface-400 hover:text-surface-300'
-                  }`}
+                  } disabled:cursor-not-allowed disabled:opacity-50`}
                 >
                   <MapPin className="h-4 w-4" />
                   Regional
@@ -256,7 +372,7 @@ export default function RankingPage() {
 
             <div>
               <FilterLabel>Periodo</FilterLabel>
-              <div className="grid grid-cols-2 rounded-xl border border-white/10 bg-surface-950/60 p-1">
+              <div className="grid grid-cols-3 rounded-xl border border-white/10 bg-surface-950/60 p-1">
                 <button
                   onClick={() => setRankingMode('allTime')}
                   className={`h-10 rounded-lg px-3 text-sm font-medium transition-all ${
@@ -278,11 +394,24 @@ export default function RankingPage() {
                 >
                   Temporada
                 </button>
+                <button
+                  onClick={() => {
+                    setRankingMode('weekly');
+                    setScope('nacional');
+                  }}
+                  className={`h-10 rounded-lg px-3 text-sm font-medium transition-all ${
+                    rankingMode === 'weekly'
+                      ? 'bg-white/10 text-white shadow-sm'
+                      : 'text-surface-400 hover:text-surface-300'
+                  }`}
+                >
+                  Semanal
+                </button>
               </div>
             </div>
           </div>
 
-          <div className="grid gap-4">
+          <div className={rankingMode === 'weekly' ? 'hidden' : 'grid gap-4'}>
             <div>
               <FilterLabel>Regiao</FilterLabel>
               <div className="relative">
@@ -314,6 +443,9 @@ export default function RankingPage() {
 
       {/* List */}
       <div className="mt-5 space-y-2">
+        {rankingMode === 'weekly' && (
+          <WeekNavigator weekStart={weeklyWeekStart} onChange={setWeeklyWeekStart} />
+        )}
         {loading ? (
           Array.from({ length: 10 }).map((_, i) => <Skeleton key={i} className="h-16" />)
         ) : users.length === 0 ? (
@@ -323,6 +455,8 @@ export default function RankingPage() {
             description={
               scope === 'regional' && selectedState
                 ? `Nenhum assobiador de ${selectedStateLabel} no ranking ainda.`
+                : rankingMode === 'weekly'
+                  ? 'O ranking semanal aparece quando houver pontos nesta semana.'
                 : 'O ranking sera atualizado conforme as batalhas forem finalizadas.'
             }
           />
@@ -332,7 +466,8 @@ export default function RankingPage() {
               key={user.id}
               user={user}
               index={(paginatedUsers.page - 1) * paginatedUsers.pageSize + index}
-              seasonId={seasonId}
+              seasonId={rankingMode === 'weekly' ? null : seasonId}
+              showRegion={rankingMode !== 'weekly'}
             />
           ))
         )}

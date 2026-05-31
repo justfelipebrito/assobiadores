@@ -22,6 +22,13 @@ Shared audio playback UX:
 - Added a frontend playback coordinator so starting one audio pauses any other active player across the page.
 - Focused verification passed: `pnpm --filter web test -- audio-duration.test.ts audio-playback-coordinator.test.ts audio-transcoding.test.ts submissions/create/route.test.ts qualifiers/matches/\[matchId\]/submit/route.test.ts daily-highlights/submit/route.test.ts battle-detail-view.test.ts daily-highlight-view.test.ts qualifier-view.test.ts` and `pnpm --filter web type-check`.
 
+Weekly ranking:
+
+- Added `Semanal` to the `/ranking` period toggle. Weekly ranking is national/general only, hides regional controls, aggregates trusted `pointActivities` for the selected Brazil-time week, and includes previous/next week navigation above the ranking rows.
+- Homepage keeps the existing season ranking (`Temporada 2026` when active) and adds a separate `Ranking da Semana` top-20 section linking to `/ranking?period=weekly`.
+- Emulator seeding now creates deterministic current-week and previous-week `pointActivities` so local weekly ranking pages are populated after `pnpm seed:emulator`.
+- Verification passed: `pnpm --filter web test -- ranking-view.test.ts`, `pnpm --filter web type-check`, `pnpm --filter web build`, `node --check firebase/functions/scripts/seed-emulator.cjs`, local reseed, and HTTP `200` checks for `/` and `/ranking?period=weekly`.
+
 Recent battle voting clarification:
 
 - Battle creator votes are intentionally tie-break signals and do not increment the community vote counter. The battle detail UI now labels creator voting as `Desempatar`, marks selected creator votes as `Desempate registrado`, and explains in the confirmation modal that this does not count as a community vote. Focused helper coverage was updated in `apps/web/src/lib/battle-vote-view.test.ts`.

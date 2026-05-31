@@ -26,6 +26,7 @@ import {
   type Championship,
   type DailyHighlight,
   type HomepageSettings,
+  type PointActivity,
   type QualifierRegistration,
   type QualifierTrack,
   type Season,
@@ -33,6 +34,9 @@ import {
   type User,
 } from '@batalha/types';
 import {
+  getBrazilWeekEnd,
+  getBrazilWeekStart,
+  getWeeklyRankingUsers,
   getUserRankingPoints,
   getUserRankingRegion,
   type RankingEntry,
@@ -315,6 +319,89 @@ function SectionHeader({
   );
 }
 
+function RankingCarousel({
+  users,
+  loading,
+  seasonId,
+  emptyCopy,
+}: {
+  users: RankingEntry[];
+  loading: boolean;
+  seasonId: string | null;
+  emptyCopy: string;
+}) {
+  if (loading) {
+    return (
+      <div className="-mx-4 flex gap-4 overflow-x-auto px-4 pb-2 [scrollbar-width:none] sm:-mx-6 sm:px-6">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <Skeleton key={i} className="h-[196px] w-[148px] flex-shrink-0 rounded-2xl" />
+        ))}
+      </div>
+    );
+  }
+
+  if (users.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 py-14">
+        <p className="text-surface-500">{emptyCopy}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-3 [scrollbar-width:none] sm:-mx-6 sm:px-6">
+      {users.map((rankUser, index) => {
+        const points = getUserRankingPoints(rankUser, seasonId);
+        const region = getUserRankingRegion(rankUser);
+        const userId = 'userId' in rankUser ? rankUser.userId : rankUser.id;
+        const photoURL = 'photoURL' in rankUser ? rankUser.photoURL : null;
+        const isPodium = index < 3;
+
+        return (
+          <Link
+            key={rankUser.id}
+            href={`/perfil/${userId}`}
+            className="group w-[160px] flex-shrink-0"
+          >
+            <div
+              className={`flex h-full flex-col items-center rounded-2xl border border-white/[0.07] px-3 pb-4 pt-3 text-center transition-all duration-300 hover:-translate-y-0.5 hover:border-white/15 hover:shadow-[0_12px_40px_rgba(0,0,0,0.35)] ${isPodium ? PODIUM_BG[index] : 'bg-surface-900'}`}
+            >
+              <div className="mb-2 flex w-full items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-surface-500">
+                  TOP
+                </span>
+                <span className="text-[10px] font-bold text-surface-500">#{index + 1}</span>
+              </div>
+              <div
+                className={`relative rounded-full ${isPodium ? `p-0.5 ring-2 ring-offset-2 ring-offset-surface-950 ${PODIUM_RING[index]}` : 'p-0'}`}
+              >
+                <Avatar src={photoURL} name={rankUser.displayName} size="xl" />
+                {isPodium && (
+                  <span
+                    className={`absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold shadow-lg ${PODIUM_NUMBER_BG[index]}`}
+                  >
+                    {index + 1}
+                  </span>
+                )}
+              </div>
+              <p className="mt-3 w-full truncate text-sm font-bold text-white transition-colors group-hover:text-brand-300">
+                {rankUser.displayName.split(' ')[0]}
+              </p>
+              {region && <p className="mt-0.5 text-[11px] text-brand-500">{region}</p>}
+              <div className="mt-1.5 flex items-baseline gap-1">
+                <span className="text-sm font-bold tabular-nums text-white">
+                  {formatNumber(points)}
+                </span>
+                <span className="text-[10px] text-surface-600">pts</span>
+              </div>
+            </div>
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function HomePage() {
   const [submitDailyOpen, setSubmitDailyOpen] = useState(false);
   const [platformStats, setPlatformStats] = useState<PlatformStats | null>(null);
@@ -342,6 +429,8 @@ export default function HomePage() {
   const activeSeason = activeSeasons.find((season) => season.status === 'active') ?? null;
   const rankingSeasonId = activeSeason?.id ?? null;
   const rankingSeasonLabel = activeSeason?.name ?? `Temporada ${new Date().getFullYear()}`;
+  const currentWeekStart = useMemo(() => getBrazilWeekStart(), []);
+  const currentWeekEnd = useMemo(() => getBrazilWeekEnd(currentWeekStart), [currentWeekStart]);
 
   const { data: battles, loading: battlesLoading } = useCollection<Battle>('battles', [
     orderBy('createdAt', 'desc'),
@@ -363,6 +452,12 @@ export default function HomePage() {
       seasonRankingCollection,
       seasonRankingCollection ? [orderBy('totalPoints', 'desc'), limit(500)] : [],
     );
+  const { data: weeklyPointActivities, loading: weeklyPointActivitiesLoading } =
+    useCollection<PointActivity>('pointActivities', [
+      where('occurredAt', '>=', currentWeekStart),
+      where('occurredAt', '<', currentWeekEnd),
+      orderBy('occurredAt', 'desc'),
+    ]);
   const { data: highlightUsers } = useCollection<User>('users', [limit(100)]);
   const { data: highlightedSubmissions, loading: highlightsLoading } =
     useCollection<DailyHighlight>('dailyHighlights', [orderBy('createdAt', 'desc'), limit(100)]);
@@ -424,7 +519,7 @@ export default function HomePage() {
     [profile?.birthState, qualifierTracks, user],
   );
 
-  const sortedRankingUsers = useMemo(
+  const sortedSeasonRankingUsers = useMemo(
     () =>
       [...(rankingSeasonId ? seasonRankingUsers : rankingUsers)].sort((a, b) => {
         const diff = getUserRankingPoints(b, rankingSeasonId) - getUserRankingPoints(a, rankingSeasonId);
@@ -432,7 +527,23 @@ export default function HomePage() {
       }),
     [rankingUsers, rankingSeasonId, seasonRankingUsers],
   );
-  const topRankingUsers = useMemo(() => sortedRankingUsers.slice(0, 20), [sortedRankingUsers]);
+  const topSeasonRankingUsers = useMemo(
+    () => sortedSeasonRankingUsers.slice(0, 20),
+    [sortedSeasonRankingUsers],
+  );
+  const topWeeklyRankingUsers = useMemo(
+    () =>
+      getWeeklyRankingUsers({
+        pointActivities: weeklyPointActivities,
+        profiles: [...seasonRankingUsers, ...rankingUsers],
+        weekStart: currentWeekStart,
+        limit: 20,
+      }),
+    [currentWeekStart, rankingUsers, seasonRankingUsers, weeklyPointActivities],
+  );
+  const seasonRankingSectionLoading = rankingSeasonId ? seasonRankingUsersLoading : rankingUsersLoading;
+  const weeklyRankingSectionLoading =
+    weeklyPointActivitiesLoading || seasonRankingUsersLoading || rankingUsersLoading;
 
   const heroQualifier = heroQualifierTracks[heroQualifierIndex] ?? heroQualifierTracks[0] ?? null;
   const heroQualifierEntries = heroQualifier ? getQualifierTrackEntryCount(heroQualifier) : 0;
@@ -896,64 +1007,30 @@ export default function HomePage() {
           hrefLabel="Ver completo"
         />
 
-        {(rankingSeasonId ? seasonRankingUsersLoading : rankingUsersLoading) ? (
-          <div className="-mx-4 flex gap-4 overflow-x-auto px-4 pb-2 [scrollbar-width:none] sm:-mx-6 sm:px-6">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <Skeleton key={i} className="h-[196px] w-[148px] flex-shrink-0 rounded-2xl" />
-            ))}
-          </div>
-        ) : topRankingUsers.length > 0 ? (
-          <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-3 [scrollbar-width:none] sm:-mx-6 sm:px-6">
-            {topRankingUsers.map((rankUser, index) => {
-              const points = getUserRankingPoints(rankUser, rankingSeasonId);
-              const region = getUserRankingRegion(rankUser);
-              const userId = 'userId' in rankUser ? rankUser.userId : rankUser.id;
-              const photoURL = 'photoURL' in rankUser ? rankUser.photoURL : null;
-              const isPodium = index < 3;
+        <RankingCarousel
+          users={topSeasonRankingUsers}
+          loading={seasonRankingSectionLoading}
+          seasonId={rankingSeasonId}
+          emptyCopy="O ranking aparecerá após as primeiras batalhas."
+        />
+      </section>
 
-              return (
-                <Link
-                  key={rankUser.id}
-                  href={`/perfil/${userId}`}
-                  className="group w-[160px] flex-shrink-0"
-                >
-                  <div
-                    className={`flex h-full flex-col items-center rounded-2xl border border-white/[0.07] px-3 pb-4 pt-3 text-center transition-all duration-300 hover:-translate-y-0.5 hover:border-white/15 hover:shadow-[0_12px_40px_rgba(0,0,0,0.35)] ${isPodium ? PODIUM_BG[index] : 'bg-surface-900'}`}
-                  >
-                    <div className="mb-2 flex w-full items-center justify-between">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-surface-500">
-                        TOP
-                      </span>
-                      <span className="text-[10px] font-bold text-surface-500">#{index + 1}</span>
-                    </div>
-                    <div className={`relative rounded-full ${isPodium ? `p-0.5 ring-2 ring-offset-2 ring-offset-surface-950 ${PODIUM_RING[index]}` : 'p-0'}`}>
-                      <Avatar src={photoURL} name={rankUser.displayName} size="xl" />
-                      {isPodium && (
-                        <span className={`absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold shadow-lg ${PODIUM_NUMBER_BG[index]}`}>
-                          {index + 1}
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-3 w-full truncate text-sm font-bold text-white transition-colors group-hover:text-brand-300">
-                      {rankUser.displayName.split(' ')[0]}
-                    </p>
-                    {region && (
-                      <p className="mt-0.5 text-[11px] text-brand-500">{region}</p>
-                    )}
-                    <div className="mt-1.5 flex items-baseline gap-1">
-                      <span className="text-sm font-bold tabular-nums text-white">{formatNumber(points)}</span>
-                      <span className="text-[10px] text-surface-600">pts</span>
-                    </div>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 py-14">
-            <p className="text-surface-500">O ranking aparecerá após as primeiras batalhas.</p>
-          </div>
-        )}
+      {/* ── Ranking da Semana ─────────────────────────────────── */}
+      <section className="border-b border-white/5 px-4 py-8 sm:px-6">
+        <SectionHeader
+          icon={BarChart2}
+          title="Rankings"
+          subtitle="Ranking da Semana"
+          href="/ranking?period=weekly"
+          hrefLabel="Ver completo"
+        />
+
+        <RankingCarousel
+          users={topWeeklyRankingUsers}
+          loading={weeklyRankingSectionLoading}
+          seasonId={null}
+          emptyCopy="O ranking da semana aparecerá quando houver pontos nesta semana."
+        />
       </section>
 
       {/* ── Classificatórias ──────────────────────────────────── */}

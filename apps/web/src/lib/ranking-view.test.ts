@@ -1,11 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import {
+  formatWeeklyRankingLabel,
+  getBrazilWeekEnd,
+  getBrazilWeekStart,
   getRankingUsers,
   getUserRankingRank,
   getUserRankingRegion,
+  getWeekId,
+  getWeeklyRankingUsers,
   paginateRankingUsers,
+  parseWeekId,
+  shiftWeekStart,
 } from './ranking-view';
-import type { User } from '@batalha/types';
+import type { PointActivity, User } from '@batalha/types';
 
 function user(id: string, state: string, points: number): User {
   return {
@@ -123,5 +130,53 @@ describe('getRankingUsers', () => {
         null,
       ),
     ).toBe('Assobiador');
+  });
+
+  it('builds Brazil-time weekly windows and week ids', () => {
+    const weekStart = getBrazilWeekStart(new Date('2026-05-23T12:00:00.000Z'));
+
+    expect(getWeekId(weekStart)).toBe('2026-05-18');
+    expect(getWeekId(getBrazilWeekEnd(weekStart))).toBe('2026-05-25');
+    expect(getWeekId(shiftWeekStart(weekStart, -1))).toBe('2026-05-11');
+    expect(getWeekId(parseWeekId('2026-05-18'))).toBe('2026-05-18');
+    expect(formatWeeklyRankingLabel(weekStart)).toContain('18');
+  });
+
+  it('aggregates weekly ranking points from point activities', () => {
+    const weekStart = getBrazilWeekStart(new Date('2026-05-23T12:00:00.000Z'));
+    const activities = [
+      {
+        userId: 'user-a',
+        points: 10,
+        occurredAt: new Date('2026-05-18T04:00:00.000Z'),
+      },
+      {
+        userId: 'user-a',
+        points: 5,
+        occurredAt: new Date('2026-05-24T22:00:00.000Z'),
+      },
+      {
+        userId: 'user-b',
+        points: 30,
+        occurredAt: new Date('2026-05-20T10:00:00.000Z'),
+      },
+      {
+        userId: 'user-c',
+        points: 999,
+        occurredAt: new Date('2026-05-25T03:00:00.000Z'),
+      },
+    ] as PointActivity[];
+
+    const result = getWeeklyRankingUsers({
+      pointActivities: activities,
+      profiles: [user('user-a', 'SP', 100), user('user-b', 'RJ', 200)],
+      weekStart,
+    });
+
+    expect(result.map((rankingUser) => [rankingUser.userId, rankingUser.weeklyPoints])).toEqual([
+      ['user-b', 30],
+      ['user-a', 15],
+    ]);
+    expect(result[0]?.displayName).toBe('user-b');
   });
 });
