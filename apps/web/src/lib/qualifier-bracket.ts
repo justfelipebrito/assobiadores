@@ -299,7 +299,7 @@ function shuffleEntrants(entrants: QualifierEntrant[], rng: () => number) {
   return shuffled;
 }
 
-function getQualifierMatchDates(startsAt: Date, matchDayIndex: number) {
+export function getQualifierMatchDates(startsAt: Date, matchDayIndex: number) {
   const matchDate = addDays(startsAt, matchDayIndex - 1);
   const year = matchDate.getUTCFullYear();
   const month = matchDate.getUTCMonth();

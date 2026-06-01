@@ -39,10 +39,12 @@ function createDb({
   adminRole = 'admin',
   registrationDocs = registrations(100),
   existingMatches = [],
+  track = {},
 }: {
   adminRole?: string;
   registrationDocs?: Array<ReturnType<typeof docSnap>>;
   existingMatches?: Array<ReturnType<typeof docSnap>>;
+  track?: Record<string, unknown>;
 } = {}) {
   let matchCounter = 0;
   const batch = {
@@ -80,7 +82,10 @@ function createDb({
       }
       if (name === 'qualifierTracks') {
         return {
-          doc: vi.fn((id: string) => ({ id })),
+          doc: vi.fn((id: string) => ({
+            id,
+            get: vi.fn(async () => docSnap(id, track)),
+          })),
         };
       }
       throw new Error(`Unexpected collection ${name}`);
@@ -181,6 +186,27 @@ describe('generateQualifierBracket', () => {
     expect(batch.update).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'registration-1' }),
       expect.objectContaining({ bracketStatus: 'qualified' }),
+    );
+  });
+
+  it('uses the saved qualifier submission start when scheduling generated matches', async () => {
+    const { db, batch } = createDb({
+      track: { bracketStart: { seconds: Date.parse('2026-06-10T03:00:00.000Z') / 1000 } },
+    });
+
+    await generateQualifierBracket(db as never, {
+      adminUserId: 'admin-1',
+      region: 'SP',
+      category: 'freestyle',
+    });
+
+    expect(batch.set).toHaveBeenCalledWith(
+      expect.objectContaining({ id: expect.stringMatching(/^match-/) }),
+      expect.objectContaining({
+        scheduledFor: expect.objectContaining({
+          _seconds: Date.parse('2026-06-10T03:00:00.000Z') / 1000,
+        }),
+      }),
     );
   });
 

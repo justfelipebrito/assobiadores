@@ -37,6 +37,10 @@ export async function generateQualifierBracket(
     throw new ApiError(409, 'Esta chave ja foi gerada para a Classificatoria.');
   }
 
+  const trackRef = db.collection('qualifierTracks').doc(getQualifierTrackId(region, category));
+  const trackDoc = await trackRef.get();
+  const bracketStart = getDate(trackDoc.data()?.bracketStart) ?? QUALIFIER_BRACKET_START;
+
   const registrationsSnapshot = await db
     .collection('qualifierRegistrations')
     .where('seasonId', '==', seasonId)
@@ -69,10 +73,9 @@ export async function generateQualifierBracket(
     seasonId,
     category,
     region,
-    startsAt: QUALIFIER_BRACKET_START,
+    startsAt: bracketStart,
   });
   const batch = db.batch();
-  const trackRef = db.collection('qualifierTracks').doc(getQualifierTrackId(region, category));
 
   if (generation.bracketPlan.qualifiedWithoutMatches) {
     registrations.forEach((registration) => {
@@ -182,4 +185,18 @@ function getMillis(value: unknown) {
     return (value as { seconds: number }).seconds * 1000;
   }
   return 0;
+}
+
+function getDate(value: unknown) {
+  if (!value) return null;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+  if (typeof value === 'object' && value !== null && 'toDate' in value) {
+    const date = (value as { toDate: () => Date }).toDate();
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  if (typeof value === 'object' && value !== null && 'seconds' in value) {
+    const date = new Date(Number((value as { seconds: number }).seconds) * 1000);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  return null;
 }

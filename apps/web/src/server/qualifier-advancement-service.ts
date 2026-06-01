@@ -44,6 +44,7 @@ export async function advanceQualifierRound(
   const trackDoc = await trackRef.get();
   if (!trackDoc.exists) throw new ApiError(404, 'Classificatoria nao encontrada');
   const track = trackDoc.data()!;
+  const bracketStart = getDate(track.bracketStart) ?? QUALIFIER_BRACKET_START;
   const currentRound = roundNumber ?? Number(track.currentRound ?? 0);
   if (currentRound <= 0) throw new ApiError(400, 'Rodada atual invalida');
 
@@ -231,7 +232,7 @@ export async function advanceQualifierRound(
     roundNumber: nextRoundNumber,
     dailyMatchLimit: Number(track.dailyMatchLimit ?? 5),
     startsOnDayIndex,
-    startsAt: QUALIFIER_BRACKET_START,
+    startsAt: bracketStart,
     seasonId,
     category,
     region,
@@ -305,4 +306,18 @@ function getMillis(value: unknown) {
     return (value as { seconds: number }).seconds * 1000;
   }
   return 0;
+}
+
+function getDate(value: unknown) {
+  if (!value) return null;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+  if (typeof value === 'object' && value !== null && 'toDate' in value) {
+    const date = (value as { toDate: () => Date }).toDate();
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  if (typeof value === 'object' && value !== null && 'seconds' in value) {
+    const date = new Date(Number((value as { seconds: number }).seconds) * 1000);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  return null;
 }
