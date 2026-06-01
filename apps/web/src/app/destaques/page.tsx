@@ -231,20 +231,20 @@ export default function DailyHighlightsPage() {
             return (
               <div
                 key={highlight.id}
-                className={`grid grid-cols-[4rem_minmax(0,1fr)] gap-3 rounded-2xl border p-3 sm:grid-cols-[5rem_minmax(0,1fr)_7rem] sm:items-center ${
+                className={`grid grid-cols-[3.5rem_minmax(0,1fr)] gap-2.5 rounded-2xl border p-3 sm:grid-cols-[5rem_minmax(0,1fr)_7rem] sm:items-center sm:gap-3 ${
                   voteState.isSelectedVote
                     ? 'border-brand-500/40 bg-brand-500/10'
                     : 'border-white/10 bg-surface-900/70'
                 }`}
               >
-                <div className="flex h-full min-h-32 items-center justify-center rounded-xl border border-white/10 bg-surface-950/60 px-2 text-center">
+                <div className="flex h-28 items-center justify-center rounded-xl border border-white/10 bg-surface-950/60 px-2 text-center sm:h-32">
                   <span className="w-full text-center text-sm font-bold tabular-nums text-surface-300 sm:text-base">
                     #{index + 1}
                   </span>
                 </div>
 
                 <div className="min-w-0">
-                  <div className="h-32">
+                  <div className="h-28 min-w-0 sm:h-32">
                     <MediaPreview
                       mediaType={highlight.mediaType}
                       mediaURL={highlight.mediaURL}
@@ -278,7 +278,7 @@ export default function DailyHighlightsPage() {
                       size="sm"
                       onClick={() => setSelectedHighlight(highlight)}
                       disabled={!voteState.canVote}
-                      className="w-full sm:w-24"
+                      className="h-10 w-full sm:w-24"
                     >
                       {voteState.buttonLabel}
                     </Button>

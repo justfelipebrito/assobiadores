@@ -11,63 +11,18 @@ import {
   requestExclusiveAudioPlayback,
   subscribeToExclusiveAudioPlayback,
 } from '@/lib/audio-playback-coordinator';
-
-type AudioPlayerSize = 'default' | 'compact';
-type AudioPlayerVariant = 'default' | 'featured';
+import {
+  getAudioPlayerWaveBarCount,
+  getPlayerChrome,
+  type AudioPlayerSize,
+  type AudioPlayerVariant,
+} from '@/lib/audio-player-layout';
 
 function buildWave(seed: string, count: number) {
   return Array.from({ length: count }).map((_, index) => {
     const char = seed.charCodeAt(index % Math.max(seed.length, 1)) || 7;
     return 15 + ((char + index * 13) % 70);
   });
-}
-
-function getPlayerChrome({ size, variant }: { size: AudioPlayerSize; variant: AudioPlayerVariant }) {
-  if (variant === 'featured') {
-    return {
-      shell: 'relative flex min-h-[244px] w-full flex-col overflow-hidden rounded-2xl border border-white/[0.06] bg-[#13131a]',
-      icon: 'h-40 w-40',
-      iconWrap: 'right-4 top-1/2 -translate-y-1/2 -rotate-12 opacity-[0.09]',
-      content: 'relative z-10 mt-auto p-3',
-      waveHeight: 24,
-      button: 'h-9 w-9 rounded-full bg-brand-500 text-white shadow-[0_0_16px_rgba(37,169,114,0.35)] hover:scale-105 hover:bg-brand-400 active:scale-95',
-      title: 'text-sm font-black leading-tight text-white sm:text-base',
-      meta: 'mt-0.5 text-[11px] font-semibold text-brand-400',
-      time: 'mt-1 text-[10px] tabular-nums text-surface-500',
-      category: 'rounded border border-white/[0.10] bg-white/[0.06] px-2 py-0.5 text-[10px] font-medium text-surface-300',
-      result: 'flex items-center gap-1 rounded bg-yellow-500 px-2 py-0.5 text-[10px] font-bold text-black',
-    };
-  }
-
-  if (size === 'compact') {
-    return {
-      shell: 'flex h-full min-h-[114px] w-full overflow-hidden rounded-2xl border border-white/[0.06] bg-[#13131a]',
-      icon: 'h-14 w-14',
-      iconWrap: 'inset-0 flex items-center justify-center -rotate-12 opacity-[0.10]',
-      content: 'flex flex-1 flex-col justify-between p-2.5',
-      waveHeight: 18,
-      button: 'h-8 w-8 rounded-full bg-brand-500 text-white shadow-[0_0_12px_rgba(37,169,114,0.3)] hover:scale-105 hover:bg-brand-400 active:scale-95',
-      title: 'text-[13px] font-black leading-tight text-white',
-      meta: 'mt-0.5 text-[10px] font-semibold text-brand-400',
-      time: 'text-[10px] tabular-nums text-surface-500',
-      category: 'rounded border border-white/[0.10] bg-white/[0.06] px-1.5 py-0.5 text-[9px] font-medium text-surface-300',
-      result: 'mb-1 flex w-fit items-center gap-1 rounded bg-yellow-500 px-1.5 py-0.5 text-[9px] font-bold text-black',
-    };
-  }
-
-  return {
-    shell: 'relative flex min-h-[180px] w-full flex-col overflow-hidden rounded-2xl border border-white/[0.06] bg-[#13131a]',
-    icon: 'h-28 w-28',
-    iconWrap: 'right-4 top-1/2 -translate-y-1/2 -rotate-12 opacity-[0.08]',
-    content: 'relative z-10 mt-auto p-4',
-    waveHeight: 34,
-    button: 'h-10 w-10 rounded-full bg-brand-500 text-white shadow-[0_0_16px_rgba(37,169,114,0.35)] hover:scale-105 hover:bg-brand-400 active:scale-95',
-    title: 'text-base font-black leading-tight text-white',
-    meta: 'mt-1 text-xs font-semibold text-brand-400',
-    time: 'mt-1 text-xs tabular-nums text-surface-500',
-    category: 'rounded border border-white/[0.10] bg-white/[0.06] px-2 py-0.5 text-[10px] font-medium text-surface-300',
-    result: 'flex items-center gap-1 rounded bg-yellow-500 px-2 py-0.5 text-[10px] font-bold text-black',
-  };
 }
 
 export function AudioHighlightPlayer({
@@ -105,7 +60,7 @@ export function AudioHighlightPlayer({
   );
   const chrome = getPlayerChrome({ size, variant });
   const wave = useMemo(
-    () => buildWave(`${src}-${username}`, size === 'compact' ? 24 : variant === 'featured' ? 40 : 36),
+    () => buildWave(`${src}-${username}`, getAudioPlayerWaveBarCount({ size, variant })),
     [size, src, username, variant],
   );
   const duration = loadedDuration ?? getValidDuration(durationSeconds);
@@ -227,7 +182,7 @@ export function AudioHighlightPlayer({
         <div
           className={`${
             showHeader ? (size === 'compact' ? 'mt-2' : 'mt-3') : ''
-          } flex items-center gap-2.5`}
+          } grid min-w-0 grid-cols-[minmax(0,1fr)_2rem] items-center gap-2.5`}
         >
           <div
             ref={waveRef}
@@ -263,7 +218,7 @@ export function AudioHighlightPlayer({
                 seekBy(duration);
               }
             }}
-            className={`flex flex-1 items-end gap-[2px] overflow-hidden rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/70 ${
+            className={`flex min-w-0 items-end gap-[2px] overflow-hidden rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/70 ${
               canSeek ? 'cursor-pointer' : 'cursor-default'
             }`}
             style={{ height: chrome.waveHeight }}
@@ -339,7 +294,7 @@ export function AudioHighlightPlayer({
 
       {size === 'compact' ? (
         <>
-          <div className="relative w-[40%] flex-shrink-0 bg-[#0c0c13]">
+          <div className="relative w-[5.5rem] flex-shrink-0 bg-[#0c0c13] sm:w-28">
             <div className="absolute bottom-0 left-0 right-0 h-10 bg-gradient-to-t from-[#0c0c13] to-transparent" />
             <div className={`pointer-events-none absolute ${chrome.iconWrap}`}>
               <Music2 className={`${chrome.icon} text-white`} />
