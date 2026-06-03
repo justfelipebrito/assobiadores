@@ -16,7 +16,16 @@ import {
   Trophy,
   Users,
 } from 'lucide-react';
-import { limit, orderBy, useAuth, useCollection, useDocument, where } from '@batalha/firebase';
+import {
+  limit,
+  orderBy,
+  useAuth,
+  useCollection,
+  useCollectionOnce,
+  useDocument,
+  useDocumentOnce,
+  where,
+} from '@batalha/firebase';
 import { Avatar, Badge, Button, Skeleton } from '@batalha/ui';
 import { formatCurrency, formatNumber, formatRelativeTime, toDate } from '@batalha/utils';
 import {
@@ -327,7 +336,10 @@ export default function HomePage() {
     () => formatBrazilDayKey(todayDailyHighlightKey),
     [todayDailyHighlightKey],
   );
-  const { data: homepageSettings } = useDocument<HomepageSettings>('platformSettings', 'homepage');
+  const { data: homepageSettings } = useDocumentOnce<HomepageSettings>(
+    'platformSettings',
+    'homepage',
+  );
   const dailyHighlightPromoText = useMemo(
     () => getDailyHighlightPromoText(homepageSettings, todayDailyHighlightKey),
     [homepageSettings, todayDailyHighlightKey],
@@ -335,7 +347,7 @@ export default function HomePage() {
   const { user, loading: authLoading } = useAuth();
   const { data: profile } = useDocument<User>('users', user?.uid);
 
-  const { data: activeSeasons } = useCollection<Season>('seasons', [
+  const { data: activeSeasons } = useCollectionOnce<Season>('seasons', [
     orderBy('start', 'desc'),
     limit(3),
   ]);
@@ -343,15 +355,15 @@ export default function HomePage() {
   const rankingSeasonId = activeSeason?.id ?? null;
   const rankingSeasonLabel = activeSeason?.name ?? `Temporada ${new Date().getFullYear()}`;
 
-  const { data: battles, loading: battlesLoading } = useCollection<Battle>('battles', [
+  const { data: battles, loading: battlesLoading } = useCollectionOnce<Battle>('battles', [
     orderBy('createdAt', 'desc'),
     limit(12),
   ]);
-  const { data: championships, loading: championshipsLoading } = useCollection<Championship>(
+  const { data: championships, loading: championshipsLoading } = useCollectionOnce<Championship>(
     'championships',
     [orderBy('createdAt', 'desc'), limit(100)],
   );
-  const { data: rankingUsers, loading: rankingUsersLoading } = useCollection<User>('users', [
+  const { data: rankingUsers, loading: rankingUsersLoading } = useCollectionOnce<User>('users', [
     orderBy('points', 'desc'),
     limit(500),
   ]);
@@ -359,11 +371,11 @@ export default function HomePage() {
     ? `seasonRankings/${rankingSeasonId}/users`
     : undefined;
   const { data: seasonRankingUsers, loading: seasonRankingUsersLoading } =
-    useCollection<SeasonRanking>(
+    useCollectionOnce<SeasonRanking>(
       seasonRankingCollection,
       seasonRankingCollection ? [orderBy('totalPoints', 'desc'), limit(500)] : [],
     );
-  const { data: highlightUsers } = useCollection<User>('users', [limit(100)]);
+  const { data: highlightUsers } = useCollectionOnce<User>('users', [limit(100)]);
   const { data: highlightedSubmissions, loading: highlightsLoading } =
     useCollection<DailyHighlight>('dailyHighlights', [orderBy('createdAt', 'desc'), limit(100)]);
   const { data: todayUserHighlights } = useCollection<DailyHighlight>(
@@ -372,16 +384,14 @@ export default function HomePage() {
       ? [where('dayKey', '==', todayDailyHighlightKey), where('userId', '==', user.uid), limit(1)]
       : [],
   );
-  const { data: confirmedQualifierRegistrations } = useCollection<QualifierRegistration>(
+  const { data: confirmedQualifierRegistrations } = useCollectionOnce<QualifierRegistration>(
     user ? 'qualifierRegistrations' : undefined,
     user
       ? [where('userId', '==', user.uid), where('status', '==', 'confirmed'), limit(1)]
       : [],
   );
-  const { data: qualifierTracks, loading: qualifierTracksLoading } = useCollection<QualifierTrack>(
-    'qualifierTracks',
-    [limit(200)],
-  );
+  const { data: qualifierTracks, loading: qualifierTracksLoading } =
+    useCollectionOnce<QualifierTrack>('qualifierTracks', [limit(200)]);
 
   const activeBattles = useMemo(
     () => getHomepageBattleCards(battles, 8),

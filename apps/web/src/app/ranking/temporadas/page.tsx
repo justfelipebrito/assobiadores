@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { Trophy, Calendar, Globe, MapPin, ArrowRight, Clock } from 'lucide-react';
-import { useCollection, orderBy, where } from '@batalha/firebase';
+import { useCollectionOnce, orderBy, where } from '@batalha/firebase';
 import { Badge, Card, CardContent, Skeleton, EmptyState } from '@batalha/ui';
 import { formatDate } from '@batalha/utils';
 import type { Season } from '@batalha/types';
@@ -23,17 +23,17 @@ const STATUS_CONFIG = {
 };
 
 export default function SeasonsPage() {
-  const { data: activeSeason, loading: activeLoading } = useCollection<Season>(
+  const { data: activeSeason, loading: activeLoading } = useCollectionOnce<Season>(
     'seasons',
     [where('status', '==', 'active'), orderBy('start', 'desc')],
   );
 
-  const { data: archivedSeasons, loading: archivedLoading } = useCollection<Season>(
+  const { data: archivedSeasons, loading: archivedLoading } = useCollectionOnce<Season>(
     'seasons',
     [where('status', '==', 'archived'), orderBy('end', 'desc')],
   );
 
-  const { data: upcomingSeasons, loading: upcomingLoading } = useCollection<Season>(
+  const { data: upcomingSeasons, loading: upcomingLoading } = useCollectionOnce<Season>(
     'seasons',
     [where('status', '==', 'upcoming'), orderBy('start', 'asc')],
   );

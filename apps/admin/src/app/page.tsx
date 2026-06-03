@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { orderBy, useAuth, useCollection } from '@batalha/firebase';
+import { orderBy, useAuth, useCollectionOnce } from '@batalha/firebase';
 import { Card, CardContent, Skeleton } from '@batalha/ui';
 import { formatCurrency, formatNumber } from '@batalha/utils';
 import type { Payment, User } from '@batalha/types';
@@ -181,10 +181,10 @@ function AnalyticsPanel({ analytics, loading }: { analytics: ReferralAnalyticsRe
 
 export default function AdminDashboard() {
   const { user: adminUser } = useAuth();
-  const { data: users, loading: usersLoading } = useCollection<User>('users', [
+  const { data: users, loading: usersLoading } = useCollectionOnce<User>('users', [
     orderBy('createdAt', 'desc'),
   ]);
-  const { data: payments, loading: paymentsLoading } = useCollection<Payment>('payments', [
+  const { data: payments, loading: paymentsLoading } = useCollectionOnce<Payment>('payments', [
     orderBy('createdAt', 'desc'),
   ]);
   const [analytics, setAnalytics] = useState<ReferralAnalyticsResponse | null>(null);

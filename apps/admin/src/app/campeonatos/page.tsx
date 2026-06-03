@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import {
   useCollection,
+  useCollectionOnce,
   orderBy,
   getClientFirestore,
   updateDoc,
@@ -501,7 +502,7 @@ function StageManager({ championship }: { championship: Championship }) {
 }
 
 export default function AdminChampionshipsPage() {
-  const { data: championships, loading } = useCollection<Championship>('championships', [
+  const { data: championships, loading } = useCollectionOnce<Championship>('championships', [
     orderBy('createdAt', 'desc'),
   ]);
 

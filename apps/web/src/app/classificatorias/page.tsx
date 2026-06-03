@@ -12,7 +12,7 @@ import {
   Loader2,
   Trophy,
 } from 'lucide-react';
-import { limit, useAuth, useCollection, useDocument, where } from '@batalha/firebase';
+import { limit, useAuth, useCollectionOnce, useDocument, where } from '@batalha/firebase';
 import {
   BRAZIL_STATE_LABELS,
   COMPETITION_CATEGORIES,
@@ -120,12 +120,12 @@ export default function QualifiersPage() {
         : [],
     [user],
   );
-  const { data: qualifierTracks, loading: qualifierTracksLoading } = useCollection<QualifierTrack>(
+  const { data: qualifierTracks, loading: qualifierTracksLoading } = useCollectionOnce<QualifierTrack>(
     'qualifierTracks',
     qualifierTrackConstraints,
   );
   const { data: registrations, loading: registrationsLoading } =
-    useCollection<QualifierRegistration>(
+    useCollectionOnce<QualifierRegistration>(
       user ? 'qualifierRegistrations' : undefined,
       registrationConstraints,
     );

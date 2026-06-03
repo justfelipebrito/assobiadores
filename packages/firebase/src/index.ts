@@ -4,7 +4,9 @@ export { useAuth } from './auth';
 export type { AuthState } from './auth';
 export {
   useDocument,
+  useDocumentOnce,
   useCollection,
+  useCollectionOnce,
   doc,
   collection,
   query,

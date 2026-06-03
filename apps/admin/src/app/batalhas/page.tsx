@@ -9,7 +9,7 @@ import {
   serverTimestamp,
   updateDoc,
   useAuth,
-  useCollection,
+  useCollectionOnce,
   getClientAuth,
 } from '@batalha/firebase';
 import { getClientFirestore } from '@batalha/firebase';
@@ -339,12 +339,14 @@ export default function AdminBattlesPage() {
     key: 'battle',
     direction: 'asc',
   });
-  const { data: battles, loading } = useCollection<Battle>('battles', [
-    orderBy('createdAt', 'desc'),
-  ]);
-  const { data: entries } = useCollection<BattleEntry>('battleEntries');
-  const { data: submissions } = useCollection<Submission>('submissions');
-  const { data: votes } = useCollection<Vote>('votes');
+  const { data: battles, loading, refresh: refreshBattles } = useCollectionOnce<Battle>(
+    'battles',
+    [orderBy('createdAt', 'desc')],
+  );
+  const { data: entries, refresh: refreshEntries } = useCollectionOnce<BattleEntry>('battleEntries');
+  const { data: submissions, refresh: refreshSubmissions } =
+    useCollectionOnce<Submission>('submissions');
+  const { data: votes, refresh: refreshVotes } = useCollectionOnce<Vote>('votes');
   const sortedBattles = useMemo(
     () => sortRows(battles, sort, BATTLE_SORT_SELECTORS),
     [battles, sort],
@@ -396,6 +398,8 @@ export default function AdminBattlesPage() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Erro ao desempatar batalha');
       toast.success('Desempate registrado.');
+      refreshBattles();
+      refreshVotes();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Erro ao desempatar batalha');
     } finally {
@@ -420,7 +424,13 @@ export default function AdminBattlesPage() {
           key={editingBattle?.id ?? 'new'}
           battle={editingBattle}
           onCancel={closeForm}
-          onSaved={closeForm}
+          onSaved={() => {
+            closeForm();
+            refreshBattles();
+            refreshEntries();
+            refreshSubmissions();
+            refreshVotes();
+          }}
         />
       )}
 

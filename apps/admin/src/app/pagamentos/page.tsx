@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { orderBy, useCollection } from '@batalha/firebase';
+import { orderBy, useCollectionOnce } from '@batalha/firebase';
 import { Badge, Card, CardContent, EmptyState, Skeleton } from '@batalha/ui';
 import { formatCurrency, formatDate, toDate } from '@batalha/utils';
 import type { Payment } from '@batalha/types';
@@ -43,7 +43,7 @@ export default function PaymentsPage() {
     key: 'createdAt',
     direction: 'desc',
   });
-  const { data: payments, loading } = useCollection<Payment>('payments', [
+  const { data: payments, loading } = useCollectionOnce<Payment>('payments', [
     orderBy('createdAt', 'desc'),
   ]);
   const sortedPayments = useMemo(

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { orderBy, useAuth, useCollection } from '@batalha/firebase';
+import { orderBy, useAuth, useCollectionOnce } from '@batalha/firebase';
 import { Badge, Button, Card, CardContent, EmptyState, Input, Skeleton, Textarea } from '@batalha/ui';
 import { formatNumber } from '@batalha/utils';
 import type { User } from '@batalha/types';
@@ -164,7 +164,9 @@ export default function UsersPage() {
     direction: 'asc',
   });
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const { data: users, loading } = useCollection<User>('users', [orderBy('createdAt', 'desc')]);
+  const { data: users, loading, refresh: refreshUsers } = useCollectionOnce<User>('users', [
+    orderBy('createdAt', 'desc'),
+  ]);
   const sortedUsers = useMemo(
     () => sortRows(users, sort, USER_SORT_SELECTORS),
     [sort, users],
@@ -182,7 +184,15 @@ export default function UsersPage() {
         </p>
       </div>
 
-      {selectedUser && <UserEditModal user={selectedUser} onClose={() => setSelectedUser(null)} />}
+      {selectedUser && (
+        <UserEditModal
+          user={selectedUser}
+          onClose={() => {
+            setSelectedUser(null);
+            refreshUsers();
+          }}
+        />
+      )}
 
       <div className="mt-8">
         {loading ? (

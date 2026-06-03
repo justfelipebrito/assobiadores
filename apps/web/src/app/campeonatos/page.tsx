@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, ArrowRight, ChevronDown, Trophy } from 'lucide-react';
-import { limit, orderBy, useCollection } from '@batalha/firebase';
+import { limit, orderBy, useCollectionOnce } from '@batalha/firebase';
 import { Badge, Card, CardContent, EmptyState, Skeleton } from '@batalha/ui';
 import {
   COMPETITION_CATEGORIES,
@@ -63,7 +63,7 @@ export default function ChampionshipsPage() {
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>('all');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
   const [regionFilter, setRegionFilter] = useState<RegionFilter>('all');
-  const { data: championships, loading } = useCollection<Championship>('championships', [
+  const { data: championships, loading } = useCollectionOnce<Championship>('championships', [
     orderBy('createdAt', 'desc'),
     limit(120),
   ]);

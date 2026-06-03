@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   useAuth,
-  useCollection,
+  useCollectionOnce,
   where,
   limit,
 } from '@batalha/firebase';
@@ -76,7 +76,7 @@ const TRACK_STATUS_CONFIG: Record<
   finished: { label: 'Finalizada', variant: 'default' },
 };
 
-function AdminQualifierActions() {
+function AdminQualifierActions({ onChanged }: { onChanged: () => void }) {
   const { user } = useAuth();
   const [region, setRegion] = useState<BrazilState>('SP');
   const [category, setCategory] = useState<CompetitionCategory>('freestyle');
@@ -130,6 +130,7 @@ function AdminQualifierActions() {
           ? `Rodada finalizada: ${data.finalizedCount} confronto(s).`
           : 'Nenhum confronto em votação para finalizar.',
       );
+      onChanged();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Erro ao finalizar rodada');
     } finally {
@@ -152,6 +153,7 @@ function AdminQualifierActions() {
           ? `Chave gerada: ${data.matchCount} partida(s), ${data.byeCount} bye(s), ${data.plannedMatchDays} dia(s).`
           : `Classificatória encerrada: ${data.byeCount} participante(s) classificados.`,
       );
+      onChanged();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Erro ao gerar chave');
     } finally {
@@ -176,6 +178,7 @@ function AdminQualifierActions() {
           ? `Classificatória encerrada: ${data.qualifiedCount} classificado(s).`
           : `Rodada ${data.roundNumber} criada: ${data.matchCount} partida(s), ${data.byeCount} bye(s).`,
       );
+      onChanged();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Erro ao avançar rodada');
     } finally {
@@ -282,7 +285,13 @@ function getGlobalScheduleDefaults(tracks: QualifierTrack[]): AdminQualifierSche
   return qualifierTrackToScheduleValues(source);
 }
 
-function GlobalQualifierScheduleForm({ tracks }: { tracks: QualifierTrack[] }) {
+function GlobalQualifierScheduleForm({
+  tracks,
+  onSaved,
+}: {
+  tracks: QualifierTrack[];
+  onSaved: () => void;
+}) {
   const { user } = useAuth();
   const [saving, setSaving] = useState(false);
   const [values, setValues] = useState<AdminQualifierScheduleFormValues>(() =>
@@ -337,6 +346,7 @@ function GlobalQualifierScheduleForm({ tracks }: { tracks: QualifierTrack[] }) {
       toast.success(
         `Datas aplicadas em ${data.trackCount ?? tracks.length} Classificatória(s). ${data.rescheduledMatchCount ?? 0} confronto(s) reagendado(s).`,
       );
+      onSaved();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Erro ao atualizar datas');
     } finally {
@@ -391,16 +401,23 @@ function GlobalQualifierScheduleForm({ tracks }: { tracks: QualifierTrack[] }) {
 }
 
 export default function AdminQualifiersPage() {
-  const { data: tracks, loading: tracksLoading } = useCollection<QualifierTrack>(
-    'qualifierTracks',
-    [],
+  const { data: tracks, loading: tracksLoading, refresh: refreshTracks } =
+    useCollectionOnce<QualifierTrack>('qualifierTracks', []);
+  const { data: registrations, refresh: refreshRegistrations } =
+    useCollectionOnce<QualifierRegistration>(
+      'qualifierRegistrations',
+      [where('status', '==', 'confirmed'), limit(1000)],
+    );
+  const { data: matches, refresh: refreshMatches } = useCollectionOnce<QualifierMatch>(
+    'qualifierMatches',
+    [limit(1000)],
   );
-  const { data: registrations } = useCollection<QualifierRegistration>(
-    'qualifierRegistrations',
-    [where('status', '==', 'confirmed'), limit(1000)],
-  );
-  const { data: matches } = useCollection<QualifierMatch>('qualifierMatches', [limit(1000)]);
   const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null);
+  const refreshQualifierData = () => {
+    refreshTracks();
+    refreshRegistrations();
+    refreshMatches();
+  };
 
   const trackStats = useMemo(() => {
     const registrationsByTrack = new Map<string, number>();
@@ -460,10 +477,15 @@ export default function AdminQualifiersPage() {
 
       <div className="mt-8 space-y-4">
         {!tracksLoading && sortedTracks.length > 0 ? (
-          <GlobalQualifierScheduleForm tracks={sortedTracks} />
+          <GlobalQualifierScheduleForm tracks={sortedTracks} onSaved={refreshQualifierData} />
         ) : null}
 
-        <AdminQualifierActions />
+        <AdminQualifierActions onChanged={refreshQualifierData} />
+        <div className="flex justify-end">
+          <Button variant="secondary" onClick={refreshQualifierData}>
+            Atualizar dados
+          </Button>
+        </div>
 
         {tracksLoading ? (
           Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-36" />)
@@ -584,6 +606,7 @@ export default function AdminQualifiersPage() {
               registration.status === 'confirmed',
           )}
           onClose={() => setSelectedTrackId(null)}
+          onChanged={refreshQualifierData}
         />
       ) : null}
     </main>
@@ -595,11 +618,13 @@ function QualifierTrackModal({
   matches,
   registrations,
   onClose,
+  onChanged,
 }: {
   track: QualifierTrack;
   matches: QualifierMatch[];
   registrations: QualifierRegistration[];
   onClose: () => void;
+  onChanged: () => void;
 }) {
   const { user } = useAuth();
   const [generating, setGenerating] = useState(false);
@@ -664,6 +689,7 @@ function QualifierTrackModal({
     try {
       const data = await callQualifierApi(action);
       toast.success(success(data));
+      onChanged();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Erro ao atualizar Classificatória');
     } finally {

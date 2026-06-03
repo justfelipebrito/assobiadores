@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useMemo } from 'react';
 import { ArrowLeft, ArrowRight, CalendarDays, Clock } from 'lucide-react';
-import { orderBy, useCollection } from '@batalha/firebase';
+import { orderBy, useCollectionOnce } from '@batalha/firebase';
 import { Badge, Card, CardContent, EmptyState, Skeleton } from '@batalha/ui';
 import { formatDateTime, formatRelativeTime } from '@batalha/utils';
 import type { Battle, Championship, QualifierTrack } from '@batalha/types';
@@ -16,12 +16,12 @@ const KIND_LABEL = {
 } as const;
 
 export default function AgendaPage() {
-  const { data: battles, loading: battlesLoading } = useCollection<Battle>('battles', [
+  const { data: battles, loading: battlesLoading } = useCollectionOnce<Battle>('battles', [
     orderBy('createdAt', 'desc'),
   ]);
   const { data: qualifierTracks, loading: qualifierTracksLoading } =
-    useCollection<QualifierTrack>('qualifierTracks', [orderBy('registrationDeadline', 'asc')]);
-  const { data: championships, loading: championshipsLoading } = useCollection<Championship>(
+    useCollectionOnce<QualifierTrack>('qualifierTracks', [orderBy('registrationDeadline', 'asc')]);
+  const { data: championships, loading: championshipsLoading } = useCollectionOnce<Championship>(
     'championships',
     [orderBy('createdAt', 'desc')],
   );

@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { Swords, Users, Clock, ArrowRight, Trophy, Sparkles, Filter } from 'lucide-react';
-import { useAuth, useCollection, orderBy, where } from '@batalha/firebase';
+import { useAuth, useCollectionOnce, orderBy, where } from '@batalha/firebase';
 import { Badge, Button, Card, CardContent, Skeleton, EmptyState } from '@batalha/ui';
 import { formatCurrency, formatRelativeTime, toDate } from '@batalha/utils';
 import {
@@ -161,8 +161,8 @@ export default function BattlesPage() {
     data: battles,
     loading,
     error,
-  } = useCollection<Battle>('battles', [orderBy('createdAt', 'desc')]);
-  const { data: myBattleEntries, loading: myBattleEntriesLoading } = useCollection<BattleEntry>(
+  } = useCollectionOnce<Battle>('battles', [orderBy('createdAt', 'desc')]);
+  const { data: myBattleEntries, loading: myBattleEntriesLoading } = useCollectionOnce<BattleEntry>(
     user ? 'battleEntries' : undefined,
     user ? [where('userId', '==', user.uid), where('status', '==', 'confirmed')] : [],
   );

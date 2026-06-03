@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Trophy, Crown, Medal, Award, Globe, MapPin, ChevronDown } from 'lucide-react';
-import { useCollection, orderBy, limit, where } from '@batalha/firebase';
+import { useCollectionOnce, orderBy, limit, where } from '@batalha/firebase';
 import { Badge, Skeleton, EmptyState } from '@batalha/ui';
 import { formatNumber, getRankTier } from '@batalha/utils';
 import {
@@ -153,7 +153,7 @@ export default function RankingPage() {
   const [rankingMode, setRankingMode] = useState<RankingMode>('allTime');
   const [page, setPage] = useState(1);
 
-  const { data: activeSeasons } = useCollection<Season>('seasons', [
+  const { data: activeSeasons } = useCollectionOnce<Season>('seasons', [
     where('status', '==', 'active'),
     orderBy('start', 'desc'),
     limit(1),
@@ -162,7 +162,7 @@ export default function RankingPage() {
   const seasonId = activeSeason?.id ?? null;
 
   const seasonRankingCollection = seasonId ? `seasonRankings/${seasonId}/users` : undefined;
-  const { data: seasonRankingUsers, loading: seasonRankingLoading } = useCollection<SeasonRanking>(
+  const { data: seasonRankingUsers, loading: seasonRankingLoading } = useCollectionOnce<SeasonRanking>(
     seasonRankingCollection,
     seasonRankingCollection ? [orderBy('totalPoints', 'desc')] : [],
   );
