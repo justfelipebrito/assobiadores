@@ -144,12 +144,7 @@ export async function finalizeBattle(
     .collection('submissions')
     .where('battleId', '==', battleId)
     .where('status', '==', 'approved')
-    .orderBy('voteCount', 'desc')
     .get();
-  if (submissionsSnapshot.empty) {
-    throw new ApiError(400, 'Nenhuma submissao aprovada encontrada');
-  }
-
   const entriesSnapshot = await db
     .collection('battleEntries')
     .where('battleId', '==', battleId)
@@ -162,8 +157,25 @@ export async function finalizeBattle(
   const eligibleSubmissions = submissions.filter((submission) =>
     confirmedUserIds.has(submission.userId),
   );
-  if (eligibleSubmissions.length === 0) {
-    throw new ApiError(400, 'Nenhum envio de participante confirmado encontrado');
+
+  if (submissions.length === 0 || eligibleSubmissions.length === 0) {
+    const noWinnerReason =
+      submissions.length === 0 ? 'no-approved-submissions' : 'no-confirmed-participant-submissions';
+    const batch = db.batch();
+    batch.update(battleRef, {
+      status: 'finished',
+      winners: [],
+      officialScoringApplied: false,
+      seasonScoringApplied: false,
+      seasonScoringEligibility: {
+        eligible: false,
+        reason: noWinnerReason,
+      },
+      finalizedAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    await batch.commit();
+    return { success: true, winners: [], officialScoringApplied: false };
   }
 
   const rankedSubmissions = rankSubmissions(eligibleSubmissions);
@@ -263,6 +275,7 @@ export async function finalizeBattle(
     winners,
     officialScoringApplied,
     seasonScoringApplied: officialScoringApplied,
+    finalizedAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
   });
 

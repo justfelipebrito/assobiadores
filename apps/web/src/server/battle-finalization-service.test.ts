@@ -79,12 +79,12 @@ function createDb({
       throw new Error(`Unexpected collection ${name}`);
     }),
   };
-  return { db, batch, ref };
+  return { db, batch, ref, submissionsQuery };
 }
 
 describe('finalizeBattle', () => {
   it('finalizes a voting battle through the web admin service', async () => {
-    const { db, batch } = createDb();
+    const { db, batch, submissionsQuery } = createDb();
 
     await expect(
       finalizeBattle(db as never, { battleId: 'battle-1', actorUserId: 'creator-1' }),
@@ -116,6 +116,7 @@ describe('finalizeBattle', () => {
       }),
     );
     expect(batch.commit).toHaveBeenCalledTimes(1);
+    expect(submissionsQuery.orderBy).not.toHaveBeenCalled();
   });
 
   it('requires a tie-break before finalizing an unresolved 1v1 tie', async () => {
@@ -255,6 +256,63 @@ describe('finalizeBattle', () => {
 
     expect(result.winners.map((winner) => winner.userId)).toEqual(['user-a']);
     expect(result.winners[0]).toMatchObject({ userId: 'user-a', points: 10 });
+  });
+
+  it('finishes battles with no approved submissions without awarding points', async () => {
+    const { db, batch } = createDb({ submissions: [] });
+
+    await expect(
+      finalizeBattle(db as never, { battleId: 'battle-1', actorUserId: 'creator-1' }),
+    ).resolves.toEqual({
+      success: true,
+      winners: [],
+      officialScoringApplied: false,
+    });
+
+    expect(batch.update).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'battle-1' }),
+      expect.objectContaining({
+        status: 'finished',
+        winners: [],
+        officialScoringApplied: false,
+        seasonScoringApplied: false,
+        seasonScoringEligibility: {
+          eligible: false,
+          reason: 'no-approved-submissions',
+        },
+      }),
+    );
+    expect(batch.set).not.toHaveBeenCalled();
+    expect(batch.commit).toHaveBeenCalledTimes(1);
+  });
+
+  it('finishes battles with only unconfirmed participant submissions without awarding points', async () => {
+    const { db, batch } = createDb({
+      submissions: [{ userId: 'outsider', status: 'approved', voteCount: 10 }],
+      entries: [{ userId: 'user-a', status: 'confirmed' }],
+    });
+
+    await expect(
+      finalizeBattle(db as never, { battleId: 'battle-1', actorUserId: 'creator-1' }),
+    ).resolves.toEqual({
+      success: true,
+      winners: [],
+      officialScoringApplied: false,
+    });
+
+    expect(batch.update).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'battle-1' }),
+      expect.objectContaining({
+        status: 'finished',
+        winners: [],
+        officialScoringApplied: false,
+        seasonScoringEligibility: {
+          eligible: false,
+          reason: 'no-confirmed-participant-submissions',
+        },
+      }),
+    );
+    expect(batch.set).not.toHaveBeenCalled();
   });
 
   it('blocks non-admin and non-voting battle finalization', async () => {

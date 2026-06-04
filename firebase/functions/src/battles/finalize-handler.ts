@@ -8,6 +8,7 @@ export interface FinalizeBattleFieldValue {
 
 export interface FinalizeBattleLogger {
   info(message: string): void;
+  warn?(message: string): void;
 }
 
 export interface FinalizeBattleFirestore {
@@ -227,12 +228,7 @@ export async function finalizeBattleHandler({
     .collection('submissions')
     .where('battleId', '==', battleId)
     .where('status', '==', 'approved')
-    .orderBy('voteCount', 'desc')
     .get();
-
-  if (submissions.empty) {
-    throw new HttpsError('failed-precondition', 'Nenhuma submissao aprovada encontrada');
-  }
 
   const entries = await db
     .collection('battleEntries')
@@ -242,6 +238,7 @@ export async function finalizeBattleHandler({
 
   const submissionData = submissions.docs.map((doc: { data(): Record<string, any> }) => doc.data());
   const entryData = entries.docs.map((doc: { data(): Record<string, any> }) => doc.data());
+  const hasApprovedSubmissions = submissionData.length > 0;
   const scoringEligibility = getBattleScoringEligibility({
     battle,
     entries: entryData,
@@ -353,8 +350,13 @@ export async function finalizeBattleHandler({
     seasonScoringApplied: awardsOfficialPoints,
     seasonScoringEligibility: {
       eligible: scoringEligibility.eligible,
-      reason: unresolvedWinnerTie ? 'unresolved-tie' : scoringEligibility.reason,
+      reason: !hasApprovedSubmissions
+        ? 'no-approved-submissions'
+        : unresolvedWinnerTie
+          ? 'unresolved-tie'
+          : scoringEligibility.reason,
     },
+    finalizedAt: fieldValue.serverTimestamp(),
     updatedAt: fieldValue.serverTimestamp(),
   });
 

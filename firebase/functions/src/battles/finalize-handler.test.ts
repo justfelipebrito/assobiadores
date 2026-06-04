@@ -99,7 +99,7 @@ function createDb({
     batch: vi.fn(() => batch),
   };
 
-  return { db, batch, updates, sets, battleRef };
+  return { db, batch, updates, sets, battleRef, submissionsQuery };
 }
 
 describe('finalizeBattleHandler', () => {
@@ -153,7 +153,7 @@ describe('finalizeBattleHandler', () => {
   });
 
   it('awards unified season/category points for 1v1 battle wins', async () => {
-    const { db, updates, sets } = createDb({
+    const { db, updates, sets, submissionsQuery } = createDb({
       battle: {
         type: 'official',
         format: 'duel',
@@ -201,6 +201,7 @@ describe('finalizeBattleHandler', () => {
     expect(
       updates.find(({ ref }) => (ref as { id?: string }).id === 'participant-1')?.data,
     ).not.toHaveProperty('points');
+    expect(submissionsQuery.orderBy).not.toHaveBeenCalled();
     expect(sets).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -415,6 +416,48 @@ describe('finalizeBattleHandler', () => {
         seasonScoringEligibility: {
           eligible: false,
           reason: 'missing-category',
+        },
+      }),
+    });
+  });
+
+  it('finishes voting battles with no approved submissions instead of leaving them stuck', async () => {
+    const { db, updates, battleRef } = createDb({
+      battle: {
+        type: 'community',
+        format: 'duel',
+        category: 'freestyle',
+        seasonId: '2026',
+        status: 'voting',
+      },
+      submissions: [],
+      entries: [{ userId: 'winner-1' }, { userId: 'winner-2' }],
+    });
+
+    const result = await finalizeBattleHandler({
+      db: db as never,
+      battleId: 'battle-1',
+      fieldValue,
+      logger: { info: vi.fn() },
+      HttpsError: TestHttpsError,
+    });
+
+    expect(result).toEqual({
+      success: true,
+      winners: [],
+      officialScoringApplied: false,
+    });
+    expect(updates).toHaveLength(1);
+    expect(updates[0]).toEqual({
+      ref: expect.objectContaining(battleRef),
+      data: expect.objectContaining({
+        status: 'finished',
+        winners: [],
+        finalizedAt: { _serverTimestamp: true },
+        seasonScoringApplied: false,
+        seasonScoringEligibility: {
+          eligible: false,
+          reason: 'no-approved-submissions',
         },
       }),
     });

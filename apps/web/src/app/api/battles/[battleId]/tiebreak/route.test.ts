@@ -36,5 +36,30 @@ describe('POST /api/battles/[battleId]/tiebreak', () => {
       battleId: 'battle-1',
       submissionId: 'submission-1',
     });
+    expect(res.headers.get('access-control-allow-origin')).toBe('*');
+    expect(res.headers.get('access-control-allow-headers')).toContain('authorization');
+  });
+
+  it('allows admin app preflight requests', async () => {
+    const { OPTIONS } = await import('./route');
+
+    const res = OPTIONS();
+
+    expect(res.status).toBe(204);
+    expect(res.headers.get('access-control-allow-origin')).toBe('*');
+    expect(res.headers.get('access-control-allow-methods')).toContain('POST');
+    expect(res.headers.get('access-control-allow-headers')).toContain('authorization');
+  });
+
+  it('keeps CORS headers on trusted service errors', async () => {
+    const { POST } = await import('./route');
+    resolveBattleTieBreak.mockRejectedValueOnce(new Error('unexpected'));
+
+    const res = await POST(request({ submissionId: 'submission-1' }) as never, {
+      params: { battleId: 'battle-1' },
+    });
+
+    expect(res.status).toBe(500);
+    expect(res.headers.get('access-control-allow-origin')).toBe('*');
   });
 });
