@@ -57,6 +57,16 @@ describe('Firestore read mode policy', () => {
     }
   });
 
+  it('keeps the ranking page backed by all-time users unless season ranking is selected', () => {
+    const rankingPage = readRepoFile('apps/web/src/app/ranking/page.tsx');
+
+    expect(rankingPage).toContain("useCollectionOnce<User>(\n    'users'");
+    expect(rankingPage).toContain("orderBy('points', 'desc')");
+    expect(rankingPage).toContain("rankingMode === 'season'");
+    expect(rankingPage).toContain('isSeasonRanking ? seasonRankingUsers : allTimeRankingUsers');
+    expect(rankingPage).toContain('visibleSeasonId');
+  });
+
   it('uses one-time reads for broad admin list screens and exposes qualifier refresh controls', () => {
     const adminListPages = [
       'apps/admin/src/app/page.tsx',

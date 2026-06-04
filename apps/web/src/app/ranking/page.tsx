@@ -10,6 +10,7 @@ import {
   type BrazilState,
   type Season,
   type SeasonRanking,
+  type User,
 } from '@batalha/types';
 import {
   getRankingUsers,
@@ -153,7 +154,7 @@ export default function RankingPage() {
   const [rankingMode, setRankingMode] = useState<RankingMode>('allTime');
   const [page, setPage] = useState(1);
 
-  const { data: activeSeasons } = useCollectionOnce<Season>('seasons', [
+  const { data: activeSeasons, loading: activeSeasonsLoading } = useCollectionOnce<Season>('seasons', [
     where('status', '==', 'active'),
     orderBy('start', 'desc'),
     limit(1),
@@ -161,22 +162,31 @@ export default function RankingPage() {
   const activeSeason = activeSeasons[0] ?? null;
   const seasonId = activeSeason?.id ?? null;
 
+  const { data: allTimeRankingUsers, loading: allTimeRankingLoading } = useCollectionOnce<User>(
+    'users',
+    [orderBy('points', 'desc'), limit(500)],
+  );
   const seasonRankingCollection = seasonId ? `seasonRankings/${seasonId}/users` : undefined;
   const { data: seasonRankingUsers, loading: seasonRankingLoading } = useCollectionOnce<SeasonRanking>(
     seasonRankingCollection,
     seasonRankingCollection ? [orderBy('totalPoints', 'desc')] : [],
   );
-  const rankingUsers = seasonRankingUsers;
-  const loading = seasonRankingLoading;
+  const isSeasonRanking = rankingMode === 'season' && Boolean(seasonId);
+  const rankingUsers = isSeasonRanking ? seasonRankingUsers : allTimeRankingUsers;
+  const visibleSeasonId = isSeasonRanking ? seasonId : null;
+  const loading =
+    allTimeRankingLoading ||
+    activeSeasonsLoading ||
+    (isSeasonRanking ? seasonRankingLoading : false);
 
   const users = useMemo(() => {
     return getRankingUsers({
       users: rankingUsers,
       scope,
       selectedState,
-      seasonId,
+      seasonId: visibleSeasonId,
     });
-  }, [rankingUsers, scope, seasonId, selectedState]);
+  }, [rankingUsers, scope, selectedState, visibleSeasonId]);
   const paginatedUsers = useMemo(
     () =>
       paginateRankingUsers({
@@ -332,7 +342,7 @@ export default function RankingPage() {
               key={user.id}
               user={user}
               index={(paginatedUsers.page - 1) * paginatedUsers.pageSize + index}
-              seasonId={seasonId}
+              seasonId={visibleSeasonId}
             />
           ))
         )}
