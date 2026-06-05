@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  canShowQualifierAvailableTracks,
   getQualifierEmptyMatchesCopy,
   getDisplayQualifierRound,
   getQualifierMatchHeaderDateCopy,
@@ -12,6 +13,12 @@ import {
 } from './qualifier-view';
 
 describe('qualifier view helpers', () => {
+  it('hides the available qualifier discovery rail from anonymous visitors', () => {
+    expect(canShowQualifierAvailableTracks(null)).toBe(false);
+    expect(canShowQualifierAvailableTracks(undefined)).toBe(false);
+    expect(canShowQualifierAvailableTracks({ uid: 'user-1' })).toBe(true);
+  });
+
   it('identifies active payment/registration records', () => {
     expect(isActiveQualifierRegistration({ status: 'pending_payment' })).toBe(true);
     expect(isActiveQualifierRegistration({ status: 'confirmed' })).toBe(true);

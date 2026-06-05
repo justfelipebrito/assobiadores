@@ -8,6 +8,10 @@ export function isActiveQualifierRegistration(registration: Pick<QualifierRegist
   );
 }
 
+export function canShowQualifierAvailableTracks(user: unknown) {
+  return Boolean(user);
+}
+
 export function getQualifierRegistrationStateCopy(
   registration: Pick<QualifierRegistration, 'status' | 'bracketStatus'>,
 ) {

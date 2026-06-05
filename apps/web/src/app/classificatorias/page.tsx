@@ -29,6 +29,7 @@ import { toast } from 'sonner';
 import { PixPaymentModal } from '@/components/payments/pix-payment-modal';
 import { MercadoPagoSecurityScript } from '@/components/payments/mercado-pago-security-script';
 import {
+  canShowQualifierAvailableTracks,
   getQualifierRegistrationStateCopy,
   isActiveQualifierRegistration,
 } from '@/lib/qualifier-view';
@@ -183,6 +184,7 @@ export default function QualifiersPage() {
       .map((registration) => registration.category),
   ).size;
   const shouldShowRegistrationSection = !user || !userRegion || activeRegistrationCategoryCount < 3;
+  const shouldShowAvailableQualifierTracks = canShowQualifierAvailableTracks(user);
 
   const createPayment = async () => {
     if (!user) {
@@ -326,35 +328,37 @@ export default function QualifiersPage() {
         </section>
       )}
 
-      <section className="mb-6">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <div>
-            <h2 className="font-semibold text-white">Classificatórias disponíveis</h2>
-            <p className="mt-1 text-sm text-surface-500">
-              {user && userRegion
-                ? `Categorias abertas para ${BRAZIL_STATE_LABELS[userRegion]}.`
-                : 'Principais estados abertos nesta temporada.'}
-            </p>
+      {shouldShowAvailableQualifierTracks && (
+        <section className="mb-6">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="font-semibold text-white">Classificatórias disponíveis</h2>
+              <p className="mt-1 text-sm text-surface-500">
+                {userRegion
+                  ? `Categorias abertas para ${BRAZIL_STATE_LABELS[userRegion]}.`
+                  : 'Principais estados abertos nesta temporada.'}
+              </p>
+            </div>
           </div>
-        </div>
-        <div className="grid gap-4 md:grid-cols-3">
-          {qualifierTracksLoading ? (
-            <QualifierTrackSkeletons count={user ? 3 : 15} />
-          ) : (
-            primaryQualifierTracks.map((track) => (
-              <QualifierTrackCard
-                key={track.id}
-                track={track}
-                eligibilityNote={
-                  user && userRegion
-                    ? 'Você pode se inscrever nesta Classificatória pela sua Naturalidade.'
-                    : undefined
-                }
-              />
-            ))
-          )}
-        </div>
-      </section>
+          <div className="grid gap-4 md:grid-cols-3">
+            {qualifierTracksLoading ? (
+              <QualifierTrackSkeletons count={3} />
+            ) : (
+              primaryQualifierTracks.map((track) => (
+                <QualifierTrackCard
+                  key={track.id}
+                  track={track}
+                  eligibilityNote={
+                    userRegion
+                      ? 'Você pode se inscrever nesta Classificatória pela sua Naturalidade.'
+                      : undefined
+                  }
+                />
+              ))
+            )}
+          </div>
+        </section>
+      )}
 
       {shouldShowRegistrationSection && (
         <section className="mb-6">
