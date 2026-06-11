@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { orderBy, useAuth, useCollectionOnce } from '@batalha/firebase';
+import { orderBy, useAuth, useCollectionOnce, getClientAuth } from '@batalha/firebase';
 import { Badge, Button, Card, CardContent, EmptyState, Input, Skeleton, Textarea } from '@batalha/ui';
 import { formatNumber } from '@batalha/utils';
 import type { User } from '@batalha/types';
@@ -11,6 +11,13 @@ import { SortableTableHeader } from '../../components/sortable-table-header';
 import { getNextSortState, sortRows, type SortState } from '../../components/sortable-table';
 
 type UserSortKey = 'user' | 'account' | 'birthState' | 'points';
+
+interface AdminUserPrivateSummary {
+  userId: string;
+  pixKey: string;
+  hasCpf: boolean;
+  hasPhone: boolean;
+}
 
 const USER_SORT_SELECTORS = {
   user: (user: User) => user.displayName || user.email || '',
@@ -159,11 +166,14 @@ function UserEditModal({
 }
 
 export default function UsersPage() {
+  const { user: adminUser } = useAuth();
   const [sort, setSort] = useState<SortState<UserSortKey>>({
     key: 'user',
     direction: 'asc',
   });
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [privateSummaries, setPrivateSummaries] = useState<AdminUserPrivateSummary[]>([]);
+  const [privateSummariesLoading, setPrivateSummariesLoading] = useState(true);
   const { data: users, loading, refresh: refreshUsers } = useCollectionOnce<User>('users', [
     orderBy('createdAt', 'desc'),
   ]);
@@ -171,6 +181,50 @@ export default function UsersPage() {
     () => sortRows(users, sort, USER_SORT_SELECTORS),
     [sort, users],
   );
+  const privateSummaryByUserId = useMemo(
+    () => new Map(privateSummaries.map((summary) => [summary.userId, summary])),
+    [privateSummaries],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadPrivateSummaries() {
+      if (!adminUser) {
+        setPrivateSummaries([]);
+        setPrivateSummariesLoading(false);
+        return;
+      }
+
+      setPrivateSummariesLoading(true);
+      try {
+        const token = await getClientAuth().currentUser?.getIdToken();
+        if (!token) throw new Error('Sessao expirada. Entre novamente.');
+
+        const response = await fetch(`${getWebApiBaseUrl()}/api/admin/users/private-profiles`, {
+          headers: { authorization: `Bearer ${token}` },
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Erro ao carregar dados privados.');
+        if (!cancelled) setPrivateSummaries(data.profiles ?? []);
+      } catch (error) {
+        if (!cancelled) {
+          setPrivateSummaries([]);
+          toast.error(
+            error instanceof Error ? error.message : 'Erro ao carregar dados privados.',
+          );
+        }
+      } finally {
+        if (!cancelled) setPrivateSummariesLoading(false);
+      }
+    }
+
+    loadPrivateSummaries();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [adminUser]);
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8">
@@ -233,6 +287,12 @@ export default function UsersPage() {
                           setSort((current) => getNextSortState(current, 'birthState'))
                         }
                       />
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-surface-500">
+                        Pix
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-surface-500">
+                        Alertas
+                      </th>
                       <SortableTableHeader
                         label="Pontos"
                         active={sort.key === 'points'}
@@ -243,53 +303,85 @@ export default function UsersPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5">
-                    {sortedUsers.map((user) => (
-                      <tr
-                        key={user.id}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => setSelectedUser(user)}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter' || event.key === ' ') {
-                            event.preventDefault();
-                            setSelectedUser(user);
-                          }
-                        }}
-                        className="cursor-pointer transition-colors hover:bg-white/[0.04] focus:bg-white/[0.04] focus:outline-none"
-                      >
-                        <td className="px-4 py-3">
-                          <div className="flex min-w-0 items-center gap-3">
-                            {user.photoURL ? (
-                              <img
-                                src={user.photoURL}
-                                alt=""
-                                className="h-10 w-10 rounded-full object-cover"
-                              />
-                            ) : (
-                              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-500/20 text-sm font-bold text-brand-200">
-                                {(user.displayName || user.email || '?').slice(0, 1).toUpperCase()}
+                    {sortedUsers.map((user) => {
+                      const privateSummary = privateSummaryByUserId.get(user.id);
+                      const missingFields = [
+                        !privateSummary?.hasCpf ? 'CPF' : null,
+                        !privateSummary?.hasPhone ? 'telefone' : null,
+                      ].filter(Boolean);
+
+                      return (
+                        <tr
+                          key={user.id}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => setSelectedUser(user)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              setSelectedUser(user);
+                            }
+                          }}
+                          className="cursor-pointer transition-colors hover:bg-white/[0.04] focus:bg-white/[0.04] focus:outline-none"
+                        >
+                          <td className="px-4 py-3">
+                            <div className="flex min-w-0 items-center gap-3">
+                              {user.photoURL ? (
+                                <img
+                                  src={user.photoURL}
+                                  alt=""
+                                  className="h-10 w-10 rounded-full object-cover"
+                                />
+                              ) : (
+                                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-500/20 text-sm font-bold text-brand-200">
+                                  {(user.displayName || user.email || '?')
+                                    .slice(0, 1)
+                                    .toUpperCase()}
+                                </div>
+                              )}
+                              <div className="min-w-0">
+                                <p className="truncate font-medium text-white">
+                                  {user.displayName}
+                                </p>
+                                <p className="truncate text-xs text-surface-500">{user.email}</p>
                               </div>
-                            )}
-                            <div className="min-w-0">
-                              <p className="truncate font-medium text-white">{user.displayName}</p>
-                              <p className="truncate text-xs text-surface-500">{user.email}</p>
                             </div>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex flex-wrap gap-2">
-                            <Badge variant={getRoleVariant(user.role) as 'default'}>
-                              {user.role}
-                            </Badge>
-                            <Badge variant="default">{user.plan}</Badge>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-surface-300">{user.birthState ?? '-'}</td>
-                        <td className="px-4 py-3 text-right font-semibold tabular-nums text-white">
-                          {formatNumber(user.points ?? 0)}
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex flex-wrap gap-2">
+                              <Badge variant={getRoleVariant(user.role) as 'default'}>
+                                {user.role}
+                              </Badge>
+                              <Badge variant="default">{user.plan}</Badge>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-surface-300">{user.birthState ?? '-'}</td>
+                          <td className="max-w-[220px] px-4 py-3">
+                            {privateSummariesLoading ? (
+                              <span className="text-surface-600">Carregando...</span>
+                            ) : privateSummary?.pixKey ? (
+                              <span className="block truncate font-medium text-surface-200">
+                                {privateSummary.pixKey}
+                              </span>
+                            ) : (
+                              <Badge variant="default">Sem Pix</Badge>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            {privateSummariesLoading ? (
+                              <span className="text-surface-600">-</span>
+                            ) : missingFields.length > 0 ? (
+                              <Badge variant="purple">Falta {missingFields.join(' e ')}</Badge>
+                            ) : (
+                              <Badge variant="success">Completo</Badge>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right font-semibold tabular-nums text-white">
+                            {formatNumber(user.points ?? 0)}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
