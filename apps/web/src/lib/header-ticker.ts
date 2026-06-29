@@ -97,13 +97,16 @@ function qualifierTickerItem(track: QualifierTrack, now: Date): HeaderTickerItem
     href: `/classificatorias/${track.slug}`,
     actionHref: `/classificatorias/${track.slug}`,
     actionLabel: track.status === 'registration_open' ? 'Entrar' : 'Ver',
-    badgeLabel: 'Classificatória',
+    badgeLabel: track.format === 'mini_knockout' ? 'Mini Classificatória' : 'Classificatória',
     badgeVariant: 'warning',
     statusLabel,
-    title: `${BRAZIL_STATE_LABELS[track.region]} ${COMPETITION_CATEGORY_LABELS[track.category]}`,
+    title:
+      track.format === 'mini_knockout' || track.scope === 'national'
+        ? `Nacional ${COMPETITION_CATEGORY_LABELS[track.category]}`
+        : `${track.region ? BRAZIL_STATE_LABELS[track.region] : 'Nacional'} ${COMPETITION_CATEGORY_LABELS[track.category]}`,
     nextAt,
     participantCount: track.confirmedCount + track.pendingPaymentCount || track.registeredCount,
-    region: track.region,
+    region: track.region ?? null,
   };
 }
 

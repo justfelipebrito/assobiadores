@@ -125,6 +125,7 @@ export const qualifierRegistrationStatusSchema = z.enum([
   'pending_payment',
   'confirmed',
   'cancelled',
+  'migrated_to_mini',
 ]);
 export type QualifierRegistrationStatus = z.infer<typeof qualifierRegistrationStatusSchema>;
 
@@ -142,7 +143,13 @@ export const qualifierRegistrationSchema = z.object({
   userId: z.string(),
   seasonId: z.string(),
   category: competitionCategorySchema,
-  region: brazilStateSchema,
+  scope: z.enum(['regional', 'national']).default('regional'),
+  region: brazilStateSchema.nullable().default(null),
+  originalRegion: brazilStateSchema.nullable().default(null),
+  format: z.enum(['state_qualifier', 'mini_knockout']).default('state_qualifier'),
+  eventId: z.string().nullable().default(null),
+  sourceRegistrationId: z.string().nullable().default(null),
+  sourceTrackId: z.string().nullable().default(null),
   status: qualifierRegistrationStatusSchema.default('pending_payment'),
   bracketStatus: qualifierBracketStatusSchema.default('registered'),
   currentRound: z.number().int().nonnegative().default(0),
@@ -153,6 +160,7 @@ export const qualifierRegistrationSchema = z.object({
   platformFeePercent: z.number().nonnegative().default(20),
   prizePoolPercent: z.number().nonnegative().default(80),
   paymentId: z.string().nullable().default(null),
+  ticketId: z.string().nullable().default(null),
   createdAt: timestampSchema,
   updatedAt: timestampSchema,
 });
@@ -174,7 +182,10 @@ export const qualifierMatchSchema = z.object({
   id: z.string(),
   seasonId: z.string(),
   category: competitionCategorySchema,
-  region: brazilStateSchema,
+  scope: z.enum(['regional', 'national']).default('regional'),
+  region: brazilStateSchema.nullable().default(null),
+  format: z.enum(['state_qualifier', 'mini_knockout']).default('state_qualifier'),
+  eventId: z.string().nullable().default(null),
   roundNumber: z.number().int().positive(),
   roundLabel: z.string().min(1).max(80),
   matchDayIndex: z.number().int().positive().default(1),
@@ -208,7 +219,10 @@ export const qualifierSubmissionSchema = z.object({
   registrationId: z.string(),
   seasonId: z.string(),
   category: competitionCategorySchema,
-  region: brazilStateSchema,
+  scope: z.enum(['regional', 'national']).default('regional'),
+  region: brazilStateSchema.nullable().default(null),
+  format: z.enum(['state_qualifier', 'mini_knockout']).default('state_qualifier'),
+  eventId: z.string().nullable().default(null),
   roundNumber: z.number().int().positive(),
   userId: z.string(),
   userDisplayName: z.string().min(1).max(120),
@@ -248,6 +262,7 @@ export const qualifierTrackStatusSchema = z.enum([
   'draw_pending',
   'active',
   'finished',
+  'postponed',
 ]);
 export type QualifierTrackStatus = z.infer<typeof qualifierTrackStatusSchema>;
 
@@ -257,7 +272,11 @@ export const qualifierTrackSchema = z.object({
   seasonId: z.string(),
   seasonYear: z.number().int().positive(),
   category: competitionCategorySchema,
-  region: brazilStateSchema,
+  scope: z.enum(['regional', 'national']).default('regional'),
+  region: brazilStateSchema.nullable().default(null),
+  format: z.enum(['state_qualifier', 'mini_knockout']).default('state_qualifier'),
+  eventId: z.string().nullable().default(null),
+  title: z.string().min(1).max(160).nullable().default(null),
   status: qualifierTrackStatusSchema.default('registration_open'),
   entryFeeCents: z.number().int().nonnegative().default(400),
   registrationDeadline: timestampSchema,
@@ -271,7 +290,42 @@ export const qualifierTrackSchema = z.object({
   registeredCount: z.number().int().nonnegative().default(0),
   confirmedCount: z.number().int().nonnegative().default(0),
   pendingPaymentCount: z.number().int().nonnegative().default(0),
+  prizePoolCents: z.number().int().nonnegative().default(0),
+  platformFeeCents: z.number().int().nonnegative().default(0),
+  postponedAt: timestampSchema.nullable().default(null),
+  postponedReason: z.string().nullable().default(null),
   createdAt: timestampSchema,
   updatedAt: timestampSchema,
 });
 export type QualifierTrack = z.infer<typeof qualifierTrackSchema>;
+
+// ── Qualifier Tickets ────────────────────────────────────────────────────────
+
+export const qualifierTicketStatusSchema = z.enum([
+  'available',
+  'reserved',
+  'used',
+  'expired',
+  'revoked',
+]);
+export type QualifierTicketStatus = z.infer<typeof qualifierTicketStatusSchema>;
+
+export const qualifierTicketSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  sourceRegistrationId: z.string(),
+  sourcePaymentId: z.string().nullable().default(null),
+  sourceTrackId: z.string(),
+  seasonId: z.string(),
+  category: competitionCategorySchema,
+  region: brazilStateSchema,
+  kind: z.literal('state_qualifier_entry'),
+  status: qualifierTicketStatusSchema.default('available'),
+  reservedRegistrationId: z.string().nullable().default(null),
+  usedRegistrationId: z.string().nullable().default(null),
+  issuedReason: z.literal('state_qualifier_postponed'),
+  issuedAt: timestampSchema,
+  expiresAt: timestampSchema.nullable().default(null),
+  updatedAt: timestampSchema,
+});
+export type QualifierTicket = z.infer<typeof qualifierTicketSchema>;

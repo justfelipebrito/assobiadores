@@ -6,9 +6,12 @@ import {
   getAllQualifierTracks,
   getHomepageHeroQualifierTracks,
   getHomepageSectionQualifierTracks,
+  getMiniQualifierTrackId,
+  getMiniQualifierTrackSlug,
   getQualifierTrackId,
   getQualifierTrackSlug,
   getQualifierTracksForStates,
+  parseMiniQualifierTrackSlug,
   parseQualifierTrackSlug,
   sortQualifierTracksForDiscovery,
 } from './qualifier-tracks';
@@ -28,6 +31,22 @@ describe('qualifier track helpers', () => {
     expect(parseQualifierTrackSlug('xx-freestyle-2026')).toBeNull();
     expect(parseQualifierTrackSlug('sp-freestyle-2027')).toBeNull();
     expect(parseQualifierTrackSlug('freestyle-2026')).toBeNull();
+  });
+
+  it('builds and parses mini qualifier track slugs', () => {
+    expect(getMiniQualifierTrackId('freestyle')).toBe('qualifier-mini-2026-freestyle');
+    expect(getMiniQualifierTrackSlug('freestyle')).toBe('mini-freestyle-2026');
+    expect(parseMiniQualifierTrackSlug('mini-freestyle-2026')).toEqual({
+      eventId: 'mini-qualifier-2026-freestyle',
+      trackId: 'qualifier-mini-2026-freestyle',
+      category: 'freestyle',
+      seasonYear: 2026,
+    });
+    expect(() => getMiniQualifierTrackSlug('melodia')).toThrow(
+      'Mini Classificatoria is available only for Freestyle.',
+    );
+    expect(parseMiniQualifierTrackSlug('mini-passaros-2026')).toBeNull();
+    expect(parseMiniQualifierTrackSlug('mini-beatbox-2026')).toBeNull();
   });
 
   it('returns fallback tracks for missing state/category tracks', () => {

@@ -27,6 +27,8 @@ import {
   type AdminQualifierScheduleFormValues,
 } from './qualifier-schedule-form';
 
+const MINI_QUALIFIER_CATEGORY: CompetitionCategory = 'freestyle';
+
 function SelectField({
   label,
   value,
@@ -74,7 +76,13 @@ const TRACK_STATUS_CONFIG: Record<
   draw_pending: { label: 'Sorteio pendente', variant: 'warning' },
   active: { label: 'Em andamento', variant: 'info' },
   finished: { label: 'Finalizada', variant: 'default' },
+  postponed: { label: 'Adiada', variant: 'warning' },
 };
+
+function getQualifierTrackScopeLabel(track: Pick<QualifierTrack, 'scope' | 'format' | 'region'>) {
+  if (track.scope === 'national' || track.format === 'mini_knockout') return 'Nacional';
+  return track.region ? BRAZIL_STATE_LABELS[track.region] : 'Nacional';
+}
 
 function AdminQualifierActions({ onChanged }: { onChanged: () => void }) {
   const { user } = useAuth();
@@ -83,6 +91,9 @@ function AdminQualifierActions({ onChanged }: { onChanged: () => void }) {
   const [loading, setLoading] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
   const [advancing, setAdvancing] = useState(false);
+  const [migratingMini, setMigratingMini] = useState(false);
+  const [finalizingMini, setFinalizingMini] = useState(false);
+  const [advancingMini, setAdvancingMini] = useState(false);
 
   const callQualifierApi = async (
     path:
@@ -108,6 +119,40 @@ function AdminQualifierActions({ onChanged }: { onChanged: () => void }) {
 
     if (!response.ok) {
       throw new Error(data.error || 'Erro ao atualizar Classificatória');
+    }
+
+    return data;
+  };
+
+  const callMiniQualifierApi = async (
+    path:
+      | '/api/admin/qualifiers/mini-migrate'
+      | '/api/admin/qualifiers/finalize-round'
+      | '/api/admin/qualifiers/advance-round',
+  ) => {
+    if (!user) {
+      throw new Error('Entre como admin para gerenciar Classificatórias.');
+    }
+
+    const token = await user.getIdToken();
+    const baseURL = getWebApiBaseUrl();
+    const eventId = `mini-qualifier-2026-${MINI_QUALIFIER_CATEGORY}`;
+    const body =
+      path === '/api/admin/qualifiers/mini-migrate'
+        ? { category: MINI_QUALIFIER_CATEGORY }
+        : { category: MINI_QUALIFIER_CATEGORY, eventId };
+    const response = await fetch(`${baseURL}${path}`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Erro ao atualizar Mini Classificatória');
     }
 
     return data;
@@ -186,6 +231,75 @@ function AdminQualifierActions({ onChanged }: { onChanged: () => void }) {
     }
   };
 
+  const migrateMiniQualifier = async () => {
+    if (
+      !confirm(
+        'Migrar inscrições pagas de Freestyle para a Mini Classificatória? As classificatórias estaduais Freestyle afetadas serão adiadas e ingressos futuros serão emitidos.',
+      )
+    ) {
+      return;
+    }
+
+    setMigratingMini(true);
+    try {
+      const data = await callMiniQualifierApi('/api/admin/qualifiers/mini-migrate');
+      toast.success(
+        `Mini criada: ${data.participantCount} participante(s), ${data.matchCount} partida(s), prêmio de R$ ${(Number(data.prizePoolCents ?? 0) / 100).toFixed(2)}.`,
+      );
+      onChanged();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao criar Mini Classificatória');
+    } finally {
+      setMigratingMini(false);
+    }
+  };
+
+  const finalizeMiniRound = async () => {
+    if (
+      !confirm(`Finalizar rodada atual da Mini Classificatória Freestyle?`)
+    ) {
+      return;
+    }
+
+    setFinalizingMini(true);
+    try {
+      const data = await callMiniQualifierApi('/api/admin/qualifiers/finalize-round');
+      toast.success(
+        data.finalizedCount > 0
+          ? `Rodada mini finalizada: ${data.finalizedCount} confronto(s).`
+          : 'Nenhum confronto mini em votação para finalizar.',
+      );
+      onChanged();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao finalizar Mini Classificatória');
+    } finally {
+      setFinalizingMini(false);
+    }
+  };
+
+  const advanceMiniRound = async () => {
+    if (
+      !confirm(`Avançar rodada da Mini Classificatória Freestyle?`)
+    ) {
+      return;
+    }
+
+    setAdvancingMini(true);
+    try {
+      const data = await callMiniQualifierApi('/api/admin/qualifiers/advance-round');
+      toast.success(
+        data.status === 'finished'
+          ? `Mini encerrada: ${data.qualifiedCount} vencedor(es).`
+          : `Rodada mini ${data.roundNumber} criada: ${data.matchCount} partida(s), ${data.byeCount} bye(s).`,
+      );
+      onChanged();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao avançar Mini Classificatória');
+    } finally {
+      setAdvancingMini(false);
+    }
+  };
+
   return (
     <Card>
       <CardContent>
@@ -237,6 +351,33 @@ function AdminQualifierActions({ onChanged }: { onChanged: () => void }) {
                 className="w-full"
               >
                 Avançar rodada
+              </Button>
+            </div>
+
+            <div className="grid gap-3 border-t border-white/10 pt-3 sm:grid-cols-3">
+              <Button
+                variant="secondary"
+                onClick={migrateMiniQualifier}
+                loading={migratingMini}
+                className="w-full"
+              >
+                Criar mini freestyle
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={finalizeMiniRound}
+                loading={finalizingMini}
+                className="w-full"
+              >
+                Finalizar mini freestyle
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={advanceMiniRound}
+                loading={advancingMini}
+                className="w-full"
+              >
+                Avançar mini freestyle
               </Button>
             </div>
           </div>
@@ -441,7 +582,8 @@ export default function AdminQualifiersPage() {
   const sortedTracks = useMemo(
     () =>
       [...tracks].sort((a, b) => {
-        if (a.region !== b.region) return a.region.localeCompare(b.region);
+        if (a.scope !== b.scope) return a.scope === 'national' ? -1 : 1;
+        if (a.region !== b.region) return String(a.region).localeCompare(String(b.region));
         return a.category.localeCompare(b.category);
       }),
     [tracks],
@@ -552,10 +694,10 @@ export default function AdminQualifiersPage() {
                       >
                         <div>
                           <p className="font-semibold text-white">
-                            {BRAZIL_STATE_LABELS[track.region]}
+                            {getQualifierTrackScopeLabel(track)}
                           </p>
                           <p className="mt-1 text-xs text-surface-500">
-                            {track.region} · {COMPETITION_CATEGORY_LABELS[track.category]}
+                            {track.region ?? 'BR'} · {COMPETITION_CATEGORY_LABELS[track.category]}
                           </p>
                         </div>
                         <div>
@@ -656,13 +798,17 @@ function QualifierTrackModal({
     if (!user) throw new Error('Entre como admin para gerenciar Classificatórias.');
 
     const token = await user.getIdToken();
+    const body =
+      track.format === 'mini_knockout'
+        ? { category: track.category, eventId: track.eventId }
+        : { region: track.region, category: track.category };
     const response = await fetch(`${getWebApiBaseUrl()}${path}`, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
         authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ region: track.region, category: track.category }),
+      body: JSON.stringify(body),
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Erro ao atualizar Classificatória');
@@ -704,11 +850,11 @@ function QualifierTrackModal({
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant={cfg.variant}>{cfg.label}</Badge>
-              <Badge variant="default">{track.region}</Badge>
+              <Badge variant="default">{track.region ?? 'BR'}</Badge>
               <Badge variant="default">{COMPETITION_CATEGORY_LABELS[track.category]}</Badge>
             </div>
             <h2 className="mt-3 text-xl font-bold text-white">
-              Classificatória {BRAZIL_STATE_LABELS[track.region]}{' '}
+              {track.format === 'mini_knockout' ? 'Mini Classificatória' : `Classificatória ${getQualifierTrackScopeLabel(track)}`}{' '}
               {COMPETITION_CATEGORY_LABELS[track.category]}
             </h2>
             <p className="mt-1 text-sm text-surface-400">
@@ -746,23 +892,25 @@ function QualifierTrackModal({
             <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
               <h3 className="font-semibold text-white">Operações</h3>
               <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                <Button
-                  onClick={() =>
-                    runAction({
-                      action: '/api/admin/qualifiers/generate',
-                      setLoading: setGenerating,
-                      confirmText: `Gerar chave da Classificatória ${track.region} ${COMPETITION_CATEGORY_LABELS[track.category]}?`,
-                      success: (data) =>
-                        Number(data.matchCount ?? 0) > 0
-                          ? `Chave gerada: ${data.matchCount} partida(s).`
-                          : `Classificatória encerrada: ${data.byeCount ?? 0} classificado(s).`,
-                    })
-                  }
-                  loading={generating}
-                  className="w-full"
-                >
-                  Gerar chave
-                </Button>
+                {track.format !== 'mini_knockout' ? (
+                  <Button
+                    onClick={() =>
+                      runAction({
+                        action: '/api/admin/qualifiers/generate',
+                        setLoading: setGenerating,
+                        confirmText: `Gerar chave da Classificatória ${track.region} ${COMPETITION_CATEGORY_LABELS[track.category]}?`,
+                        success: (data) =>
+                          Number(data.matchCount ?? 0) > 0
+                            ? `Chave gerada: ${data.matchCount} partida(s).`
+                            : `Classificatória encerrada: ${data.byeCount ?? 0} classificado(s).`,
+                      })
+                    }
+                    loading={generating}
+                    className="w-full"
+                  >
+                    Gerar chave
+                  </Button>
+                ) : null}
                 <Button
                   variant="secondary"
                   onClick={() =>

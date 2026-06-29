@@ -39,7 +39,9 @@ export async function generateQualifierBracket(
 
   const trackRef = db.collection('qualifierTracks').doc(getQualifierTrackId(region, category));
   const trackDoc = await trackRef.get();
-  const bracketStart = getDate(trackDoc.data()?.bracketStart) ?? QUALIFIER_BRACKET_START;
+  const track = trackDoc.data() ?? {};
+  const bracketStart = getDate(track.bracketStart) ?? QUALIFIER_BRACKET_START;
+  const maxQualified = getPositiveInteger(track.maxQualified, 64);
 
   const registrationsSnapshot = await db
     .collection('qualifierRegistrations')
@@ -74,6 +76,7 @@ export async function generateQualifierBracket(
     category,
     region,
     startsAt: bracketStart,
+    maxQualified,
   });
   const batch = db.batch();
 
@@ -122,6 +125,9 @@ export async function generateQualifierBracket(
     batch.set(matchRef, {
       id: matchRef.id,
       ...matchDoc,
+      scope: 'regional',
+      format: 'state_qualifier',
+      eventId: null,
       scheduledFor: Timestamp.fromDate(matchDoc.scheduledFor as Date),
       submissionDeadline: Timestamp.fromDate(matchDoc.submissionDeadline as Date),
       votingStart: Timestamp.fromDate(matchDoc.votingStart as Date),
@@ -199,4 +205,9 @@ function getDate(value: unknown) {
     return Number.isNaN(date.getTime()) ? null : date;
   }
   return null;
+}
+
+function getPositiveInteger(value: unknown, fallback: number) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? Math.floor(number) : fallback;
 }

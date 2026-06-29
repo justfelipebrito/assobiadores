@@ -35,7 +35,6 @@ import {
   type Championship,
   type DailyHighlight,
   type HomepageSettings,
-  type QualifierRegistration,
   type QualifierTrack,
   type Season,
   type SeasonRanking,
@@ -62,14 +61,15 @@ import {
   getVisibleHomepageChampionships,
 } from '@/lib/championship-view';
 import {
-  getHomepageHeroQualifierTracks,
+  buildMiniQualifierTrackFallback,
+  getMiniQualifierTrackId,
+  getMiniQualifierTrackTitle,
   getHomepageSectionQualifierTracks,
   getQualifierTrackStatusCopy,
   QUALIFIER_REGISTRATION_DEADLINE_LABEL,
 } from '@/lib/qualifier-tracks';
 import {
   getHomepageBattleCards,
-  getHomepageOfficialBattleHeroItems,
   getOfficialBattleCloseDate,
   getOfficialBattleHeroActionLabel,
 } from '@/lib/homepage-battles';
@@ -199,6 +199,7 @@ function QualifierHeroMomentCard({
 }) {
   const entries = getQualifierTrackEntryCount(track);
   const nextDate = getQualifierTrackNextDate(track);
+  const isMini = track.format === 'mini_knockout';
 
   return (
     <button
@@ -219,7 +220,7 @@ function QualifierHeroMomentCard({
         <div className="relative flex h-full flex-col justify-between p-3">
           <div className="flex items-center justify-between gap-2">
             <span className="rounded-md border border-brand-400/15 bg-black/30 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-brand-100">
-              {BRAZIL_STATE_LABELS[track.region]}
+              {isMini ? 'Mini' : track.region ? BRAZIL_STATE_LABELS[track.region] : 'Nacional'}
             </span>
             <span className="text-[10px] font-semibold text-surface-300">
               {entries} {entries === 1 ? 'inscrito' : 'inscritos'}
@@ -227,10 +228,10 @@ function QualifierHeroMomentCard({
           </div>
           <div>
             <p className="text-sm font-black text-white">
-              {COMPETITION_CATEGORY_LABELS[track.category]}
+              {isMini ? 'Mini Freestyle' : COMPETITION_CATEGORY_LABELS[track.category]}
             </p>
             <p className="mt-0.5 text-xs text-surface-400">
-              {nextDate ? formatRelativeTime(nextDate) : QUALIFIER_REGISTRATION_DEADLINE_LABEL}
+              {nextDate ? formatRelativeTime(nextDate) : isMini ? 'Última chamada' : 'Em breve'}
             </p>
           </div>
         </div>
@@ -243,12 +244,50 @@ function OfficialBattleHeroMomentCard({
   battle,
   active,
   onSelect,
+  href,
 }: {
   battle: Battle;
   active: boolean;
-  onSelect: () => void;
+  onSelect?: () => void;
+  href?: string;
 }) {
   const closeAt = getOfficialBattleCloseDate(battle);
+  const content = (
+    <div
+      className={`relative h-24 overflow-hidden rounded-xl border bg-surface-950/80 transition-all duration-300 ${
+        active
+          ? 'border-brand-400/70 shadow-[0_0_0_1px_rgba(37,169,114,0.18),0_18px_60px_rgba(0,0,0,0.45)]'
+          : 'border-white/10 hover:border-brand-400/40'
+      }`}
+    >
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(37,169,114,0.22),transparent_32%),radial-gradient(circle_at_80%_20%,rgba(74,222,128,0.12),transparent_36%)]" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+      <div className="relative flex h-full flex-col justify-between p-3">
+        <div className="flex items-center justify-between gap-2">
+          <span className="rounded-md border border-brand-400/15 bg-black/30 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-brand-100">
+            {battle.type === 'official' ? 'Oficial' : 'Batalha'}
+          </span>
+          <span className="text-[10px] font-semibold text-surface-300">
+            {getOfficialBattleHeroActionLabel(battle)}
+          </span>
+        </div>
+        <div>
+          <p className="line-clamp-1 text-sm font-black text-white">{battle.title}</p>
+          <p className="mt-0.5 text-xs text-surface-400">
+            {closeAt ? formatRelativeTime(closeAt) : 'Disponível'}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+
+  if (href) {
+    return (
+      <Link href={href} className="group block min-w-[220px] text-left sm:min-w-0">
+        {content}
+      </Link>
+    );
+  }
 
   return (
     <button
@@ -257,32 +296,7 @@ function OfficialBattleHeroMomentCard({
       aria-pressed={active}
       className="group block min-w-[220px] text-left sm:min-w-0"
     >
-      <div
-        className={`relative h-24 overflow-hidden rounded-xl border bg-surface-950/80 transition-all duration-300 ${
-          active
-            ? 'border-brand-400/70 shadow-[0_0_0_1px_rgba(37,169,114,0.18),0_18px_60px_rgba(0,0,0,0.45)]'
-            : 'border-white/10 hover:border-brand-400/40'
-        }`}
-      >
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(37,169,114,0.22),transparent_32%),radial-gradient(circle_at_80%_20%,rgba(74,222,128,0.12),transparent_36%)]" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
-        <div className="relative flex h-full flex-col justify-between p-3">
-          <div className="flex items-center justify-between gap-2">
-            <span className="rounded-md border border-brand-400/15 bg-black/30 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-brand-100">
-              Oficial
-            </span>
-            <span className="text-[10px] font-semibold text-surface-300">
-              {getOfficialBattleHeroActionLabel(battle)}
-            </span>
-          </div>
-          <div>
-            <p className="line-clamp-1 text-sm font-black text-white">{battle.title}</p>
-            <p className="mt-0.5 text-xs text-surface-400">
-              {closeAt ? formatRelativeTime(closeAt) : 'Em andamento'}
-            </p>
-          </div>
-        </div>
-      </div>
+      {content}
     </button>
   );
 }
@@ -384,12 +398,6 @@ export default function HomePage() {
       ? [where('dayKey', '==', todayDailyHighlightKey), where('userId', '==', user.uid), limit(1)]
       : [],
   );
-  const { data: confirmedQualifierRegistrations } = useCollectionOnce<QualifierRegistration>(
-    user ? 'qualifierRegistrations' : undefined,
-    user
-      ? [where('userId', '==', user.uid), where('status', '==', 'confirmed'), limit(1)]
-      : [],
-  );
   const { data: qualifierTracks, loading: qualifierTracksLoading } =
     useCollectionOnce<QualifierTrack>('qualifierTracks', [limit(200)]);
 
@@ -397,10 +405,7 @@ export default function HomePage() {
     () => getHomepageBattleCards(battles, 8),
     [battles],
   );
-  const officialHeroBattles = useMemo(
-    () => getHomepageOfficialBattleHeroItems({ battles, limit: 3 }),
-    [battles],
-  );
+  const officialHeroBattles = useMemo(() => activeBattles.slice(0, 2), [activeBattles]);
   const visibleChampionships = useMemo(
     () => getVisibleHomepageChampionships(championships, 20),
     [championships],
@@ -425,14 +430,12 @@ export default function HomePage() {
       }),
     [profile?.birthState, qualifierTracks, user],
   );
-  const heroQualifierTracks = useMemo(
-    () =>
-      getHomepageHeroQualifierTracks({
-        tracks: qualifierTracks,
-        userBirthState: user ? profile?.birthState : null,
-      }),
-    [profile?.birthState, qualifierTracks, user],
-  );
+  const heroQualifierTracks = useMemo(() => {
+    const miniTrack =
+      qualifierTracks.find((track) => track.id === getMiniQualifierTrackId('freestyle')) ??
+      buildMiniQualifierTrackFallback();
+    return [miniTrack];
+  }, [qualifierTracks]);
 
   const sortedRankingUsers = useMemo(
     () =>
@@ -447,9 +450,7 @@ export default function HomePage() {
   const heroQualifier = heroQualifierTracks[heroQualifierIndex] ?? heroQualifierTracks[0] ?? null;
   const heroQualifierEntries = heroQualifier ? getQualifierTrackEntryCount(heroQualifier) : 0;
   const heroQualifierNextDate = heroQualifier ? getQualifierTrackNextDate(heroQualifier) : null;
-  const hasConfirmedQualifierRegistration = confirmedQualifierRegistrations.length > 0;
-  const shouldShowOfficialBattleHero =
-    hasConfirmedQualifierRegistration && officialHeroBattles.length > 0;
+  const shouldShowOfficialBattleHero = false;
   const heroOfficialBattle =
     officialHeroBattles[heroOfficialBattleIndex] ?? officialHeroBattles[0] ?? null;
   const heroOfficialBattleCloseDate = heroOfficialBattle
@@ -494,11 +495,7 @@ export default function HomePage() {
       officialHeroBattles.length > 0 ? current % officialHeroBattles.length : 0,
     );
 
-    if (
-      !shouldShowOfficialBattleHero ||
-      officialBattleRotationPaused ||
-      officialHeroBattles.length <= 1
-    ) {
+    if (officialBattleRotationPaused || officialHeroBattles.length <= 1) {
       return undefined;
     }
 
@@ -609,24 +606,25 @@ export default function HomePage() {
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-400 opacity-70" />
                   <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-brand-400" />
                 </span>
-                Classificatórias abertas
+                Última chamada oficial
               </div>
 
               <p className="text-sm font-semibold text-surface-400 sm:text-base">
-                {BRAZIL_STATE_LABELS[heroQualifier.region]}
+                Mata-mata com um vencedor
               </p>
               <h1 className="mt-1.5 text-4xl font-black leading-none text-white sm:text-5xl lg:text-[4rem]">
-                Classificatória{' '}
+                Mini Classificatória{' '}
                 <span className="block text-brand-400">
-                  {COMPETITION_CATEGORY_LABELS[heroQualifier.category]}
+                  Freestyle
                 </span>
               </h1>
 
               <p className="mt-4 max-w-xl text-sm leading-6 text-surface-300 sm:text-base">
-                Entre na disputa oficial, acompanhe os confrontos e avance para o Regional.
+                Participantes pagos das Classificatórias estaduais entram em um mata-mata oficial.
+                A votação acontece por fase e o vencedor recebe o prêmio proporcional das inscrições.
                 {heroQualifierNextDate
-                  ? ` Inscrições ${formatRelativeTime(heroQualifierNextDate)}.`
-                  : ` Inscrições até ${QUALIFIER_REGISTRATION_DEADLINE_LABEL}.`}
+                  ? ` Próxima etapa ${formatRelativeTime(heroQualifierNextDate)}.`
+                  : ' Última chamada aberta.'}
               </p>
 
               <div className="mt-5 flex flex-wrap items-center gap-3 text-sm text-surface-300">
@@ -636,7 +634,7 @@ export default function HomePage() {
                 </span>
                 <span className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2">
                   <Trophy className="h-4 w-4 text-brand-300" />
-                  Vagas diretas para Regionais
+                  Prêmio para o campeão
                 </span>
                 <span className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-3 py-2">
                   <Clock className="h-4 w-4 text-surface-300" />
@@ -645,9 +643,9 @@ export default function HomePage() {
               </div>
 
               <div className="mt-6">
-                <Link href={user ? `/classificatorias/${heroQualifier.slug}` : '/entrar'}>
+                <Link href={`/classificatorias/${heroQualifier.slug}`}>
                   <button className="inline-flex h-12 items-center gap-2 rounded-xl bg-brand-500 px-7 text-sm font-black uppercase tracking-wider text-white shadow-[0_18px_50px_rgba(37,169,114,0.28)] transition-all hover:bg-brand-400 active:scale-[0.98]">
-                    Participar
+                    Acompanhar
                     <ArrowRight className="h-4 w-4" />
                   </button>
                 </Link>
@@ -655,7 +653,7 @@ export default function HomePage() {
             </div>
 
             <div className="mt-7 lg:ml-auto lg:w-[58%]">
-              <p className="mb-2 text-sm font-bold text-white">Classificatórias para você</p>
+              <p className="mb-2 text-sm font-bold text-white">Mini Classificatória e batalhas disponíveis</p>
               <div className="flex gap-3 overflow-x-auto pb-2 [scrollbar-width:none] sm:grid sm:grid-cols-3 sm:overflow-visible sm:pb-0">
                 {heroQualifierTracks.map((track, index) => (
                   <QualifierHeroMomentCard
@@ -666,6 +664,14 @@ export default function HomePage() {
                       setHeroQualifierIndex(index);
                       setHeroRotationPaused(true);
                     }}
+                  />
+                ))}
+                {officialHeroBattles.map((battle) => (
+                  <OfficialBattleHeroMomentCard
+                    key={battle.id}
+                    battle={battle}
+                    active={false}
+                    href={`/batalhas/${battle.id}`}
                   />
                 ))}
               </div>
@@ -997,7 +1003,9 @@ export default function HomePage() {
                 <div className="group flex h-full flex-col overflow-hidden rounded-2xl border border-white/[0.07] bg-surface-900 p-5 transition-all duration-300 hover:-translate-y-0.5 hover:border-brand-500/30 hover:shadow-[0_12px_40px_rgba(0,0,0,0.3)]">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="gold" className="text-[11px]">{getQualifierTrackStatusCopy(track)}</Badge>
-                    <Badge variant="default" className="text-[11px]">{BRAZIL_STATE_LABELS[track.region]}</Badge>
+                    <Badge variant="default" className="text-[11px]">
+                      {track.region ? BRAZIL_STATE_LABELS[track.region] : 'Nacional'}
+                    </Badge>
                   </div>
                   <h3 className="mt-4 flex-1 text-base font-bold text-white transition-colors group-hover:text-brand-300">
                     {COMPETITION_CATEGORY_LABELS[track.category]}

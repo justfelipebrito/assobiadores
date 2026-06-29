@@ -31,6 +31,15 @@ export function getQualifierRegistrationStateCopy(
     };
   }
 
+  if (registration.status === 'migrated_to_mini') {
+    return {
+      title: 'Migrada para Mini Classificatória',
+      description:
+        'Sua inscrição paga foi movida para a Mini Classificatória e gerou um ingresso para a próxima Classificatória Estadual.',
+      tone: 'brand' as const,
+    };
+  }
+
   if (registration.bracketStatus === 'qualified') {
     return {
       title: 'Classificado para o Regional',

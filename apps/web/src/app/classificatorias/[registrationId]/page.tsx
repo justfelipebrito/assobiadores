@@ -43,8 +43,10 @@ import {
   sortQualifierMatches,
 } from '@/lib/qualifier-view';
 import {
+  getMiniQualifierTrackTitle,
   getQualifierTrackId,
   getQualifierTrackTitle,
+  parseMiniQualifierTrackSlug,
   parseQualifierTrackSlug,
   QUALIFIER_BRACKET_END_LABEL,
   QUALIFIER_BRACKET_START_LABEL,
@@ -62,7 +64,7 @@ interface QualifierParticipant {
   seasonId: string;
   seasonYear: number;
   category: keyof typeof COMPETITION_CATEGORY_LABELS;
-  region: keyof typeof BRAZIL_STATE_LABELS;
+  region: keyof typeof BRAZIL_STATE_LABELS | null;
   displayName: string;
   rank: string;
   points: number;
@@ -127,12 +129,16 @@ export default function QualifierRegistrationPage() {
   const params = useParams<{ registrationId: string }>();
   const registrationId = params.registrationId;
   const publicTrackSlug = parseQualifierTrackSlug(registrationId);
+  const publicMiniTrackSlug = publicTrackSlug ? null : parseMiniQualifierTrackSlug(registrationId);
+  const isPublicQualifierPage = Boolean(publicTrackSlug || publicMiniTrackSlug);
   const [selectedRound, setSelectedRound] = useState<number | null>(null);
   const [submissionMatch, setSubmissionMatch] = useState<QualifierMatch | null>(null);
   const [votingSubmissionId, setVotingSubmissionId] = useState<string | null>(null);
   const [votedMatchIds, setVotedMatchIds] = useState<Set<string>>(new Set());
   const publicTrackId = publicTrackSlug
     ? getQualifierTrackId(publicTrackSlug.region, publicTrackSlug.category)
+    : publicMiniTrackSlug
+      ? publicMiniTrackSlug.trackId
     : undefined;
   const regionalChampionshipId = publicTrackSlug
     ? `championship-${publicTrackSlug.region.toLowerCase()}-2026-${publicTrackSlug.category}`
@@ -148,7 +154,7 @@ export default function QualifierRegistrationPage() {
   );
   const { data: registration, loading: registrationLoading } = useDocument<QualifierRegistration>(
     'qualifierRegistrations',
-    user && !publicTrackSlug ? registrationId : undefined,
+    user && !isPublicQualifierPage ? registrationId : undefined,
   );
   const { data: matches, loading: matchesLoading } = useCollection<QualifierMatch>(
     'qualifierMatches',
@@ -159,11 +165,13 @@ export default function QualifierRegistrationPage() {
           where('category', '==', publicTrackSlug.category),
           limit(1000),
         ]
+      : publicMiniTrackSlug
+        ? [where('eventId', '==', publicMiniTrackSlug.eventId), limit(1000)]
       : [where('registrationIds', 'array-contains', registrationId), limit(20)],
   );
   const { data: trackParticipants, loading: trackParticipantsLoading } =
     useCollection<QualifierParticipant>(
-      publicTrackSlug ? 'qualifierParticipants' : undefined,
+      isPublicQualifierPage ? 'qualifierParticipants' : undefined,
       publicTrackSlug
         ? [
             where('seasonId', '==', QUALIFIER_SEASON_ID),
@@ -171,10 +179,12 @@ export default function QualifierRegistrationPage() {
             where('category', '==', publicTrackSlug.category),
             limit(1000),
           ]
+        : publicMiniTrackSlug
+          ? [where('eventId', '==', publicMiniTrackSlug.eventId), limit(1000)]
         : [],
     );
   const { data: qualifierSubmissions } = useCollection<QualifierSubmission>(
-    publicTrackSlug ? 'qualifierSubmissions' : undefined,
+    isPublicQualifierPage ? 'qualifierSubmissions' : undefined,
     publicTrackSlug
       ? [
           where('seasonId', '==', QUALIFIER_SEASON_ID),
@@ -182,6 +192,8 @@ export default function QualifierRegistrationPage() {
           where('category', '==', publicTrackSlug.category),
           limit(1000),
         ]
+      : publicMiniTrackSlug
+        ? [where('eventId', '==', publicMiniTrackSlug.eventId), limit(1000)]
       : [],
   );
 
@@ -223,6 +235,16 @@ export default function QualifierRegistrationPage() {
   const canGoToNextRound = publicRoundNumbers.some((round) => round > displayRound);
   const stateCopy = registration ? getQualifierRegistrationStateCopy(registration) : null;
   const isOwner = Boolean(user && registration && registration.userId === user.uid);
+  const registrationScopeLabel =
+    registration?.scope === 'national' || registration?.format === 'mini_knockout'
+      ? 'Nacional'
+      : registration?.region
+        ? BRAZIL_STATE_LABELS[registration.region]
+        : 'Nacional';
+  const registrationTitle =
+    registration?.format === 'mini_knockout'
+      ? `Mini Classificatória ${COMPETITION_CATEGORY_LABELS[registration.category]}`
+      : `Classificatória ${registrationScopeLabel} ${registration ? COMPETITION_CATEGORY_LABELS[registration.category] : ''}`;
 
   async function voteOnQualifierSubmission(match: QualifierMatch, submissionId: string) {
     if (!user) {
@@ -258,7 +280,7 @@ export default function QualifierRegistrationPage() {
     }
   }
 
-  if (publicTrackSlug) {
+  if (isPublicQualifierPage) {
     if (publicTrackLoading) {
       return (
         <div className="mx-auto flex min-h-[50vh] max-w-5xl items-center justify-center px-4">
@@ -277,15 +299,18 @@ export default function QualifierRegistrationPage() {
               Inscrições abertas
             </span>
             <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-surface-300">
-              {BRAZIL_STATE_LABELS[publicTrackSlug.region]}
+              {publicTrackSlug ? BRAZIL_STATE_LABELS[publicTrackSlug.region] : 'Mini mata-mata'}
             </span>
           </div>
           <h1 className="text-2xl font-bold text-white">
-            {getQualifierTrackTitle(publicTrackSlug.region, publicTrackSlug.category)}
+            {publicTrackSlug
+              ? getQualifierTrackTitle(publicTrackSlug.region, publicTrackSlug.category)
+              : getMiniQualifierTrackTitle(publicMiniTrackSlug!.category)}
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-surface-400">
-            Link público da classificatória. Entre na plataforma para se inscrever pela sua
-            Naturalidade e acompanhar sua chave privada.
+            {publicTrackSlug
+              ? 'Link público da classificatória. Entre na plataforma para se inscrever pela sua Naturalidade e acompanhar sua chave privada.'
+              : 'Mini Classificatória oficial em mata-mata para participantes pagos migrados das Classificatórias estaduais adiadas.'}
           </p>
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
@@ -621,7 +646,7 @@ export default function QualifierRegistrationPage() {
               {COMPETITION_CATEGORY_LABELS[registration.category]}
             </span>
             <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-surface-300">
-              {BRAZIL_STATE_LABELS[registration.region]}
+              {registrationScopeLabel}
             </span>
             <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-surface-300">
               {QUALIFIER_SEASON_LABEL}
@@ -629,12 +654,12 @@ export default function QualifierRegistrationPage() {
           </div>
 
           <h1 className="text-2xl font-bold text-white">
-            Classificatória {BRAZIL_STATE_LABELS[registration.region]}{' '}
-            {COMPETITION_CATEGORY_LABELS[registration.category]}
+            {registrationTitle}
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-surface-400">
-            Esta é a sua jornada para disputar uma vaga no Regional. Quando o sorteio acontecer, o
-            confronto aparece aqui com prazo de envio e janela de votação.
+            {registration.format === 'mini_knockout'
+              ? 'Esta é a sua jornada na Mini Classificatória nacional. Quando o sorteio acontecer, o confronto aparece aqui com prazo de envio e janela de votação.'
+              : 'Esta é a sua jornada para disputar uma vaga no Regional. Quando o sorteio acontecer, o confronto aparece aqui com prazo de envio e janela de votação.'}
           </p>
 
           {stateCopy && (

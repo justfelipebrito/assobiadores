@@ -275,6 +275,12 @@ export default function QualifiersPage() {
             <div className="grid gap-3 md:grid-cols-2">
               {activeRegistrations.map((registration) => {
                 const registrationState = getQualifierRegistrationStateCopy(registration);
+                const registrationScopeLabel =
+                  registration.scope === 'national' || registration.format === 'mini_knockout'
+                    ? 'Nacional'
+                    : registration.region
+                      ? BRAZIL_STATE_LABELS[registration.region]
+                      : 'Nacional';
 
                 return (
                   <div
@@ -286,7 +292,7 @@ export default function QualifiersPage() {
                         {COMPETITION_CATEGORY_LABELS[registration.category]}
                       </span>
                       <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-surface-300">
-                        {BRAZIL_STATE_LABELS[registration.region]}
+                        {registrationScopeLabel}
                       </span>
                     </div>
                     <p className="mt-3 text-sm font-semibold text-white">

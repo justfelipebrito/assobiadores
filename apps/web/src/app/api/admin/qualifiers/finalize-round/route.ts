@@ -20,10 +20,11 @@ export async function POST(req: NextRequest) {
   try {
     const decodedToken = await requireDecodedToken(req);
     const body = await readJsonObject(req);
+    const eventId = typeof body.eventId === 'string' && body.eventId.trim() ? body.eventId : undefined;
     const regionResult = brazilStateSchema.safeParse(body.region);
-    if (!regionResult.success) throw new ApiError(400, 'Estado e obrigatorio');
     const categoryResult = competitionCategorySchema.safeParse(body.category);
-    if (!categoryResult.success) throw new ApiError(400, 'Categoria invalida');
+    if (!eventId && !regionResult.success) throw new ApiError(400, 'Estado e obrigatorio');
+    if (!eventId && !categoryResult.success) throw new ApiError(400, 'Categoria invalida');
     const roundNumber =
       typeof body.roundNumber === 'number' && Number.isFinite(body.roundNumber)
         ? Math.floor(body.roundNumber)
@@ -31,8 +32,9 @@ export async function POST(req: NextRequest) {
 
     const result = await finalizeQualifierRound(getAdminFirestore(), {
       adminUserId: decodedToken.uid,
-      region: regionResult.data,
-      category: categoryResult.data,
+      region: regionResult.success ? regionResult.data : undefined,
+      category: categoryResult.success ? categoryResult.data : undefined,
+      eventId,
       roundNumber,
     });
 

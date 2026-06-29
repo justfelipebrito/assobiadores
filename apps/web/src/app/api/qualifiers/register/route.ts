@@ -123,6 +123,111 @@ export async function POST(req: NextRequest) {
     }
 
     const userEmail = userData.email || decodedToken.email || '';
+    const ticketSnapshot = await db
+      .collection('qualifierTickets')
+      .where('userId', '==', userId)
+      .where('seasonId', '==', QUALIFIER_SEASON_ID)
+      .where('category', '==', category)
+      .where('region', '==', region)
+      .where('status', '==', 'available')
+      .limit(1)
+      .get();
+
+    if (!ticketSnapshot.empty) {
+      const ticketDoc = ticketSnapshot.docs[0]!;
+      const registrationRef = db.collection('qualifierRegistrations').doc();
+      const qualifierTrackRef = db
+        .collection('qualifierTracks')
+        .doc(getQualifierTrackId(region, category));
+      const batch = db.batch();
+      batch.set(registrationRef, {
+        id: registrationRef.id,
+        userId,
+        seasonId: QUALIFIER_SEASON_ID,
+        category: category as CompetitionCategory,
+        region,
+        scope: 'regional',
+        originalRegion: region,
+        format: 'state_qualifier',
+        eventId: null,
+        sourceRegistrationId: null,
+        sourceTrackId: null,
+        status: 'confirmed',
+        bracketStatus: 'waiting_draw',
+        currentRound: 0,
+        currentMatchId: null,
+        matchIds: [],
+        qualifiedChampionshipId: null,
+        entryFeeCents: QUALIFIER_ENTRY_FEE_CENTS,
+        platformFeePercent: QUALIFIER_PLATFORM_FEE_PERCENT,
+        prizePoolPercent: QUALIFIER_PRIZE_POOL_PERCENT,
+        paymentId: null,
+        ticketId: ticketDoc.id,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      batch.update(ticketDoc.ref, {
+        status: 'used',
+        usedRegistrationId: registrationRef.id,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      batch.set(
+        qualifierTrackRef,
+        {
+          id: qualifierTrackRef.id,
+          slug: getQualifierTrackSlug(region, category),
+          seasonId: QUALIFIER_SEASON_ID,
+          seasonYear: QUALIFIER_SEASON_YEAR,
+          category,
+          region,
+          scope: 'regional',
+          format: 'state_qualifier',
+          eventId: null,
+          status: 'registration_open',
+          entryFeeCents: QUALIFIER_ENTRY_FEE_CENTS,
+          registrationDeadline: QUALIFIER_REGISTRATION_DEADLINE,
+          bracketStart: QUALIFIER_BRACKET_START,
+          bracketEnd: QUALIFIER_BRACKET_END,
+          maxQualified: 64,
+          dailyMatchLimit: getQualifierDailyMatchLimit(0),
+          plannedMatchDays: 0,
+          plannedMatchCount: 0,
+          currentRound: 0,
+          registeredCount: FieldValue.increment(1),
+          confirmedCount: FieldValue.increment(1),
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+      batch.set(
+        db.collection('qualifierParticipants').doc(registrationRef.id),
+        {
+          userId,
+          seasonId: QUALIFIER_SEASON_ID,
+          seasonYear: QUALIFIER_SEASON_YEAR,
+          category,
+          region,
+          displayName:
+            typeof userData.displayName === 'string' && userData.displayName.trim()
+              ? userData.displayName
+              : 'Participante',
+          rank: userData.seasonCategoryPoints?.[String(QUALIFIER_SEASON_YEAR)]?.[category]?.rank ?? 'Iniciante',
+          points: userData.seasonCategoryPoints?.[String(QUALIFIER_SEASON_YEAR)]?.[category]?.points ?? 0,
+          confirmedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+      await batch.commit();
+
+      return NextResponse.json({
+        registrationId: registrationRef.id,
+        ticketId: ticketDoc.id,
+        paidWithTicket: true,
+      });
+    }
+
     const registrationRef = db.collection('qualifierRegistrations').doc();
     const paymentRef = db.collection('payments').doc();
     const idempotencyKey = createMercadoPagoReference([
@@ -159,6 +264,12 @@ export async function POST(req: NextRequest) {
       seasonId: QUALIFIER_SEASON_ID,
       category: category as CompetitionCategory,
       region,
+      scope: 'regional',
+      originalRegion: region,
+      format: 'state_qualifier',
+      eventId: null,
+      sourceRegistrationId: null,
+      sourceTrackId: null,
       status: 'pending_payment',
       bracketStatus: 'registered',
       currentRound: 0,
@@ -202,6 +313,9 @@ export async function POST(req: NextRequest) {
         seasonYear: QUALIFIER_SEASON_YEAR,
         category,
         region,
+        scope: 'regional',
+        format: 'state_qualifier',
+        eventId: null,
         status: 'registration_open',
         entryFeeCents: QUALIFIER_ENTRY_FEE_CENTS,
         registrationDeadline: QUALIFIER_REGISTRATION_DEADLINE,

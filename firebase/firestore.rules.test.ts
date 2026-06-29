@@ -508,6 +508,17 @@ describe('server-owned collections rules', () => {
       rank: 'Iniciante',
       points: 25,
     });
+    await seed('qualifierTickets/ticket-1', {
+      userId: 'user-1',
+      sourceRegistrationId: 'qualifier-registration-1',
+      sourcePaymentId: 'payment-1',
+      sourceTrackId: 'qualifier-sp-2026-freestyle',
+      seasonId: 'season-2026',
+      category: 'freestyle',
+      region: 'SP',
+      kind: 'state_qualifier_entry',
+      status: 'available',
+    });
     await seed('platformSettings/homepage', {
       dailyHighlightBannerEnabled: true,
       dailyHighlightBannerText: 'R$5 para o mais votado diariamente ate o final de Maio.',
@@ -562,6 +573,13 @@ describe('server-owned collections rules', () => {
         ),
       ),
     );
+  });
+
+  it('allows only the owner or admin to read qualifier tickets', async () => {
+    await assertSucceeds(getDoc(doc(authedDb('user-1'), 'qualifierTickets/ticket-1')));
+    await assertSucceeds(getDoc(doc(authedDb('admin-1'), 'qualifierTickets/ticket-1')));
+    await assertFails(getDoc(doc(authedDb('user-2'), 'qualifierTickets/ticket-1')));
+    await assertFails(getDoc(doc(unauthDb(), 'qualifierTickets/ticket-1')));
   });
 
   it('prevents direct client writes to battle entries', async () => {
@@ -797,5 +815,20 @@ describe('server-owned collections rules', () => {
     await assertFails(
       deleteDoc(doc(authedDb('user-1'), 'qualifierParticipants/qualifier-registration-1')),
     );
+  });
+
+  it('prevents direct client writes to qualifier tickets', async () => {
+    await assertFails(
+      setDoc(doc(authedDb('user-1'), 'qualifierTickets/ticket-2'), {
+        userId: 'user-1',
+        status: 'available',
+      }),
+    );
+    await assertFails(
+      updateDoc(doc(authedDb('user-1'), 'qualifierTickets/ticket-1'), {
+        status: 'used',
+      }),
+    );
+    await assertFails(deleteDoc(doc(authedDb('admin-1'), 'qualifierTickets/ticket-1')));
   });
 });

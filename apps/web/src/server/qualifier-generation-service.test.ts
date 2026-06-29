@@ -189,6 +189,26 @@ describe('generateQualifierBracket', () => {
     );
   });
 
+  it('uses track maxQualified when deciding whether a small field needs matches', async () => {
+    const { db } = createDb({
+      registrationDocs: registrations(10),
+      track: { maxQualified: 1 },
+    });
+
+    await expect(
+      generateQualifierBracket(db as never, {
+        adminUserId: 'admin-1',
+        region: 'SP',
+        category: 'freestyle',
+      }),
+    ).resolves.toMatchObject({
+      participantCount: 10,
+      matchCount: 2,
+      byeCount: 6,
+      status: 'active',
+    });
+  });
+
   it('uses the saved qualifier submission start when scheduling generated matches', async () => {
     const { db, batch } = createDb({
       track: { bracketStart: { seconds: Date.parse('2026-06-10T03:00:00.000Z') / 1000 } },

@@ -33,11 +33,13 @@ function createQuery(snapshot: unknown) {
 function createDb({
   existingRegistration,
   existingPayment,
+  availableTicket,
   userEmail = 'user@example.com',
   birthState = 'SP',
 }: {
   existingRegistration?: Record<string, unknown> & { id?: string };
   existingPayment?: Record<string, unknown> & { id?: string };
+  availableTicket?: Record<string, unknown> & { id?: string };
   userEmail?: string;
   birthState?: string | null;
 } = {}) {
@@ -46,7 +48,9 @@ function createDb({
     update: vi.fn(),
   };
   const paymentRef = { id: existingPayment?.id ?? 'payment-1' };
+  const ticketRef = { id: availableTicket?.id ?? 'ticket-1' };
   const qualifierTrackRef = { id: 'qualifier-sp-2026-freestyle' };
+  const participantRef = { id: 'participant-1' };
   const registrationQuery = createQuery(
     createDocsQuerySnapshot(
       existingRegistration
@@ -65,11 +69,25 @@ function createDb({
     exists: Boolean(existingPayment),
     data: () => existingPayment,
   };
+  const ticketQuery = createQuery(
+    createDocsQuerySnapshot(
+      availableTicket
+        ? [
+            {
+              id: availableTicket.id ?? 'ticket-1',
+              ref: ticketRef,
+              data: () => availableTicket,
+            },
+          ]
+        : [],
+    ),
+  );
   const userDoc = {
     data: () => ({ email: userEmail, birthState }),
   };
   const batch = {
     set: vi.fn(),
+    update: vi.fn(),
     commit: vi.fn(),
   };
 
@@ -89,6 +107,12 @@ function createDb({
       if (name === 'qualifierTracks') {
         return { doc: vi.fn(() => qualifierTrackRef) };
       }
+      if (name === 'qualifierTickets') {
+        return { where: ticketQuery.where };
+      }
+      if (name === 'qualifierParticipants') {
+        return { doc: vi.fn(() => participantRef) };
+      }
       if (name === 'users') {
         return { doc: vi.fn(() => ({ get: vi.fn(async () => userDoc) })) };
       }
@@ -98,7 +122,17 @@ function createDb({
     batch: vi.fn(() => batch),
   };
 
-  return { db, batch, registrationRef, paymentRef, qualifierTrackRef, registrationQuery };
+  return {
+    db,
+    batch,
+    registrationRef,
+    paymentRef,
+    qualifierTrackRef,
+    registrationQuery,
+    ticketQuery,
+    ticketRef,
+    participantRef,
+  };
 }
 
 async function post(body: unknown = { category: 'freestyle', region: 'SP' }) {
@@ -247,6 +281,40 @@ describe('POST /api/qualifiers/register', () => {
       email: 'test@testuser.com',
       first_name: 'APRO',
     });
+  });
+
+  it('uses an available qualifier ticket instead of creating a Pix payment', async () => {
+    const { db, batch, registrationRef, ticketRef, ticketQuery } = createDb({
+      availableTicket: { id: 'ticket-1', status: 'available' },
+    });
+    getAdminFirestore.mockReturnValue(db);
+
+    const res = await post({ category: 'freestyle' });
+
+    await expect(res.json()).resolves.toMatchObject({
+      registrationId: registrationRef.id,
+      ticketId: ticketRef.id,
+      paidWithTicket: true,
+    });
+    expect(res.status).toBe(200);
+    expect(ticketQuery.where).toHaveBeenCalledWith('status', '==', 'available');
+    expect(mpFetch).not.toHaveBeenCalled();
+    expect(batch.set).toHaveBeenCalledWith(
+      registrationRef,
+      expect.objectContaining({
+        status: 'confirmed',
+        bracketStatus: 'waiting_draw',
+        ticketId: 'ticket-1',
+        paymentId: null,
+      }),
+    );
+    expect(batch.update).toHaveBeenCalledWith(
+      ticketRef,
+      expect.objectContaining({
+        status: 'used',
+        usedRegistrationId: registrationRef.id,
+      }),
+    );
   });
 
   it('reuses an existing non-expired pending qualifier Pix', async () => {

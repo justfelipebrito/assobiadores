@@ -82,6 +82,7 @@ export async function confirmPaymentTargets(db: Firestore, paymentDoc: DocumentS
           seasonYear,
           category: registration.category,
           region: registration.region,
+          scope: registration.scope ?? 'regional',
           displayName:
             typeof participantUser?.displayName === 'string' && participantUser.displayName.trim()
               ? participantUser.displayName

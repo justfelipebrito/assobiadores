@@ -23,6 +23,7 @@ describe('qualifier view helpers', () => {
     expect(isActiveQualifierRegistration({ status: 'pending_payment' })).toBe(true);
     expect(isActiveQualifierRegistration({ status: 'confirmed' })).toBe(true);
     expect(isActiveQualifierRegistration({ status: 'cancelled' })).toBe(false);
+    expect(isActiveQualifierRegistration({ status: 'migrated_to_mini' })).toBe(false);
   });
 
   it('returns user-facing registration state copy', () => {
@@ -44,6 +45,12 @@ describe('qualifier view helpers', () => {
         bracketStatus: 'waiting_draw',
       }).title,
     ).toBe('Aguardando sorteio');
+    expect(
+      getQualifierRegistrationStateCopy({
+        status: 'migrated_to_mini',
+        bracketStatus: 'registered',
+      }).title,
+    ).toBe('Migrada para Mini Classificatória');
   });
 
   it('sorts matches by round and date', () => {

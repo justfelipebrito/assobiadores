@@ -87,7 +87,7 @@ export function validateQualifierScheduleValues({
       scope: track ? 'track' : 'all',
       ...(track
         ? {
-            region: track.region,
+            region: track.region ?? undefined,
             category: track.category,
           }
         : {}),

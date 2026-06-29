@@ -50,10 +50,25 @@ describe('POST /api/admin/qualifiers/advance-round', () => {
         adminUserId: 'admin-1',
         region: 'SP',
         category: 'freestyle',
+        eventId: undefined,
         roundNumber: 1,
       },
     );
     expect(res.headers.get('access-control-allow-origin')).toBe('*');
+  });
+
+  it('advances a mini qualifier round by event id without requiring a state', async () => {
+    const res = await post({ category: 'freestyle', eventId: 'mini-qualifier-2026-freestyle' });
+
+    expect(res.status).toBe(200);
+    expect(advanceQualifierRound).toHaveBeenCalledWith(
+      { db: true },
+      expect.objectContaining({
+        adminUserId: 'admin-1',
+        category: 'freestyle',
+        eventId: 'mini-qualifier-2026-freestyle',
+      }),
+    );
   });
 
   it('rejects invalid payloads before calling the service', async () => {

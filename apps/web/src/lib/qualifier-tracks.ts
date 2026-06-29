@@ -20,13 +20,35 @@ export const QUALIFIER_FINALIZATION_LABEL = '22:00 BRT';
 export const DEFAULT_PUBLIC_QUALIFIER_STATES: BrazilState[] = ['SP', 'RJ'];
 export const MAJOR_QUALIFIER_STATES: BrazilState[] = ['SP', 'RJ', 'MG', 'BA', 'RS'];
 export const ALL_QUALIFIER_STATES = Object.keys(BRAZIL_STATE_LABELS) as BrazilState[];
+export const MINI_QUALIFIER_CATEGORY: CompetitionCategory = 'freestyle';
 
 export function getQualifierTrackId(region: BrazilState, category: CompetitionCategory) {
   return `qualifier-${region.toLowerCase()}-${QUALIFIER_SEASON_YEAR}-${category}`;
 }
 
+export function getMiniQualifierEventId(category: CompetitionCategory) {
+  if (category !== MINI_QUALIFIER_CATEGORY) {
+    throw new Error('Mini Classificatoria is available only for Freestyle.');
+  }
+  return `mini-qualifier-${QUALIFIER_SEASON_YEAR}-${category}`;
+}
+
+export function getMiniQualifierTrackId(category: CompetitionCategory) {
+  if (category !== MINI_QUALIFIER_CATEGORY) {
+    throw new Error('Mini Classificatoria is available only for Freestyle.');
+  }
+  return `qualifier-mini-${QUALIFIER_SEASON_YEAR}-${category}`;
+}
+
 export function getQualifierTrackSlug(region: BrazilState, category: CompetitionCategory) {
   return `${region.toLowerCase()}-${category}-${QUALIFIER_SEASON_YEAR}`;
+}
+
+export function getMiniQualifierTrackSlug(category: CompetitionCategory) {
+  if (category !== MINI_QUALIFIER_CATEGORY) {
+    throw new Error('Mini Classificatoria is available only for Freestyle.');
+  }
+  return `mini-${category}-${QUALIFIER_SEASON_YEAR}`;
 }
 
 export function parseQualifierTrackSlug(slug: string): {
@@ -48,8 +70,70 @@ export function parseQualifierTrackSlug(slug: string): {
   return { region, category, seasonYear };
 }
 
+export function parseMiniQualifierTrackSlug(slug: string): {
+  eventId: string;
+  trackId: string;
+  category: CompetitionCategory;
+  seasonYear: number;
+} | null {
+  const match = slug.match(/^mini-(freestyle)-(\d{4})$/i);
+  if (!match) return null;
+
+  const category = match[1] as CompetitionCategory;
+  const seasonYear = Number(match[2]);
+
+  if (!COMPETITION_CATEGORIES.some((item) => item.value === category)) return null;
+  if (seasonYear !== QUALIFIER_SEASON_YEAR) return null;
+
+  return {
+    eventId: getMiniQualifierEventId(category),
+    trackId: getMiniQualifierTrackId(category),
+    category,
+    seasonYear,
+  };
+}
+
 export function getQualifierTrackTitle(region: BrazilState, category: CompetitionCategory) {
   return `Classificatória ${BRAZIL_STATE_LABELS[region]} ${COMPETITION_CATEGORY_LABELS[category]} ${QUALIFIER_SEASON_YEAR}`;
+}
+
+export function getMiniQualifierTrackTitle(category: CompetitionCategory) {
+  if (category !== MINI_QUALIFIER_CATEGORY) {
+    throw new Error('Mini Classificatoria is available only for Freestyle.');
+  }
+  return `Mini Classificatória ${COMPETITION_CATEGORY_LABELS[category]} ${QUALIFIER_SEASON_YEAR}`;
+}
+
+export function buildMiniQualifierTrackFallback() {
+  return {
+    id: getMiniQualifierTrackId(MINI_QUALIFIER_CATEGORY),
+    slug: getMiniQualifierTrackSlug(MINI_QUALIFIER_CATEGORY),
+    seasonId: QUALIFIER_SEASON_ID,
+    seasonYear: QUALIFIER_SEASON_YEAR,
+    category: MINI_QUALIFIER_CATEGORY,
+    scope: 'national',
+    region: null,
+    format: 'mini_knockout',
+    eventId: getMiniQualifierEventId(MINI_QUALIFIER_CATEGORY),
+    title: getMiniQualifierTrackTitle(MINI_QUALIFIER_CATEGORY),
+    status: 'registration_open',
+    entryFeeCents: QUALIFIER_ENTRY_FEE_CENTS,
+    registrationDeadline: null,
+    bracketStart: null,
+    bracketEnd: null,
+    maxQualified: 1,
+    dailyMatchLimit: 5,
+    plannedMatchDays: 0,
+    plannedMatchCount: 0,
+    currentRound: 0,
+    registeredCount: 0,
+    confirmedCount: 0,
+    pendingPaymentCount: 0,
+    prizePoolCents: 0,
+    platformFeeCents: 0,
+    postponedAt: null,
+    postponedReason: null,
+  } as unknown as QualifierTrack;
 }
 
 export function buildQualifierTrackFallback(region: BrazilState, category: CompetitionCategory) {
@@ -60,6 +144,10 @@ export function buildQualifierTrackFallback(region: BrazilState, category: Compe
     seasonYear: QUALIFIER_SEASON_YEAR,
     category,
     region,
+    scope: 'regional',
+    format: 'state_qualifier',
+    eventId: null,
+    title: getQualifierTrackTitle(region, category),
     status: 'registration_open',
     entryFeeCents: QUALIFIER_ENTRY_FEE_CENTS,
     registrationDeadline: null,
@@ -73,6 +161,10 @@ export function buildQualifierTrackFallback(region: BrazilState, category: Compe
     registeredCount: 0,
     confirmedCount: 0,
     pendingPaymentCount: 0,
+    prizePoolCents: 0,
+    platformFeeCents: 0,
+    postponedAt: null,
+    postponedReason: null,
   } as unknown as QualifierTrack;
 }
 
@@ -100,7 +192,9 @@ function getQualifierEntryCount(track: Pick<QualifierTrack, 'confirmedCount' | '
 function sortQualifierTracksByInterest(a: QualifierTrack, b: QualifierTrack) {
   const entryDiff = getQualifierEntryCount(b) - getQualifierEntryCount(a);
   if (entryDiff !== 0) return entryDiff;
-  if (a.region !== b.region) return a.region.localeCompare(b.region);
+  const aRegion = a.region ?? '';
+  const bRegion = b.region ?? '';
+  if (aRegion !== bRegion) return aRegion.localeCompare(bRegion);
   return a.category.localeCompare(b.category);
 }
 
@@ -157,10 +251,12 @@ export function sortQualifierTracksForDiscovery(
   const stateRank = new Map(priorityStates.map((state, index) => [state, index]));
 
   return [...tracks].sort((a, b) => {
-    const stateRankA = stateRank.get(a.region) ?? priorityStates.length;
-    const stateRankB = stateRank.get(b.region) ?? priorityStates.length;
+    const stateRankA = a.region ? stateRank.get(a.region) ?? priorityStates.length : priorityStates.length + 1;
+    const stateRankB = b.region ? stateRank.get(b.region) ?? priorityStates.length : priorityStates.length + 1;
     if (stateRankA !== stateRankB) return stateRankA - stateRankB;
-    if (a.region !== b.region) return a.region.localeCompare(b.region);
+    const aRegion = a.region ?? '';
+    const bRegion = b.region ?? '';
+    if (aRegion !== bRegion) return aRegion.localeCompare(bRegion);
     return a.category.localeCompare(b.category);
   });
 }
@@ -175,6 +271,8 @@ export function getQualifierTrackStatusCopy(track: Pick<QualifierTrack, 'status'
       return 'Confrontos em andamento';
     case 'finished':
       return 'Finalizada';
+    case 'postponed':
+      return 'Adiada';
     default:
       return 'Inscrições abertas';
   }

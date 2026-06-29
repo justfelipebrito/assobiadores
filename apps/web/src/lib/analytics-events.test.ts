@@ -58,7 +58,7 @@ describe('analytics events', () => {
       partnerName: 'AbsoluteAssobio',
       landingPath: '/?ref=absoluteassobio',
       capturedAt: '2026-05-12T00:00:00.000Z',
-      expiresAt: '2026-06-12T00:00:00.000Z',
+      expiresAt: '2099-06-12T00:00:00.000Z',
     });
     vi.stubGlobal('window', {
       gtag,

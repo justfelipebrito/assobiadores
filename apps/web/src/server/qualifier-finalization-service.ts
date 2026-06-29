@@ -16,8 +16,9 @@ export interface FinalizeQualifierMatchInput {
 
 export interface FinalizeQualifierRoundInput {
   adminUserId: string;
-  region: BrazilState;
-  category: CompetitionCategory;
+  region?: BrazilState;
+  category?: CompetitionCategory;
+  eventId?: string;
   roundNumber?: number;
   seasonId?: string;
 }
@@ -198,6 +199,7 @@ export async function finalizeQualifierRound(
     adminUserId,
     region,
     category,
+    eventId,
     roundNumber,
     seasonId = QUALIFIER_SEASON_ID,
   }: FinalizeQualifierRoundInput,
@@ -209,22 +211,31 @@ export async function finalizeQualifierRound(
     throw new ApiError(403, 'Apenas administradores podem finalizar confrontos');
   }
 
-  const trackDoc = await db
-    .collection('qualifierTracks')
-    .doc(getQualifierTrackId(region, category))
-    .get();
+  if (!eventId && (!region || !category)) {
+    throw new ApiError(400, 'Classificatoria invalida');
+  }
+
+  const trackDoc = eventId
+    ? await getQualifierTrackByEventId(db, eventId)
+    : await db
+        .collection('qualifierTracks')
+        .doc(getQualifierTrackId(region!, category!))
+        .get();
   if (!trackDoc.exists) throw new ApiError(404, 'Classificatoria nao encontrada');
 
   const currentRound = roundNumber ?? Number(trackDoc.data()?.currentRound ?? 0);
   if (currentRound <= 0) throw new ApiError(400, 'Rodada atual invalida');
 
-  const matchesSnapshot = await db
+  let matchesQuery = db
     .collection('qualifierMatches')
     .where('seasonId', '==', seasonId)
-    .where('region', '==', region)
-    .where('category', '==', category)
-    .where('roundNumber', '==', currentRound)
-    .get();
+    .where('roundNumber', '==', currentRound);
+
+  matchesQuery = eventId
+    ? matchesQuery.where('eventId', '==', eventId)
+    : matchesQuery.where('region', '==', region!).where('category', '==', category!);
+
+  const matchesSnapshot = await matchesQuery.get();
 
   if (matchesSnapshot.empty) {
     throw new ApiError(404, 'Nenhum confronto encontrado para esta rodada');
@@ -240,11 +251,21 @@ export async function finalizeQualifierRound(
   }
 
   return {
-    region,
-    category,
+    region: region ?? trackDoc.data()?.region,
+    category: category ?? trackDoc.data()?.category,
+    eventId: eventId ?? null,
     roundNumber: currentRound,
     finalizedCount: results.length,
     skippedCount: matchesSnapshot.size - results.length,
     results,
   };
+}
+
+async function getQualifierTrackByEventId(db: Firestore, eventId: string) {
+  const snapshot = await db
+    .collection('qualifierTracks')
+    .where('eventId', '==', eventId)
+    .limit(1)
+    .get();
+  return snapshot.docs[0] ?? { exists: false, data: () => undefined };
 }

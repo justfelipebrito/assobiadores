@@ -872,6 +872,27 @@ Latest hardening/refactor:
 
 Security/test work to do before expanding features:
 
+- Added Mini Classificatória support for low-density qualifier participation:
+  - introduced `format: mini_knockout`, `eventId`, `scope`, nullable `region`, `postponed` qualifier tracks, migrated qualifier registration status, and server-owned `qualifierTickets`;
+  - added a trusted admin mini migration API that moves paid confirmed state qualifier entries into a one-winner mini knockout, issues future state qualifier tickets, postpones affected state tracks, computes the 20% platform / 80% winner prize pool, and creates first-round mini matches;
+  - updated qualifier advancement/finalization to support mini events by `eventId` without using fake state bracket queries, while keeping existing state qualifier behavior and scoring;
+  - added ticket consumption in the public qualifier registration API so a future state qualifier can be entered with an available ticket instead of Pix;
+  - added `ticketId` to the shared qualifier registration schema and covered Pix-backed vs ticket-backed registration parsing in `packages/types`;
+  - added admin controls to create/finalize/advance mini qualifiers and public mini slugs like `/classificatorias/mini-freestyle-2026` for voting/results.
+- Verification for Mini Classificatória work:
+  - passed: focused web tests for mini migration, bracket generation, event advancement, admin API route, ticket registration, qualifier helper/view behavior (`45 passed`);
+  - passed: `pnpm --filter admin test`;
+  - passed: `pnpm --filter @batalha/types test`;
+  - passed: `pnpm type-check`;
+  - passed: Firestore rules test against the already-running emulator (`36 passed`), including qualifier ticket owner/admin reads and no client writes;
+  - passed: full `pnpm --filter web test` after refreshing the analytics partner-attribution fixture so it no longer expires after June 12, 2026.
+- Refined Mini Classificatória scope and homepage hero:
+  - Mini Classificatória is now explicitly Freestyle-only and national-only in helpers, shared types, trusted migration service, admin API validation, admin UI copy/actions, and public pages;
+  - national Mini Classificatórias use `scope: national`, `region: null`, and `eventId`; they are not attached to the participant's birth city, naturalidade, or state, while the future-entry ticket preserves the original state qualifier context;
+  - homepage hero no longer uses state qualifier tracks. It always promotes Mini Classificatória Freestyle and shows up to two available battle shortcuts when active/registration/voting battles exist, keeping the hero rail capped at three total items;
+  - added source/helper/service/API tests for the Freestyle-only rule and homepage hero policy.
+  - Verification: focused web suite for qualifier/homepage changes passed (`53 passed`), `pnpm --filter admin test` passed (`39 passed`), Firestore rules test passed (`36 passed`), `pnpm type-check` passed, and full `pnpm --filter web test` passed (`394 passed`).
+  - Local emulator seed: invoked the trusted admin Mini migration API for Freestyle. It migrated 23 confirmed paid local Freestyle qualifier registrations into `mini-qualifier-2026-freestyle`, issued 23 available future state-qualifier tickets, created 23 public Mini participant projections, generated 7 first-round Mini matches with 9 byes, postponed 5 source state tracks, and set the Mini prize pool to `R$ 73,60` with `R$ 18,40` platform fee. Verified `/classificatorias/mini-freestyle-2026` returns 200 locally.
 - Fixed AdSense verification gap: production already emitted the AdSense publisher script, but `/ads.txt` returned the app 404 page. Added `apps/web/public/ads.txt` with `google.com, pub-1405185920341102, DIRECT, f08c47fec0942fa0` and a regression test that guards the authorized seller record plus the publisher script/layout/App Hosting config.
 - Added admin Battle operations for winner follow-up and payout readiness: `/batalhas/{battleId}` in the admin app now shows the battle header, participant rows, submission/vote state, registered winners, points/prize amounts, and a winner email CTA. The email CTA uses a trusted web API route that validates the requester is an admin and the selected user is an actual battle winner before returning a prefilled `mailto:` draft; no real email provider is configured yet, so this is a compose/send workflow rather than backend delivery.
 - Refined the admin Battle navigation UX: clicking a battle row or its `Abrir` CTA now opens the battle detail page. Battle editing moved out of the list row interaction into a reusable `Configurações` modal owned by the battle detail page; the list keeps the same modal only for creating a new battle.
